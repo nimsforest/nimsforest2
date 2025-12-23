@@ -48,14 +48,22 @@ cd nimsforest
 
 ### 2. Start NATS with JetStream
 
+**Option A: Using Docker Compose (Recommended for Production)**
 ```bash
 docker-compose up -d
 ```
 
-This will start NATS with:
+**Option B: Using Native Binary (Works without Docker)**
+```bash
+./START_NATS.sh
+```
+
+Both options provide:
 - Client connections on `localhost:4222`
 - Monitoring UI on `http://localhost:8222`
 - JetStream enabled with persistent storage
+
+**Note**: If Docker is not available, the native binary approach works identically. See `INFRASTRUCTURE_VERIFICATION.md` for details.
 
 ### 3. Verify NATS is Running
 
@@ -160,12 +168,18 @@ js, _ := nc.JetStream()
 
 ## Stopping NATS
 
+**If using Docker Compose:**
 ```bash
 # Stop and remove containers
 docker-compose down
 
 # Stop and remove containers + volumes (clears all data)
 docker-compose down -v
+```
+
+**If using native binary:**
+```bash
+./STOP_NATS.sh
 ```
 
 ## Troubleshooting

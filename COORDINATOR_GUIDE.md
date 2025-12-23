@@ -289,7 +289,7 @@ Help Needed: [Specific request]
 **Solution**: Verify Task 1.1 complete, NATS server running
 ```bash
 ps aux | grep nats-server
-./START_NATS.sh
+make start
 curl http://localhost:8222/varz
 ```
 
@@ -314,7 +314,7 @@ Before marking Phase complete, verify:
 ### Phase 1 Complete
 - [ ] go.mod exists and valid
 - [ ] NATS server binary installed
-- [ ] START_NATS.sh and STOP_NATS.sh scripts created
+- [ ] NATS server can be started with `make start`
 - [ ] NATS starts successfully with JetStream
 - [ ] Directory structure created
 - [ ] Test program verifies connectivity
@@ -412,7 +412,7 @@ New agent joining the project:
 - [ ] Review `TASK_BREAKDOWN.md` (understand structure)
 - [ ] Check `PROGRESS.md` (current state)
 - [ ] Setup local environment (Go, NATS binary)
-- [ ] Run `./START_NATS.sh` to verify setup
+- [ ] Run `make start` to verify setup
 - [ ] Receive first task assignment
 - [ ] Update PROGRESS.md with name and task
 
@@ -456,7 +456,7 @@ grep "❌ Blocked" PROGRESS.md          # Show blocked tasks
 
 ### Run all tests
 ```bash
-./START_NATS.sh
+make start
 go test ./... -v
 go test ./... -cover
 go test ./... -race

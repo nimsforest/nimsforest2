@@ -14,9 +14,8 @@ This document breaks down the NimsForest prototype into discrete tasks that can 
 
 **Deliverables**:
 - [ ] Create `go.mod` file with Go 1.22+ and NATS dependencies
-- [ ] Install NATS server binary (native approach, no Docker required)
-- [ ] Create helper scripts: `START_NATS.sh` and `STOP_NATS.sh`
-- [ ] Optional: Create `docker-compose.yml` for production deployments
+- [ ] Setup Makefile with NATS installation and management commands
+- [ ] Ensure NATS server binary installation via `make setup`
 - [ ] Create basic project directory structure:
   ```
   nimsforest/
@@ -31,7 +30,7 @@ This document breaks down the NimsForest prototype into discrete tasks that can 
 
 **Acceptance Criteria**:
 - `go mod init` runs successfully
-- NATS server can be started with `./START_NATS.sh` or native binary
+- NATS server can be started with `make start`
 - NATS accessible on ports 4222 (client) and 8222 (monitoring)
 - JetStream enabled and functional
 - Test program verifies connectivity
@@ -336,7 +335,7 @@ This document breaks down the NimsForest prototype into discrete tasks that can 
 **Deliverables**:
 - [ ] Create `test/e2e/` directory
 - [ ] Implement end-to-end test:
-  - Start NATS with docker-compose
+  - Start NATS with `make start`
   - Start forest application
   - Send Stripe webhook to river
   - Verify leaf appears on wind

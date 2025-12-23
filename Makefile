@@ -274,22 +274,6 @@ vet: ## Run go vet
 
 check: fmt vet lint ## Run all code quality checks
 
-##@ Docker (Alternative to Native NATS)
-
-docker-up: ## Start NATS using Docker Compose
-	@echo "$(BLUE)🐳 Starting NATS with Docker Compose...$(NC)"
-	@docker-compose up -d
-	@echo "$(GREEN)✅ NATS started in Docker$(NC)"
-	@docker-compose ps
-
-docker-down: ## Stop NATS Docker containers
-	@echo "$(BLUE)🐳 Stopping Docker containers...$(NC)"
-	@docker-compose down
-	@echo "$(GREEN)✅ Docker containers stopped$(NC)"
-
-docker-logs: ## View NATS Docker logs
-	@docker-compose logs -f nats
-
 ##@ Cleanup
 
 clean: ## Remove build artifacts and temporary files

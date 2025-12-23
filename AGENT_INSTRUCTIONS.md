@@ -27,7 +27,7 @@ Before starting your assigned task:
 ### 4. Test Your Work
 ```bash
 # Start NATS server if not running
-./START_NATS.sh
+make start
 
 # Run tests for your component
 go test ./internal/core/... -v
@@ -283,15 +283,15 @@ nc -zv localhost 4222
 curl http://localhost:8222/varz
 
 # Restart if needed
-./STOP_NATS.sh
-./START_NATS.sh
+make stop
+make start
 ```
 
 ### JetStream Not Enabled
 ```bash
 # NATS must be started with --jetstream flag
 # Verify with: curl http://localhost:8222/jsz
-# START_NATS.sh already includes --jetstream flag
+# make start includes --jetstream flag
 ```
 
 ### Tests Hanging
@@ -439,7 +439,7 @@ Before marking your task complete:
    # Write tests
    
    # Test (ensure NATS is running)
-   ./START_NATS.sh
+   make start
    go test ./internal/core/soil_test.go -v
    go test ./internal/core/soil_test.go -tags=integration -v
    ```

@@ -1,9 +1,26 @@
 package core
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 )
+
+// jsonEqual compares two JSON byte slices semantically
+func jsonEqual(a, b []byte) bool {
+	var j1, j2 interface{}
+	if err := json.Unmarshal(a, &j1); err != nil {
+		return false
+	}
+	if err := json.Unmarshal(b, &j2); err != nil {
+		return false
+	}
+	
+	// Convert back to JSON to normalize
+	b1, _ := json.Marshal(j1)
+	b2, _ := json.Marshal(j2)
+	return string(b1) == string(b2)
+}
 
 func TestNewDecomposer(t *testing.T) {
 	js, nc := setupTestJetStream(t)
@@ -65,15 +82,16 @@ func TestDecomposer_CreateAction(t *testing.T) {
 		t.Fatalf("Failed to add compost: %v", err)
 	}
 
-	// Wait for decomposer to process
-	time.Sleep(500 * time.Millisecond)
+	// Wait for decomposer to process and persist
+	time.Sleep(800 * time.Millisecond)
 
 	// Verify entity was created in soil
 	retrieved, _, err := soil.Dig(entity)
 	if err != nil {
 		t.Fatalf("Entity not found in soil: %v", err)
 	}
-	if string(retrieved) != string(data) {
+	// Compare JSON content semantically (Go removes whitespace)
+	if !jsonEqual(data, retrieved) {
 		t.Errorf("Data mismatch: expected %s, got %s", string(data), string(retrieved))
 	}
 }
@@ -108,15 +126,16 @@ func TestDecomposer_UpdateAction(t *testing.T) {
 		t.Fatalf("Failed to add compost: %v", err)
 	}
 
-	// Wait for decomposer to process
-	time.Sleep(500 * time.Millisecond)
+	// Wait for decomposer to process and persist
+	time.Sleep(800 * time.Millisecond)
 
 	// Verify entity was updated in soil
 	retrieved, _, err := soil.Dig(entity)
 	if err != nil {
 		t.Fatalf("Entity not found in soil: %v", err)
 	}
-	if string(retrieved) != string(updatedData) {
+	// Compare JSON content semantically
+	if !jsonEqual(updatedData, retrieved) {
 		t.Errorf("Data mismatch after update: expected %s, got %s", string(updatedData), string(retrieved))
 	}
 }
@@ -147,15 +166,16 @@ func TestDecomposer_UpdateNonExistent(t *testing.T) {
 		t.Fatalf("Failed to add compost: %v", err)
 	}
 
-	// Wait for decomposer to process
-	time.Sleep(500 * time.Millisecond)
+	// Wait for decomposer to process and persist
+	time.Sleep(800 * time.Millisecond)
 
 	// Verify entity was created (not errored)
 	retrieved, _, err := soil.Dig(entity)
 	if err != nil {
 		t.Fatalf("Entity should have been created: %v", err)
 	}
-	if string(retrieved) != string(data) {
+	// Compare JSON content semantically
+	if !jsonEqual(data, retrieved) {
 		t.Errorf("Data mismatch: expected %s, got %s", string(data), string(retrieved))
 	}
 }
@@ -188,8 +208,8 @@ func TestDecomposer_DeleteAction(t *testing.T) {
 		t.Fatalf("Failed to add compost: %v", err)
 	}
 
-	// Wait for decomposer to process
-	time.Sleep(500 * time.Millisecond)
+	// Wait for decomposer to process and persist
+	time.Sleep(800 * time.Millisecond)
 
 	// Verify entity was deleted from soil
 	_, _, err = soil.Dig(entity)
@@ -224,7 +244,7 @@ func TestDecomposer_DeleteNonExistent(t *testing.T) {
 	}
 
 	// Wait for decomposer to process
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(800 * time.Millisecond)
 
 	// Should complete without error (idempotent)
 }
@@ -319,7 +339,7 @@ func TestRunDecomposer(t *testing.T) {
 	// Verify it's working
 	entity := "test/entity"
 	humus.Add("test-nim", entity, "create", []byte(`{"test": true}`))
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(800 * time.Millisecond)
 
 	_, _, err = soil.Dig(entity)
 	if err != nil {

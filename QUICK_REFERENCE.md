@@ -208,9 +208,8 @@ The fastest path through the project:
 | Payment Tree | `internal/trees/payment.go` |
 | AfterSales Nim | `internal/nims/aftersales.go` |
 | Main | `cmd/forest/main.go` |
-| NATS Scripts | `START_NATS.sh`, `STOP_NATS.sh` |
 | Module | `go.mod` |
-| Docker (optional) | `docker-compose.yml` |
+| Build System | `Makefile` |
 
 ---
 
@@ -219,7 +218,7 @@ The fastest path through the project:
 ### Setup
 ```bash
 # Start NATS
-./START_NATS.sh
+make start
 
 # Check NATS status
 ps aux | grep nats-server
@@ -376,7 +375,7 @@ Soil
 
 | Problem | Solution |
 |---------|----------|
-| NATS won't connect | Run `./START_NATS.sh`, verify with `curl http://localhost:8222/varz` |
+| NATS won't connect | Run `make start`, verify with `curl http://localhost:8222/varz` |
 | Tests timeout | Add context timeouts, check for leaks |
 | Import cycle | Check dependencies, core shouldn't import examples |
 | Optimistic lock fails | Implement retry logic |

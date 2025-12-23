@@ -37,7 +37,6 @@ soil (current state)
 - **Go 1.22+** (automatically managed by go.mod)
 - **Make** (standard on Linux/macOS, install on Windows via chocolatey or WSL)
 - **NATS Server** (automatically installed by `make` commands)
-- **Docker** (optional, only for `make docker-up`)
 
 ## Quick Start
 
@@ -76,12 +75,7 @@ This will automatically:
 - Create data directory for persistence
 - Display connection details and monitoring URLs
 
-**Alternative: Using Docker Compose**
-```bash
-make docker-up
-```
-
-Both approaches provide identical functionality:
+Connection details:
 - Client connections on `localhost:4222`
 - Monitoring UI on `http://localhost:8222`
 - JetStream enabled with persistent storage
@@ -130,9 +124,7 @@ nimsforest/
 │   ├── trees/          # Tree implementations (parsers)
 │   ├── nims/           # Nim implementations (business logic)
 │   └── leaves/         # Leaf type definitions
-├── START_NATS.sh       # Start NATS server (primary)
-├── STOP_NATS.sh        # Stop NATS server
-├── docker-compose.yml  # NATS infrastructure (optional)
+├── Makefile            # Build and development commands
 ├── go.mod              # Go dependencies
 └── README.md           # This file
 ```
@@ -227,19 +219,6 @@ make restart
 make status
 ```
 
-### Docker Commands (If Using Docker)
-
-```bash
-# Start with Docker
-make docker-up
-
-# Stop Docker containers
-make docker-down
-
-# View logs
-make docker-logs
-```
-
 ## Troubleshooting
 
 ### NATS won't start
@@ -295,7 +274,7 @@ make start
 - **Messaging**: NATS Server v2.12.3 with JetStream (native binary)
 - **Dependencies**: 
   - github.com/nats-io/nats.go v1.48.0
-- **Infrastructure**: Native NATS binary (Docker Compose optional)
+- **Infrastructure**: Native NATS binary managed via Make
 
 ## Documentation
 

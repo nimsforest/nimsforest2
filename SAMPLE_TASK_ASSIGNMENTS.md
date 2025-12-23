@@ -25,12 +25,10 @@ Set up the foundational project structure, dependency management, and NATS infra
 ### Deliverables
 1. Create `go.mod` with Go 1.22+ and dependencies:
    - github.com/nats-io/nats.go
-2. Install NATS server binary (native approach):
-   - Download latest NATS server release
-   - Install to system path
-   - Create convenience scripts (START_NATS.sh, STOP_NATS.sh)
-3. Optional: Create `docker-compose.yml` for production use
-4. Create project directory structure:
+2. Setup NATS server via Makefile:
+   - Use `make setup` to install NATS server binary
+   - Configure automatic installation for different platforms
+3. Create project directory structure:
    ```
    nimsforest/
    ├── cmd/forest/
@@ -46,7 +44,7 @@ Set up the foundational project structure, dependency management, and NATS infra
 ### Acceptance Criteria
 - [ ] `go mod init` runs successfully
 - [ ] NATS server binary installed and accessible
-- [ ] `./START_NATS.sh` starts NATS with JetStream enabled
+- [ ] `make start` starts NATS with JetStream enabled
 - [ ] NATS accessible on localhost:4222
 - [ ] Monitoring UI accessible on localhost:8222
 - [ ] All directories created
@@ -54,16 +52,14 @@ Set up the foundational project structure, dependency management, and NATS infra
 
 ### Commands to Verify
 ```bash
-# Test Go module
-go mod tidy
-go mod verify
+# Setup environment
+make setup
 
 # Start NATS server
-./START_NATS.sh
+make start
 
 # Verify NATS is running
-ps aux | grep nats-server
-nc -zv localhost 4222
+make status
 curl http://localhost:8222/varz
 curl http://localhost:8222/jsz
 
@@ -71,7 +67,7 @@ curl http://localhost:8222/jsz
 go run test_nats_connection.go
 
 # Stop NATS
-./STOP_NATS.sh
+make stop
 ```
 
 ### Update Progress
@@ -220,7 +216,7 @@ func (w *Wind) Catch(subject string, handler func(leaf Leaf)) (*nats.Subscriptio
 go test ./internal/core/wind_test.go -v
 
 # Integration tests (requires NATS)
-docker-compose up -d
+make start
 go test ./internal/core/wind_test.go -tags=integration -v
 ```
 
@@ -278,7 +274,7 @@ streamConfig := &nats.StreamConfig{
 
 ### Testing Requirements
 ```bash
-docker-compose up -d
+make start
 go test ./internal/core/river_test.go -v
 go test ./internal/core/river_test.go -tags=integration -v
 ```
@@ -511,7 +507,7 @@ Allow configuration via environment variables:
 go build -o forest ./cmd/forest
 
 # Run
-docker-compose up -d
+make start
 ./forest
 
 # Test end-to-end flow
@@ -586,13 +582,13 @@ func TestCompletePaymentFlow(t *testing.T) {
 ### Testing Requirements
 ```bash
 # Start dependencies
-docker-compose up -d
+make start
 
 # Run E2E test
 go test ./test/e2e/... -tags=integration,e2e -v
 
 # Cleanup
-docker-compose down -v
+make stop
 ```
 
 ### Success Indicator

@@ -127,7 +127,7 @@
 | Milestone | Date | Notes |
 |-----------|------|-------|
 | Phase 1 Complete | 2025-12-23 | Infrastructure setup finished |
-| Task 1.1 Complete | 2025-12-23 11:40 | go.mod, docker-compose.yml, directories created |
+| Task 1.1 Complete | 2025-12-23 11:40 | go.mod, Makefile, NATS setup, directories created |
 
 ---
 
@@ -154,11 +154,15 @@
 - ✅ Tasks defined with dependencies
 - ✅ Task 1.1 COMPLETED - Infrastructure setup finished
   - Created go.mod with Go 1.23+ and NATS v1.48.0
-  - Created docker-compose.yml with NATS and JetStream configuration
+  - Created Makefile with NATS installation and management
   - Created all required directories (cmd/forest, internal/core, internal/trees, internal/nims, internal/leaves)
   - Created comprehensive .gitignore for Go projects
   - Updated README.md with setup instructions
   - Go module verified successfully with `go mod tidy` and `go mod verify`
+- ✅ Removed historical Docker and shell script files
+  - Removed docker-compose.yml, setup.sh, START_NATS.sh, STOP_NATS.sh
+  - Cleaned up historical migration documentation files
+  - Updated all documentation to use Make commands only
 - Next: Ready for Phase 2 - Core Components (Tasks 2.1-2.5 can be executed in parallel)
 
 ---

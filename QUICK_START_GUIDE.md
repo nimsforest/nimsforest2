@@ -113,8 +113,6 @@ make help               # Show all available commands
 
 - **Full setup guide**: `README.md`
 - **Task breakdown**: `TASK_BREAKDOWN.md`
-- **Validation report**: `TASK_1.1_VALIDATION_REPORT.md`
-- **Improvements**: `STRUCTURAL_IMPROVEMENTS.md`
 
 ---
 

@@ -54,7 +54,7 @@ soil (current state)
 
 - Go 1.22+
 - github.com/nats-io/nats.go
-- NATS Server with JetStream enabled (native binary, no Docker required)
+- NATS Server with JetStream enabled (native binary via Make)
 
 ## Project Structure
 
@@ -80,7 +80,7 @@ nimsforest/
 │   │   └── inventory.go         # Example: stock management
 │   └── leaves/
 │       └── types.go             # Leaf type definitions
-├── docker-compose.yml
+├── Makefile
 ├── go.mod
 └── README.md
 ```
@@ -417,46 +417,32 @@ func RunDecomposer(humus *Humus, soil *Soil) {
 
 ### 11. NATS Server Setup
 
-**Primary Approach: Native Binary (No Docker Required)**
+**Using Make Commands**
 
-Download and run NATS server directly:
+The project uses Make to manage NATS server:
 
 ```bash
-# Download NATS server (one-time setup)
-VERSION="v2.12.3"
-curl -L https://github.com/nats-io/nats-server/releases/download/${VERSION}/nats-server-${VERSION}-linux-amd64.tar.gz -o nats-server.tar.gz
-tar -xzf nats-server.tar.gz
-sudo cp nats-server-${VERSION}-linux-amd64/nats-server /usr/local/bin/
+# Setup environment (installs NATS if needed)
+make setup
 
 # Start NATS with JetStream
-nats-server --jetstream --store_dir=/tmp/nats-data -p 4222 -m 8222
+make start
 
-# Or use the convenience scripts:
-./START_NATS.sh  # Start in background
-./STOP_NATS.sh   # Stop server
+# Check NATS status
+make status
+
+# Stop NATS server
+make stop
+
+# Restart NATS
+make restart
 ```
 
-**Alternative: Docker Compose (Optional)**
-
-For production deployments or if you prefer containers:
-
-```yaml
-version: '3.8'
-services:
-  nats:
-    image: nats:latest
-    command: ["--jetstream", "--store_dir=/data", "-p", "4222", "-m", "8222"]
-    ports:
-      - "4222:4222"
-      - "8222:8222"
-    volumes:
-      - nats-data:/data
-
-volumes:
-  nats-data:
-```
-
-Both approaches provide identical functionality.
+The Makefile automatically:
+- Detects your OS and architecture
+- Downloads and installs NATS server binary if not present
+- Starts NATS with JetStream enabled on ports 4222 (client) and 8222 (monitoring)
+- Manages data persistence in `/tmp/nats-data`
 
 ### 12. Main Entry Point
 
@@ -527,7 +513,7 @@ leaf:   comms.email.send {customer_id: "X", ...}
 
 ## Build Order
 
-1. `docker-compose.yml` - get NATS running
+1. `make setup && make start` - get NATS running
 2. `internal/core/leaf.go` - leaf type
 3. `internal/core/wind.go` - pub/sub
 4. `internal/core/river.go` - external data stream

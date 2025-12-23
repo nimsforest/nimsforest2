@@ -31,7 +31,7 @@ Phase 7: Enhancements       [3 tasks]  🚀 Optional
 ## 📋 All Tasks Quick List
 
 ### Phase 1: Foundation
-- [ ] **1.1** - Infrastructure Setup (go.mod, docker-compose)
+- [ ] **1.1** - Infrastructure Setup (go.mod, NATS binary, helper scripts)
 
 ### Phase 2: Core Components
 - [ ] **2.1** - Leaf Types (basic struct)
@@ -208,8 +208,9 @@ The fastest path through the project:
 | Payment Tree | `internal/trees/payment.go` |
 | AfterSales Nim | `internal/nims/aftersales.go` |
 | Main | `cmd/forest/main.go` |
-| Docker | `docker-compose.yml` |
+| NATS Scripts | `START_NATS.sh`, `STOP_NATS.sh` |
 | Module | `go.mod` |
+| Docker (optional) | `docker-compose.yml` |
 
 ---
 
@@ -218,13 +219,14 @@ The fastest path through the project:
 ### Setup
 ```bash
 # Start NATS
-docker-compose up -d
+./START_NATS.sh
 
 # Check NATS status
-docker-compose ps
-docker-compose logs nats
+ps aux | grep nats-server
+curl http://localhost:8222/varz
+curl http://localhost:8222/jsz
 
-# Initialize Go module
+# Initialize Go module (already done)
 go mod init github.com/yourusername/nimsforest
 go mod tidy
 ```
@@ -374,7 +376,7 @@ Soil
 
 | Problem | Solution |
 |---------|----------|
-| NATS won't connect | Check docker-compose is running |
+| NATS won't connect | Run `./START_NATS.sh`, verify with `curl http://localhost:8222/varz` |
 | Tests timeout | Add context timeouts, check for leaks |
 | Import cycle | Check dependencies, core shouldn't import examples |
 | Optimistic lock fails | Implement retry logic |

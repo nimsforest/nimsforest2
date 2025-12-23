@@ -35,7 +35,9 @@ soil (current state)
 ## Prerequisites
 
 - **Go 1.23+** (automatically managed by go.mod)
-- **Docker & Docker Compose** (for running NATS)
+- **NATS Server** (native binary, no Docker required)
+  - Automatically installed via `START_NATS.sh` or manually downloadable
+  - Docker Compose optional for production deployments
 
 ## Quick Start
 
@@ -48,33 +50,36 @@ cd nimsforest
 
 ### 2. Start NATS with JetStream
 
-**Option A: Using Docker Compose (Recommended for Production)**
-```bash
-docker-compose up -d
-```
-
-**Option B: Using Native Binary (Works without Docker)**
+**Primary Approach: Native Binary (No Docker Required)**
 ```bash
 ./START_NATS.sh
 ```
 
-Both options provide:
+**Alternative: Docker Compose (Optional for Production)**
+```bash
+docker-compose up -d
+```
+
+Both approaches provide identical functionality:
 - Client connections on `localhost:4222`
 - Monitoring UI on `http://localhost:8222`
 - JetStream enabled with persistent storage
 
-**Note**: If Docker is not available, the native binary approach works identically. See `INFRASTRUCTURE_VERIFICATION.md` for details.
+**Note**: The native binary is the default development approach. Docker Compose is kept for production deployments. See `INFRASTRUCTURE_VERIFICATION.md` for details.
 
 ### 3. Verify NATS is Running
 
 ```bash
-# Check container status
-docker-compose ps
+# Check NATS server process
+ps aux | grep nats-server
 
 # Check NATS monitoring UI
 curl http://localhost:8222/varz
 
-# Or visit in browser:
+# Check JetStream status
+curl http://localhost:8222/jsz
+
+# Or visit monitoring UI in browser:
 # http://localhost:8222
 ```
 
@@ -108,7 +113,9 @@ nimsforest/
 │   ├── trees/          # Tree implementations (parsers)
 │   ├── nims/           # Nim implementations (business logic)
 │   └── leaves/         # Leaf type definitions
-├── docker-compose.yml  # NATS infrastructure
+├── START_NATS.sh       # Start NATS server (primary)
+├── STOP_NATS.sh        # Stop NATS server
+├── docker-compose.yml  # NATS infrastructure (optional)
 ├── go.mod              # Go dependencies
 └── README.md           # This file
 ```
@@ -124,8 +131,8 @@ go test ./...
 # Run with coverage
 go test ./... -cover
 
-# Run integration tests (requires NATS)
-docker-compose up -d
+# Run integration tests (requires NATS running)
+./START_NATS.sh  # Start if not already running
 go test ./... -tags=integration
 
 # Run with race detection
@@ -168,18 +175,18 @@ js, _ := nc.JetStream()
 
 ## Stopping NATS
 
-**If using Docker Compose:**
+**Native Binary (Primary):**
+```bash
+./STOP_NATS.sh
+```
+
+**Docker Compose (If Using):**
 ```bash
 # Stop and remove containers
 docker-compose down
 
 # Stop and remove containers + volumes (clears all data)
 docker-compose down -v
-```
-
-**If using native binary:**
-```bash
-./STOP_NATS.sh
 ```
 
 ## Troubleshooting
@@ -192,36 +199,48 @@ lsof -i :4222
 lsof -i :8222
 
 # View NATS logs
-docker-compose logs nats
+tail -f /tmp/nats-server.log
+
+# Check if NATS binary is installed
+which nats-server
+nats-server --version
 ```
 
 ### Connection refused errors
 
 ```bash
-# Ensure NATS container is running
-docker-compose ps
+# Ensure NATS server is running
+ps aux | grep nats-server
 
 # Restart NATS
-docker-compose restart nats
+./STOP_NATS.sh
+./START_NATS.sh
+
+# Verify connectivity
+nc -zv localhost 4222
+curl http://localhost:8222/varz
 ```
 
 ### Clear all JetStream data
 
 ```bash
-# Stop and remove volumes
-docker-compose down -v
+# Stop NATS
+./STOP_NATS.sh
+
+# Remove data directory
+rm -rf /tmp/nats-data
 
 # Start fresh
-docker-compose up -d
+./START_NATS.sh
 ```
 
 ## Technology Stack
 
 - **Language**: Go 1.23+
-- **Messaging**: NATS Server with JetStream
+- **Messaging**: NATS Server v2.12.3 with JetStream (native binary)
 - **Dependencies**: 
   - github.com/nats-io/nats.go v1.48.0
-- **Infrastructure**: Docker Compose
+- **Infrastructure**: Native NATS binary (Docker Compose optional)
 
 ## Documentation
 

@@ -26,6 +26,9 @@ Before starting your assigned task:
 
 ### 4. Test Your Work
 ```bash
+# Start NATS server if not running
+./START_NATS.sh
+
 # Run tests for your component
 go test ./internal/core/... -v
 go test ./internal/trees/... -v
@@ -34,8 +37,7 @@ go test ./internal/nims/... -v
 # Run with coverage
 go test ./... -cover
 
-# Integration tests (requires NATS)
-docker-compose up -d
+# Integration tests (requires NATS running)
 go test ./... -tags=integration
 ```
 
@@ -271,19 +273,25 @@ if err == nats.ErrKeyExists {
 ### NATS Connection Issues
 ```bash
 # Check NATS is running
-docker-compose ps
+ps aux | grep nats-server
 
 # Check NATS logs
-docker-compose logs nats
+tail -f /tmp/nats-server.log
 
 # Test connection
 nc -zv localhost 4222
+curl http://localhost:8222/varz
+
+# Restart if needed
+./STOP_NATS.sh
+./START_NATS.sh
 ```
 
 ### JetStream Not Enabled
 ```bash
 # NATS must be started with --jetstream flag
-# Check docker-compose.yml has: --jetstream
+# Verify with: curl http://localhost:8222/jsz
+# START_NATS.sh already includes --jetstream flag
 ```
 
 ### Tests Hanging
@@ -430,8 +438,8 @@ Before marking your task complete:
    # Implement (following spec)
    # Write tests
    
-   # Test
-   docker-compose up -d
+   # Test (ensure NATS is running)
+   ./START_NATS.sh
    go test ./internal/core/soil_test.go -v
    go test ./internal/core/soil_test.go -tags=integration -v
    ```

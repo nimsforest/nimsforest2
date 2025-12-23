@@ -14,7 +14,9 @@ This document breaks down the NimsForest prototype into discrete tasks that can 
 
 **Deliverables**:
 - [ ] Create `go.mod` file with Go 1.22+ and NATS dependencies
-- [ ] Create `docker-compose.yml` with NATS server configuration
+- [ ] Install NATS server binary (native approach, no Docker required)
+- [ ] Create helper scripts: `START_NATS.sh` and `STOP_NATS.sh`
+- [ ] Optional: Create `docker-compose.yml` for production deployments
 - [ ] Create basic project directory structure:
   ```
   nimsforest/
@@ -29,8 +31,10 @@ This document breaks down the NimsForest prototype into discrete tasks that can 
 
 **Acceptance Criteria**:
 - `go mod init` runs successfully
-- `docker-compose up` starts NATS with JetStream enabled
+- NATS server can be started with `./START_NATS.sh` or native binary
 - NATS accessible on ports 4222 (client) and 8222 (monitoring)
+- JetStream enabled and functional
+- Test program verifies connectivity
 
 ---
 

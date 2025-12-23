@@ -25,11 +25,12 @@ Set up the foundational project structure, dependency management, and NATS infra
 ### Deliverables
 1. Create `go.mod` with Go 1.22+ and dependencies:
    - github.com/nats-io/nats.go
-2. Create `docker-compose.yml` with NATS configuration:
-   - NATS with JetStream enabled
-   - Ports 4222 (client) and 8222 (monitoring)
-   - Volume for data persistence
-3. Create project directory structure:
+2. Install NATS server binary (native approach):
+   - Download latest NATS server release
+   - Install to system path
+   - Create convenience scripts (START_NATS.sh, STOP_NATS.sh)
+3. Optional: Create `docker-compose.yml` for production use
+4. Create project directory structure:
    ```
    nimsforest/
    ├── cmd/forest/
@@ -38,15 +39,18 @@ Set up the foundational project structure, dependency management, and NATS infra
    ├── internal/nims/
    └── internal/leaves/
    ```
-4. Create `.gitignore` for Go projects
-5. Create basic `README.md` with setup instructions
+5. Create `.gitignore` for Go projects
+6. Create comprehensive `README.md` with setup instructions
+7. Create test program to verify NATS connectivity
 
 ### Acceptance Criteria
 - [ ] `go mod init` runs successfully
-- [ ] `docker-compose up` starts NATS with JetStream enabled
+- [ ] NATS server binary installed and accessible
+- [ ] `./START_NATS.sh` starts NATS with JetStream enabled
 - [ ] NATS accessible on localhost:4222
 - [ ] Monitoring UI accessible on localhost:8222
 - [ ] All directories created
+- [ ] Test program verifies full connectivity (pub/sub, JetStream, KV)
 
 ### Commands to Verify
 ```bash
@@ -54,13 +58,20 @@ Set up the foundational project structure, dependency management, and NATS infra
 go mod tidy
 go mod verify
 
-# Test Docker Compose
-docker-compose up -d
-docker-compose ps
-curl http://localhost:8222/varz
+# Start NATS server
+./START_NATS.sh
 
-# Test NATS connection
+# Verify NATS is running
+ps aux | grep nats-server
 nc -zv localhost 4222
+curl http://localhost:8222/varz
+curl http://localhost:8222/jsz
+
+# Run integration test
+go run test_nats_connection.go
+
+# Stop NATS
+./STOP_NATS.sh
 ```
 
 ### Update Progress

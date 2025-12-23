@@ -54,7 +54,7 @@ soil (current state)
 
 - Go 1.22+
 - github.com/nats-io/nats.go
-- NATS Server with JetStream enabled
+- NATS Server with JetStream enabled (native binary, no Docker required)
 
 ## Project Structure
 
@@ -415,7 +415,30 @@ func RunDecomposer(humus *Humus, soil *Soil) {
 }
 ```
 
-### 11. Docker Compose
+### 11. NATS Server Setup
+
+**Primary Approach: Native Binary (No Docker Required)**
+
+Download and run NATS server directly:
+
+```bash
+# Download NATS server (one-time setup)
+VERSION="v2.12.3"
+curl -L https://github.com/nats-io/nats-server/releases/download/${VERSION}/nats-server-${VERSION}-linux-amd64.tar.gz -o nats-server.tar.gz
+tar -xzf nats-server.tar.gz
+sudo cp nats-server-${VERSION}-linux-amd64/nats-server /usr/local/bin/
+
+# Start NATS with JetStream
+nats-server --jetstream --store_dir=/tmp/nats-data -p 4222 -m 8222
+
+# Or use the convenience scripts:
+./START_NATS.sh  # Start in background
+./STOP_NATS.sh   # Stop server
+```
+
+**Alternative: Docker Compose (Optional)**
+
+For production deployments or if you prefer containers:
 
 ```yaml
 version: '3.8'
@@ -432,6 +455,8 @@ services:
 volumes:
   nats-data:
 ```
+
+Both approaches provide identical functionality.
 
 ### 12. Main Entry Point
 

@@ -286,10 +286,11 @@ Help Needed: [Specific request]
 ## Common Issues & Solutions
 
 ### Issue: Agent can't connect to NATS
-**Solution**: Verify Task 1.1 complete, docker-compose running
+**Solution**: Verify Task 1.1 complete, NATS server running
 ```bash
-docker-compose ps
-docker-compose logs nats
+ps aux | grep nats-server
+./START_NATS.sh
+curl http://localhost:8222/varz
 ```
 
 ### Issue: Import cycle detected
@@ -312,9 +313,11 @@ Before marking Phase complete, verify:
 
 ### Phase 1 Complete
 - [ ] go.mod exists and valid
-- [ ] docker-compose.yml present
-- [ ] NATS starts successfully
+- [ ] NATS server binary installed
+- [ ] START_NATS.sh and STOP_NATS.sh scripts created
+- [ ] NATS starts successfully with JetStream
 - [ ] Directory structure created
+- [ ] Test program verifies connectivity
 
 ### Phase 2 Complete
 - [ ] All core components implemented
@@ -408,8 +411,8 @@ New agent joining the project:
 - [ ] Read `AGENT_INSTRUCTIONS.md` (how to work)
 - [ ] Review `TASK_BREAKDOWN.md` (understand structure)
 - [ ] Check `PROGRESS.md` (current state)
-- [ ] Setup local environment (Go, Docker, NATS)
-- [ ] Run `docker-compose up` to verify setup
+- [ ] Setup local environment (Go, NATS binary)
+- [ ] Run `./START_NATS.sh` to verify setup
 - [ ] Receive first task assignment
 - [ ] Update PROGRESS.md with name and task
 
@@ -453,7 +456,7 @@ grep "❌ Blocked" PROGRESS.md          # Show blocked tasks
 
 ### Run all tests
 ```bash
-docker-compose up -d
+./START_NATS.sh
 go test ./... -v
 go test ./... -cover
 go test ./... -race

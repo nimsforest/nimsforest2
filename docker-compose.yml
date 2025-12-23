@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  nats:
+    image: nats:latest
+    container_name: nimsforest-nats
+    command: ["--jetstream", "--store_dir=/data", "-p", "4222", "-m", "8222"]
+    ports:
+      - "4222:4222"  # Client connections
+      - "8222:8222"  # Monitoring UI
+    volumes:
+      - nats-data:/data
+    networks:
+      - nimsforest-network
+
+volumes:
+  nats-data:
+    driver: local
+
+networks:
+  nimsforest-network:
+    driver: bridge

@@ -1,262 +1,258 @@
-# NimsForest Prototype - Task Management
+# NimsForest
 
-This repository contains a breakdown of the NimsForest prototype project into discrete, actionable tasks suitable for execution by multiple cloud agents working in parallel or sequence.
+An event-driven organizational orchestration system built with Go, NATS, and JetStream.
 
-## 📁 Documentation Structure
+## Overview
 
-| Document | Purpose | Audience |
-|----------|---------|----------|
-| **Cursorinstructions.md** | Original detailed specification | All (Reference) |
-| **TASK_BREAKDOWN.md** | Comprehensive task breakdown with dependencies | Coordinators & Agents |
-| **AGENT_INSTRUCTIONS.md** | How-to guide for executing tasks | Agents |
-| **PROGRESS.md** | Real-time progress tracking | All |
-| **COORDINATOR_GUIDE.md** | Guide for assigning and coordinating tasks | Coordinators |
-| **README.md** | This file - Quick overview | All |
+NimsForest is a prototype implementation of a forest-inspired event orchestration architecture where:
 
-## 🚀 Quick Start
-
-### For Coordinators
-1. Read `COORDINATOR_GUIDE.md`
-2. Start with **Task 1.1** (Infrastructure Setup)
-3. Follow the batch assignment strategy
-4. Monitor `PROGRESS.md` daily
-
-### For Agents
-1. Receive your task assignment
-2. Read `AGENT_INSTRUCTIONS.md`
-3. Check dependencies in `TASK_BREAKDOWN.md`
-4. Reference `Cursorinstructions.md` for detailed specs
-5. Update `PROGRESS.md` when starting and completing
-
-## 📊 Project Overview
-
-**Goal**: Build an event-driven organizational orchestration system in Go using NATS and JetStream.
-
-**Components**:
-- **River**: Unstructured external data stream (JetStream)
+- **River**: Unstructured external data streams (JetStream)
 - **Tree**: Pattern matchers that parse and structure data
 - **Leaf**: Structured events with schemas
-- **Wind**: Event distribution (NATS Core pub/sub)
+- **Wind**: Event distribution layer (NATS Core pub/sub)
 - **Nim**: Business logic processors
 - **Humus**: Persistent state changes (JetStream)
-- **Soil**: Current state (JetStream KV)
+- **Soil**: Current state storage (JetStream KV)
 
-## 📋 Task Summary
-
-| Phase | Tasks | Description |
-|-------|-------|-------------|
-| **1** | 1 task | Foundation setup (go.mod, docker-compose, directories) |
-| **2** | 5 tasks | Core components (Leaf, Wind, River, Soil, Humus) |
-| **3** | 3 tasks | Base interfaces (Tree, Nim, Decomposer) |
-| **4** | 3 tasks | Example implementations (PaymentTree, AfterSalesNim) |
-| **5** | 1 task | Main application entry point |
-| **6** | 2 tasks | Testing and documentation |
-| **7** | 3 tasks | Optional enhancements |
-| **Total** | **18 tasks** | Complete prototype |
-
-## 🔄 Execution Flow
+## Architecture
 
 ```
-Phase 1: Infrastructure (1 task)
-           ↓
-Phase 2: Core Components (5 tasks - parallel possible)
-           ↓
-Phase 3: Base Interfaces (3 tasks - parallel possible)
-           ↓
-Phase 4: Examples (3 tasks - parallel possible)
-           ↓
-Phase 5: Main Application (1 task)
-           ↓
-Phase 6: Testing & Docs (2 tasks - parallel)
-           ↓
-Phase 7: Optional (3 tasks - parallel)
+river (webhooks, APIs, raw data)
+    ↓
+tree (parse, structure)
+    ↓
+leaf (named event: "payment.completed")
+    ↓
+wind (carries leaf)
+    ↓
+nim (business logic)
+    ↓
+leaf (wind) and/or compost (humus)
+    ↓
+soil (current state)
 ```
 
-## 🎯 Parallel Execution Strategy
+## Prerequisites
 
-### Maximum Parallelization (4 Agents)
-- **Batch 1**: 1 agent on Task 1.1
-- **Batch 2**: 4 agents on Tasks 2.1, 2.3, 2.4, 2.5
-- **Batch 3**: 3 agents on Tasks 2.2, 3.3, 4.1
-- **Batch 4**: 2 agents on Tasks 3.1, 3.2
-- **Batch 5**: 2 agents on Tasks 4.2, 4.3
-- **Batch 6**: 1 agent on Task 5.1
-- **Batch 7**: 2 agents on Tasks 6.1, 6.2
+- **Go 1.23+** (automatically managed by go.mod)
+- **NATS Server** (native binary, no Docker required)
+  - Automatically installed via `START_NATS.sh` or manually downloadable
+  - Docker Compose optional for production deployments
 
-**Estimated Timeline**: 4-5 days with 4 agents
+## Quick Start
 
-## 📦 Deliverables
+### 1. Clone the Repository
 
-### Phase 1-5 (Core)
-- Working Go application
-- NATS/JetStream integration
-- Example tree (Stripe payment parser)
-- Example nim (AfterSales logic)
-- End-to-end flow: webhook → processing → state storage
-
-### Phase 6 (Quality)
-- E2E tests demonstrating full flow
-- Comprehensive documentation
-- Setup guide for new developers
-
-### Phase 7 (Optional)
-- Additional examples (CRM, Inventory, Comms)
-- Monitoring and observability
-- Performance testing and optimization
-
-## ✅ Success Criteria
-
-Project is complete when:
-1. All Phase 1-5 tasks are marked complete
-2. E2E test passes showing: `river → tree → leaf → wind → nim → humus → soil`
-3. A Stripe webhook can be processed end-to-end
-4. State is correctly stored and retrievable
-5. All tests pass (unit + integration)
-6. Documentation is complete
-7. A new developer can clone and run the project
-
-## 🛠 Technology Stack
-
-- **Language**: Go 1.22+
-- **Messaging**: NATS Server with JetStream
-- **Dependencies**: github.com/nats-io/nats.go
-- **Testing**: Go testing + table-driven tests
-- **Infrastructure**: Docker Compose
-
-## 📈 Progress Tracking
-
-Current progress is tracked in `PROGRESS.md`:
-- Task status (Not Started / In Progress / Complete / Blocked)
-- Agent assignments
-- Completion dates
-- Issues and blockers
-- Test results
-
-## 🔗 Dependencies
-
-### Phase 1 → Phase 2
-Phase 2 requires completed infrastructure (go.mod, docker-compose, NATS running)
-
-### Phase 2 → Phase 3
-Phase 3 requires core components (some can start before all complete)
-
-### Phase 3 → Phase 4
-Phase 4 requires base interfaces
-
-### Phase 4 → Phase 5
-Phase 5 requires all examples complete
-
-### Phase 5 → Phase 6
-Phase 6 requires working application
-
-See `TASK_BREAKDOWN.md` for detailed dependency graph.
-
-## 🧪 Testing Requirements
-
-Each task must include:
-- **Unit tests**: Test individual functions/methods
-- **Integration tests**: Test with real NATS (where applicable)
-- **Minimum 80% code coverage**
-- **All tests passing** before marking complete
-
-Run tests:
 ```bash
-# Unit tests
-go test ./... -v
-
-# With coverage
-go test ./... -cover
-
-# Integration tests
-docker-compose up -d
-go test ./... -tags=integration
-
-# Race detection
-go test ./... -race
+git clone <repository-url>
+cd nimsforest
 ```
 
-## 📝 Code Quality Standards
+### 2. Start NATS with JetStream
 
-- **Formatting**: `go fmt ./...`
-- **Linting**: `golangci-lint run`
-- **Documentation**: Godoc comments on all public APIs
-- **Error handling**: Always return and check errors
-- **Logging**: Structured logging throughout
+**Primary Approach: Native Binary (No Docker Required)**
+```bash
+./START_NATS.sh
+```
 
-## 🎓 Learning Resources
+**Alternative: Docker Compose (Optional for Production)**
+```bash
+docker-compose up -d
+```
 
-- [NATS Documentation](https://docs.nats.io/)
-- [JetStream Guide](https://docs.nats.io/nats-concepts/jetstream)
-- [NATS Go Client](https://github.com/nats-io/nats.go)
-- [Go Testing](https://golang.org/pkg/testing/)
+Both approaches provide identical functionality:
+- Client connections on `localhost:4222`
+- Monitoring UI on `http://localhost:8222`
+- JetStream enabled with persistent storage
 
-## 🤝 Contributing Guidelines
+**Note**: The native binary is the default development approach. Docker Compose is kept for production deployments. See `INFRASTRUCTURE_VERIFICATION.md` for details.
 
-### For Agents
-1. Pick up assigned task from coordinator
-2. Check dependencies are complete
-3. Reference detailed spec in `Cursorinstructions.md`
-4. Implement with tests
-5. Update `PROGRESS.md`
-6. Notify coordinator when complete
+### 3. Verify NATS is Running
 
-### For Coordinators
-1. Verify dependencies before assigning
-2. Use batch assignment strategy
-3. Monitor progress daily
-4. Unblock agents when needed
-5. Ensure quality gates are met
+```bash
+# Check NATS server process
+ps aux | grep nats-server
 
-## 🔍 File Structure (After Completion)
+# Check NATS monitoring UI
+curl http://localhost:8222/varz
+
+# Check JetStream status
+curl http://localhost:8222/jsz
+
+# Or visit monitoring UI in browser:
+# http://localhost:8222
+```
+
+### 4. Install Go Dependencies
+
+```bash
+go mod download
+go mod tidy
+```
+
+### 5. Build the Application (Once Implemented)
+
+```bash
+go build -o forest ./cmd/forest
+```
+
+### 6. Run the Application (Once Implemented)
+
+```bash
+./forest
+```
+
+## Project Structure
 
 ```
 nimsforest/
 ├── cmd/
-│   └── forest/
-│       └── main.go              # Application entry point
+│   └── forest/          # Main application entry point
 ├── internal/
-│   ├── core/
-│   │   ├── leaf.go              # Event type
-│   │   ├── wind.go              # Pub/sub (NATS Core)
-│   │   ├── river.go             # Input stream (JetStream)
-│   │   ├── soil.go              # State store (KV)
-│   │   ├── humus.go             # State changes (JetStream)
-│   │   ├── tree.go              # Base tree interface
-│   │   ├── nim.go               # Base nim interface
-│   │   └── decomposer.go        # State processor
-│   ├── trees/
-│   │   └── payment.go           # Stripe webhook parser
-│   ├── nims/
-│   │   └── aftersales.go        # Business logic example
-│   └── leaves/
-│       └── types.go             # Event schemas
-├── docker-compose.yml           # NATS infrastructure
-├── go.mod                       # Dependencies
-├── README.md                    # This file (updated)
-└── test/
-    └── e2e/                     # End-to-end tests
+│   ├── core/           # Core components (Wind, River, Soil, Humus)
+│   ├── trees/          # Tree implementations (parsers)
+│   ├── nims/           # Nim implementations (business logic)
+│   └── leaves/         # Leaf type definitions
+├── START_NATS.sh       # Start NATS server (primary)
+├── STOP_NATS.sh        # Stop NATS server
+├── docker-compose.yml  # NATS infrastructure (optional)
+├── go.mod              # Go dependencies
+└── README.md           # This file
 ```
 
-## 📞 Support
+## Development
 
-For issues or questions:
-1. Check `AGENT_INSTRUCTIONS.md` FAQ section
-2. Review `Cursorinstructions.md` for specification details
-3. Document in `PROGRESS.md` issues section
-4. Escalate through coordinator
+### Running Tests
 
-## 🎉 Getting Started
+```bash
+# Run all tests
+go test ./...
 
-**Coordinators**: Start here → `COORDINATOR_GUIDE.md`
+# Run with coverage
+go test ./... -cover
 
-**Agents**: Start here → `AGENT_INSTRUCTIONS.md`
+# Run integration tests (requires NATS running)
+./START_NATS.sh  # Start if not already running
+go test ./... -tags=integration
 
-**Everyone**: Check progress → `PROGRESS.md`
+# Run with race detection
+go test ./... -race
+```
 
----
+### Code Formatting
 
-**Status**: Ready for task assignment
-**Last Updated**: 2025-12-23
-**Version**: 1.0
+```bash
+go fmt ./...
+```
 
-Let's build! 🚀
+### Linting
+
+```bash
+golangci-lint run
+```
+
+## NATS Connection Details
+
+### Connection String
+
+```go
+nats.Connect("nats://localhost:4222")
+```
+
+### JetStream Setup
+
+```go
+nc, _ := nats.Connect("nats://localhost:4222")
+js, _ := nc.JetStream()
+```
+
+### Monitoring
+
+- **Monitoring UI**: http://localhost:8222
+- **Varz endpoint**: http://localhost:8222/varz
+- **Connz endpoint**: http://localhost:8222/connz
+- **Jsz endpoint**: http://localhost:8222/jsz (JetStream info)
+
+## Stopping NATS
+
+**Native Binary (Primary):**
+```bash
+./STOP_NATS.sh
+```
+
+**Docker Compose (If Using):**
+```bash
+# Stop and remove containers
+docker-compose down
+
+# Stop and remove containers + volumes (clears all data)
+docker-compose down -v
+```
+
+## Troubleshooting
+
+### NATS won't start
+
+```bash
+# Check if port 4222 or 8222 is already in use
+lsof -i :4222
+lsof -i :8222
+
+# View NATS logs
+tail -f /tmp/nats-server.log
+
+# Check if NATS binary is installed
+which nats-server
+nats-server --version
+```
+
+### Connection refused errors
+
+```bash
+# Ensure NATS server is running
+ps aux | grep nats-server
+
+# Restart NATS
+./STOP_NATS.sh
+./START_NATS.sh
+
+# Verify connectivity
+nc -zv localhost 4222
+curl http://localhost:8222/varz
+```
+
+### Clear all JetStream data
+
+```bash
+# Stop NATS
+./STOP_NATS.sh
+
+# Remove data directory
+rm -rf /tmp/nats-data
+
+# Start fresh
+./START_NATS.sh
+```
+
+## Technology Stack
+
+- **Language**: Go 1.23+
+- **Messaging**: NATS Server v2.12.3 with JetStream (native binary)
+- **Dependencies**: 
+  - github.com/nats-io/nats.go v1.48.0
+- **Infrastructure**: Native NATS binary (Docker Compose optional)
+
+## Documentation
+
+For detailed implementation specifications, see:
+- `Cursorinstructions.md` - Complete architecture and API specifications
+- `TASK_BREAKDOWN.md` - Development task breakdown
+- `PROGRESS.md` - Current development status
+
+## License
+
+[Add your license here]
+
+## Contributing
+
+[Add contribution guidelines here]

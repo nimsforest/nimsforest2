@@ -34,10 +34,10 @@ soil (current state)
 
 ## Prerequisites
 
-- **Go 1.23+** (automatically managed by go.mod)
-- **NATS Server** (native binary, no Docker required)
-  - Automatically installed via `START_NATS.sh` or manually downloadable
-  - Docker Compose optional for production deployments
+- **Go 1.22+** (automatically managed by go.mod)
+- **Make** (standard on Linux/macOS, install on Windows via chocolatey or WSL)
+- **NATS Server** (automatically installed by `make` commands)
+- **Docker** (optional, only for `make docker-up`)
 
 ## Quick Start
 
@@ -48,16 +48,37 @@ git clone <repository-url>
 cd nimsforest
 ```
 
-### 2. Start NATS with JetStream
+### 2. Run Setup (Recommended)
 
-**Primary Approach: Native Binary (No Docker Required)**
+The setup command ensures your environment is fully configured:
+
 ```bash
-./START_NATS.sh
+make setup
 ```
 
-**Alternative: Docker Compose (Optional for Production)**
+This will:
+- ✅ Verify Go installation (1.22+)
+- ✅ Download all Go dependencies
+- ✅ Create required project directory structure
+- ✅ Install NATS server binary (if not present)
+- ✅ Validate configuration files
+
+### 3. Start NATS with JetStream
+
 ```bash
-docker-compose up -d
+make start
+```
+
+This will automatically:
+- Check if NATS is already running
+- Install NATS server binary if not found (auto-detects OS/architecture)
+- Start NATS with JetStream enabled
+- Create data directory for persistence
+- Display connection details and monitoring URLs
+
+**Alternative: Using Docker Compose**
+```bash
+make docker-up
 ```
 
 Both approaches provide identical functionality:
@@ -65,18 +86,14 @@ Both approaches provide identical functionality:
 - Monitoring UI on `http://localhost:8222`
 - JetStream enabled with persistent storage
 
-**Note**: The native binary is the default development approach. Docker Compose is kept for production deployments. See `INFRASTRUCTURE_VERIFICATION.md` for details.
-
-### 3. Verify NATS is Running
+### 4. Verify NATS is Running
 
 ```bash
-# Check NATS server process
-ps aux | grep nats-server
+# Check NATS status with all details
+make status
 
-# Check NATS monitoring UI
+# Or check manually
 curl http://localhost:8222/varz
-
-# Check JetStream status
 curl http://localhost:8222/jsz
 
 # Or visit monitoring UI in browser:
@@ -122,33 +139,50 @@ nimsforest/
 
 ## Development
 
+### Available Make Commands
+
+View all available commands:
+```bash
+make help
+```
+
 ### Running Tests
 
 ```bash
-# Run all tests
-go test ./...
+# Run unit tests
+make test
 
-# Run with coverage
-go test ./... -cover
+# Run integration tests (starts NATS if needed)
+make test-integration
 
-# Run integration tests (requires NATS running)
-./START_NATS.sh  # Start if not already running
-go test ./... -tags=integration
-
-# Run with race detection
-go test ./... -race
+# Generate coverage report
+make test-coverage
 ```
 
-### Code Formatting
+### Code Quality
 
 ```bash
-go fmt ./...
+# Format code
+make fmt
+
+# Run linter
+make lint
+
+# Run go vet
+make vet
+
+# Run all checks
+make check
 ```
 
-### Linting
+### Building
 
 ```bash
-golangci-lint run
+# Build for current platform
+make build
+
+# Build for all platforms
+make build-all
 ```
 
 ## NATS Connection Details
@@ -173,20 +207,37 @@ js, _ := nc.JetStream()
 - **Connz endpoint**: http://localhost:8222/connz
 - **Jsz endpoint**: http://localhost:8222/jsz (JetStream info)
 
-## Stopping NATS
+## Managing NATS
 
-**Native Binary (Primary):**
+### Stop NATS Server
+
 ```bash
-./STOP_NATS.sh
+make stop
 ```
 
-**Docker Compose (If Using):**
-```bash
-# Stop and remove containers
-docker-compose down
+### Restart NATS Server
 
-# Stop and remove containers + volumes (clears all data)
-docker-compose down -v
+```bash
+make restart
+```
+
+### Check NATS Status
+
+```bash
+make status
+```
+
+### Docker Commands (If Using Docker)
+
+```bash
+# Start with Docker
+make docker-up
+
+# Stop Docker containers
+make docker-down
+
+# View logs
+make docker-logs
 ```
 
 ## Troubleshooting
@@ -194,44 +245,48 @@ docker-compose down -v
 ### NATS won't start
 
 ```bash
-# Check if port 4222 or 8222 is already in use
-lsof -i :4222
-lsof -i :8222
+# Check NATS status
+make status
 
 # View NATS logs
 tail -f /tmp/nats-server.log
 
-# Check if NATS binary is installed
-which nats-server
-nats-server --version
+# Verify NATS is installed
+make verify
+
+# Reinstall NATS if needed
+make install-nats
 ```
 
 ### Connection refused errors
 
 ```bash
-# Ensure NATS server is running
-ps aux | grep nats-server
+# Check if NATS is running
+make status
 
 # Restart NATS
-./STOP_NATS.sh
-./START_NATS.sh
+make restart
 
 # Verify connectivity
-nc -zv localhost 4222
 curl http://localhost:8222/varz
 ```
 
 ### Clear all JetStream data
 
 ```bash
-# Stop NATS
-./STOP_NATS.sh
+# WARNING: This deletes all data
+make clean-data
+```
 
-# Remove data directory
-rm -rf /tmp/nats-data
+### Full cleanup and fresh start
+
+```bash
+# Stop NATS and clean everything
+make clean-all
 
 # Start fresh
-./START_NATS.sh
+make setup
+make start
 ```
 
 ## Technology Stack

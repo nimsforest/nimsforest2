@@ -48,12 +48,37 @@ git clone <repository-url>
 cd nimsforest
 ```
 
-### 2. Start NATS with JetStream
+### 2. Run Setup Script (Recommended)
+
+The setup script ensures your environment is fully configured:
+
+```bash
+./setup.sh
+```
+
+This will:
+- ✅ Verify Go installation (1.22+)
+- ✅ Download all Go dependencies
+- ✅ Ensure project directory structure exists
+- ✅ Make all scripts executable
+- ✅ Check/install NATS server if needed
+- ✅ Validate configuration files
+
+**Note**: The setup script is idempotent - safe to run multiple times.
+
+### 3. Start NATS with JetStream
 
 **Primary Approach: Native Binary (No Docker Required)**
 ```bash
 ./START_NATS.sh
 ```
+
+The START_NATS.sh script will automatically:
+- Check if NATS is already running
+- Install NATS server binary if not found (auto-detects OS/architecture)
+- Start NATS with JetStream enabled
+- Create data directory for persistence
+- Display connection details and monitoring URLs
 
 **Alternative: Docker Compose (Optional for Production)**
 ```bash
@@ -67,7 +92,7 @@ Both approaches provide identical functionality:
 
 **Note**: The native binary is the default development approach. Docker Compose is kept for production deployments. See `INFRASTRUCTURE_VERIFICATION.md` for details.
 
-### 3. Verify NATS is Running
+### 4. Verify NATS is Running
 
 ```bash
 # Check NATS server process

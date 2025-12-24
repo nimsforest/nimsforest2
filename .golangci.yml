@@ -12,7 +12,6 @@ linters:
     - govet
     - ineffassign
     - staticcheck
-    - typecheck
     - unused
     - gofmt
     - goimports
@@ -24,7 +23,6 @@ linters:
     - unparam
     - nakedret
     - prealloc
-    - exportloopref
     - gosec
 
 linters-settings:

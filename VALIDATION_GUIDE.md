@@ -17,47 +17,19 @@ This guide will help you validate that the CI/CD pipeline works correctly before
 Test all Make commands work correctly on your system:
 
 ```bash
-# Run the validation script
-./validate-cicd.sh local
-```
+# Quick validation
+make validate-quick
 
-Or manually:
+# Complete validation
+make validate-all
 
-```bash
-# 1. Verify environment
-make verify
-
-# Expected output:
-# - Go version (1.22+)
-# - NATS server installed
-# - Go modules verified
-
-# 2. Run tests
-make test
-
-# Expected: All tests pass, no failures
-
-# 3. Run linter
-make lint
-
-# Expected: No linting errors (or install golangci-lint if missing)
-
-# 4. Format check
-make fmt
-
-# Expected: No changes needed
-
-# 5. Build binary
-make build
-
-# Expected: ./forest binary created
-
-# 6. Verify binary works
-./forest --version || echo "Version flag not implemented yet"
-./forest --help || echo "Help flag not implemented yet"
-
-# 7. Clean up
-make clean
+# Or run individual checks:
+make verify          # Check environment
+make test            # Run tests
+make lint            # Run linter
+make fmt             # Format code
+make build           # Build packages
+make clean           # Clean up
 ```
 
 ### Step 2: Validate Workflow Syntax
@@ -462,13 +434,19 @@ gh secret set CODECOV_TOKEN --body "your-token"
 # Check Codecov integration is enabled
 ```
 
-## Quick Validation Script
+## Quick Validation with Make
 
 Run the automated validation:
 
 ```bash
-chmod +x validate-cicd.sh
-./validate-cicd.sh all
+# Quick validation (2-3 minutes)
+make validate-quick
+
+# Complete validation (5-10 minutes)
+make validate-all
+
+# Just the alias
+make validate
 ```
 
 ## Next Steps After Validation

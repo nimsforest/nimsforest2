@@ -135,9 +135,10 @@ tar xzf forest-linux-amd64.tar.gz
 
 **Run CI checks locally:**
 ```bash
-make test          # Run tests
-make lint          # Run linter
-make check         # All checks
+make validate-quick  # Quick validation
+make test            # Run tests
+make lint            # Run linter
+make check           # All checks
 ```
 
 **Build from source:**

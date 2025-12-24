@@ -156,12 +156,16 @@ NEXT STEPS:
 TESTING COMMANDS:
 -----------------
 
+# Validate CI/CD setup
+make validate          # Complete validation
+make validate-quick    # Quick 2-minute check
+
 # Test CI locally
 make test          # Run tests
 make lint          # Run linter
 make check         # All checks
 make fmt           # Format code
-make build         # Build binary
+make build         # Build packages
 
 # Test full development workflow
 make dev           # Complete setup + test

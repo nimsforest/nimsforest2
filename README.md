@@ -370,6 +370,9 @@ make test-integration
 
 # Generate coverage report
 make test-coverage
+
+# Validate CI/CD setup
+make validate
 ```
 
 ### Code Quality

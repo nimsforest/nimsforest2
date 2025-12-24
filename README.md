@@ -393,9 +393,6 @@ make check
 ```bash
 # Build for current platform
 make build
-
-# Build for all platforms
-make build-all
 ```
 
 ## NATS Connection Details

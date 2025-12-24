@@ -52,17 +52,7 @@ jobs:
     
     strategy:
       matrix:
-        include:
-          - goos: linux
-            goarch: amd64
-          - goos: linux
-            goarch: arm64
-          - goos: darwin
-            goarch: amd64
-          - goos: darwin
-            goarch: arm64
-          - goos: windows
-            goarch: amd64
+        goarch: [amd64, arm64]
     
     steps:
     - name: Checkout code
@@ -74,32 +64,20 @@ jobs:
         go-version: '1.24.x'
         cache: true
     
-    - name: Build
+    - name: Build for Linux/Debian
       run: |
-        BINARY_NAME="forest"
-        if [ "${{ matrix.goos }}" = "windows" ]; then
-          BINARY_NAME="forest.exe"
-        fi
-        
         go build -v -ldflags="-s -w -X main.Version=${{ needs.create-release.outputs.version }}" \
-          -o ${BINARY_NAME} ./cmd/forest
+          -o forest ./cmd/forest
         
-        # Create tarball/zip
-        ARCHIVE_NAME="forest-${{ needs.create-release.outputs.version }}-${{ matrix.goos }}-${{ matrix.goarch }}"
+        # Create tarball
+        ARCHIVE_NAME="forest-${{ needs.create-release.outputs.version }}-linux-${{ matrix.goarch }}"
+        tar czf ${ARCHIVE_NAME}.tar.gz forest
         
-        if [ "${{ matrix.goos }}" = "windows" ]; then
-          zip ${ARCHIVE_NAME}.zip ${BINARY_NAME}
-          echo "ASSET_PATH=${ARCHIVE_NAME}.zip" >> $GITHUB_ENV
-          echo "ASSET_NAME=${ARCHIVE_NAME}.zip" >> $GITHUB_ENV
-          echo "ASSET_TYPE=application/zip" >> $GITHUB_ENV
-        else
-          tar czf ${ARCHIVE_NAME}.tar.gz ${BINARY_NAME}
-          echo "ASSET_PATH=${ARCHIVE_NAME}.tar.gz" >> $GITHUB_ENV
-          echo "ASSET_NAME=${ARCHIVE_NAME}.tar.gz" >> $GITHUB_ENV
-          echo "ASSET_TYPE=application/gzip" >> $GITHUB_ENV
-        fi
+        echo "ASSET_PATH=${ARCHIVE_NAME}.tar.gz" >> $GITHUB_ENV
+        echo "ASSET_NAME=${ARCHIVE_NAME}.tar.gz" >> $GITHUB_ENV
+        echo "ASSET_TYPE=application/gzip" >> $GITHUB_ENV
       env:
-        GOOS: ${{ matrix.goos }}
+        GOOS: linux
         GOARCH: ${{ matrix.goarch }}
     
     - name: Upload Release Asset

@@ -25,8 +25,8 @@ A comprehensive CI/CD pipeline has been added to NimsForest, optimized for Debia
 - **Purpose**: Automated releases for version tags
 - **Features**:
   - Automatic changelog generation from commits
-  - Multi-platform binary builds (Linux, macOS, Windows × multiple architectures)
-  - Asset packaging (tar.gz for Unix, zip for Windows)
+  - Linux binary builds for Debian (amd64 and arm64)
+  - Asset packaging (tar.gz)
   - Automated GitHub release creation
   - Version injection into binaries
 - **When it runs**: Push tags matching `v*` (e.g., `v1.0.0`)
@@ -183,10 +183,8 @@ CI Workflow Triggered
   │   ├── go vet
   │   └── golangci-lint
   ├── Build Job (parallel)
-  │   ├── linux/amd64
-  │   ├── linux/arm64
-  │   ├── darwin/amd64
-  │   └── darwin/arm64
+  │   ├── linux/amd64 (Debian)
+  │   └── linux/arm64 (Debian)
   └── Integration Test Job
       └── Full stack test with NATS
 ```
@@ -199,10 +197,9 @@ Two Workflows Triggered (parallel)
   ├── Release Workflow
   │   ├── Generate changelog
   │   ├── Create GitHub release
-  │   ├── Build multi-platform binaries
-  │   │   ├── Linux (amd64, arm64)
-  │   │   ├── macOS (amd64, arm64)
-  │   │   └── Windows (amd64)
+  │   ├── Build Linux binaries for Debian
+  │   │   ├── amd64
+  │   │   └── arm64
   │   └── Upload assets
   │
   ├── Debian Package Workflow
@@ -240,12 +237,10 @@ Two Workflows Triggered (parallel)
 
 ## Platform Support
 
-### Tested Platforms
+### Supported Platforms
 - ✅ Debian 11 (Bullseye) and later
 - ✅ Ubuntu 20.04 LTS and later
-- ✅ Linux (amd64, arm64)
-- ✅ macOS (amd64, arm64)
-- ✅ Windows (amd64)
+- ✅ Any Linux distribution (amd64, arm64)
 
 ### Build System
 - ✅ Complete Make-based workflow
@@ -281,7 +276,6 @@ make test-coverage     # Run tests with coverage
 ### Building
 ```bash
 make build             # Build for current platform
-make build-all         # Build for all platforms
 make run               # Build and run
 ```
 
@@ -315,13 +309,12 @@ All status badges are visible on the README:
 
 ## Customization
 
-### Add More Platforms
+### Add More Architectures
 Edit `.github/workflows/ci.yml` or `release.yml`:
 ```yaml
 strategy:
   matrix:
-    goos: [linux, darwin, windows, freebsd]
-    goarch: [amd64, arm64, 386]
+    goarch: [amd64, arm64, 386]  # Add more architectures if needed
 ```
 
 ### Change Coverage Target

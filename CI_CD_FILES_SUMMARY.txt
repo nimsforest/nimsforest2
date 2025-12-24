@@ -5,8 +5,8 @@ CREATED FILES:
 --------------
 
 GitHub Actions Workflows:
-  ✓ .github/workflows/ci.yml                    (3,934 bytes) - Main CI pipeline
-  ✓ .github/workflows/release.yml               (2,950 bytes) - Release automation
+  ✓ .github/workflows/ci.yml                    (3,800 bytes) - Main CI pipeline
+  ✓ .github/workflows/release.yml               (2,800 bytes) - Release automation
   ✓ .github/workflows/debian-package.yml        (5,314 bytes) - Debian package builder
 
 GitHub Templates:
@@ -44,10 +44,9 @@ FEATURES IMPLEMENTED:
   - 20+ enabled linters
   - Security scanning with gosec
 
-✓ Multi-Platform Builds
-  - Linux (amd64, arm64)
-  - macOS (amd64, arm64)
-  - Windows (amd64)
+✓ Linux/Debian Builds
+  - Linux amd64 (primary Debian architecture)
+  - Linux arm64 (for Debian on ARM)
   - Automated artifact generation
 
 ✓ Debian Package Creation
@@ -73,7 +72,7 @@ FEATURES IMPLEMENTED:
   - Complete build automation
   - NATS server management
   - Development workflow commands
-  - Multi-platform builds
+  - Linux-focused builds
 
 
 DEBIAN-SPECIFIC OPTIMIZATIONS:
@@ -87,6 +86,7 @@ DEBIAN-SPECIFIC OPTIMIZATIONS:
 ✓ FHS-compliant file locations
 ✓ Make-based build and deployment
 ✓ No Docker dependencies
+✓ Linux-only builds (amd64 + arm64)
 
 
 MAKE COMMANDS:
@@ -110,8 +110,7 @@ Testing:
   make test-coverage     Run tests with coverage
 
 Building:
-  make build             Build for current platform
-  make build-all         Build for all platforms
+  make build             Build for current platform (Linux)
   make run               Build and run
 
 Code Quality:
@@ -146,7 +145,7 @@ NEXT STEPS:
 
 4. Push to GitHub and watch CI run:
    git add .
-   git commit -m "Add CI/CD pipeline"
+   git commit -m "Add CI/CD pipeline for Debian"
    git push
 
 5. Create first release:
@@ -185,14 +184,26 @@ DEPLOYMENT OPTIONS:
    sudo systemctl start nimsforest
 
 2. Binary Release:
-   wget .../forest-linux-amd64.tar.gz
-   tar xzf forest-linux-amd64.tar.gz
+   wget .../forest-VERSION-linux-amd64.tar.gz
+   tar xzf forest-VERSION-linux-amd64.tar.gz
    ./forest
 
 3. Build from Source:
    make setup
    make build
    sudo cp forest /usr/local/bin/
+
+
+PLATFORMS SUPPORTED:
+--------------------
+
+✓ Debian 11 (Bullseye) and later
+✓ Ubuntu 20.04 LTS and later
+✓ Any Linux distribution (amd64, arm64)
+
+Note: Only Linux builds are created. This is intentional as the
+target platform is Debian. Multi-platform builds (macOS, Windows)
+have been removed to keep the pipeline simple and focused.
 
 
 MONITORING:

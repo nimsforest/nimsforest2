@@ -47,11 +47,11 @@ NimsForest uses GitHub Actions for automated testing, building, and releasing. T
 
 #### Build
 - Runs on: `ubuntu-latest`
-- Matrix: `linux/darwin` × `amd64/arm64`
+- Matrix: `linux` × `amd64/arm64`
 - Steps:
   1. Checkout code
   2. Set up Go
-  3. Build binary for target platform
+  3. Build binary for Linux (Debian)
   4. Upload build artifacts (7 day retention)
 
 #### Integration Test
@@ -75,12 +75,10 @@ NimsForest uses GitHub Actions for automated testing, building, and releasing. T
 - Creates GitHub release with notes
 
 #### Build and Upload Assets
-- Matrix: Multiple OS/architecture combinations
-  - linux/amd64, linux/arm64
-  - darwin/amd64, darwin/arm64
-  - windows/amd64
-- Creates tarballs (`.tar.gz`) for Unix systems
-- Creates zip files (`.zip`) for Windows
+- Matrix: Linux architectures
+  - linux/amd64 (for Debian amd64)
+  - linux/arm64 (for Debian arm64)
+- Creates tarballs (`.tar.gz`)
 - Uploads all assets to GitHub release
 
 

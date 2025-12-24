@@ -50,8 +50,9 @@ func TestForestEndToEnd(t *testing.T) {
 		t.Fatalf("Failed to create soil: %v", err)
 	}
 
-	// Start decomposer
-	decomposer, err := core.RunDecomposer(humus, soil)
+	// Start decomposer with unique consumer name
+	consumerName := fmt.Sprintf("decomposer-%d", time.Now().UnixNano())
+	decomposer, err := core.RunDecomposerWithConsumer(humus, soil, consumerName)
 	if err != nil {
 		t.Fatalf("Failed to start decomposer: %v", err)
 	}
@@ -304,8 +305,9 @@ func TestForestComponents(t *testing.T) {
 		}
 		t.Logf("Added compost at slot %d", slot)
 
-		// Start decomposer briefly
-		decomposer, err := core.RunDecomposer(humus, soil)
+		// Start decomposer briefly with unique consumer name
+		consumerName := fmt.Sprintf("decomposer-%d", time.Now().UnixNano())
+		decomposer, err := core.RunDecomposerWithConsumer(humus, soil, consumerName)
 		if err != nil {
 			t.Fatalf("Failed to start decomposer: %v", err)
 		}

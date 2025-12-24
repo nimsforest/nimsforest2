@@ -42,7 +42,7 @@ jobs:
     
     - name: Run tests with coverage
       run: |
-        # Run all tests including e2e (no -short flag)
+        # Run all tests including e2e
         go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
       env:
         NATS_URL: nats://localhost:4222

@@ -744,6 +744,7 @@ Environment variables:
 - **[README.md](./README.md)** - This file, project overview and quick start
 - **[DEPLOYMENT.md](./DEPLOYMENT.md)** - Production deployment guide for Debian
 - **[CI_CD.md](./CI_CD.md)** - Continuous Integration/Deployment documentation
+- **[VALIDATION_GUIDE.md](./VALIDATION_GUIDE.md)** - How to validate the CI/CD pipeline
 
 ### Developer Documentation
 - **[Cursorinstructions.md](./Cursorinstructions.md)** - Complete architecture and API specifications

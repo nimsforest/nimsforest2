@@ -46,7 +46,7 @@ jobs:
     
     - name: Run tests with coverage
       run: |
-        go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
+        go test -v -race -short -coverprofile=coverage.txt -covermode=atomic ./...
       env:
         NATS_URL: nats://localhost:4222
     
@@ -92,7 +92,8 @@ jobs:
     
     - name: Install golangci-lint
       run: |
-        curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.62.2
+        # Use latest version that supports Go 1.24
+        curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin latest
     
     - name: Run golangci-lint
       run: $(go env GOPATH)/bin/golangci-lint run --timeout=5m

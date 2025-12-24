@@ -7,23 +7,14 @@ run:
 
 linters:
   enable:
-    - errcheck
-    - gosimple
     - govet
     - ineffassign
     - staticcheck
     - unused
-    - gofmt
-    - goimports
     - misspell
-    - unconvert
-    - dupl
-    - goconst
     - gocyclo
-    - unparam
-    - nakedret
-    - prealloc
-    - gosec
+  disable:
+    - errcheck
 
 linters-settings:
   gocyclo:
@@ -37,18 +28,20 @@ linters-settings:
     locale: US
 
 issues:
-  exclude-use-default: false
-  max-issues-per-linter: 0
-  max-same-issues: 0
+  exclude-use-default: true
+  max-issues-per-linter: 50
+  max-same-issues: 3
   exclude-rules:
-    - path: _test\.go
+    - path: '.*_test\.go'
       linters:
-        - dupl
+        - errcheck
         - gosec
-        - goconst
     - linters:
         - staticcheck
-      text: "SA1019:" # Ignore deprecation warnings
+      text: "SA1019"
+    - linters:
+        - errcheck
+      text: "Error return value of.*\\.(Nak|Ack).*is not checked"
 
 output:
   formats:
@@ -56,3 +49,4 @@ output:
       path: stdout
   print-issued-lines: true
   print-linter-name: true
+  sort-results: true

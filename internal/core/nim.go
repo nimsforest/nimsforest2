@@ -55,7 +55,7 @@ func (n *BaseNim) Name() string {
 // This is used when a nim needs to emit an event.
 func (n *BaseNim) Leaf(subject string, data []byte) error {
 	leaf := NewLeaf(subject, data, n.name)
-	
+
 	if err := n.wind.Drop(*leaf); err != nil {
 		return fmt.Errorf("nim %s failed to drop leaf: %w", n.name, err)
 	}

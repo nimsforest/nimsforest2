@@ -24,12 +24,12 @@ type StripeEventData struct {
 
 // StripeCharge represents a Stripe charge object.
 type StripeCharge struct {
-	ID         string  `json:"id"`
-	Amount     int64   `json:"amount"`      // Amount in cents
-	Currency   string  `json:"currency"`
-	Customer   string  `json:"customer"`
-	Status     string  `json:"status"`
-	FailureMsg string  `json:"failure_message,omitempty"`
+	ID         string            `json:"id"`
+	Amount     int64             `json:"amount"` // Amount in cents
+	Currency   string            `json:"currency"`
+	Customer   string            `json:"customer"`
+	Status     string            `json:"status"`
+	FailureMsg string            `json:"failure_message,omitempty"`
 	Metadata   map[string]string `json:"metadata,omitempty"`
 }
 
@@ -106,7 +106,7 @@ func (t *PaymentTree) parseChargeSucceeded(webhook StripeWebhook) *core.Leaf {
 	leaf := core.NewLeaf("payment.completed", data, t.Name())
 	log.Printf("[PaymentTree] Parsed successful payment: customer=%s, amount=%.2f %s",
 		charge.Customer, amount, charge.Currency)
-	
+
 	return leaf
 }
 
@@ -138,7 +138,7 @@ func (t *PaymentTree) parseChargeFailed(webhook StripeWebhook) *core.Leaf {
 	leaf := core.NewLeaf("payment.failed", data, t.Name())
 	log.Printf("[PaymentTree] Parsed failed payment: customer=%s, reason=%s",
 		charge.Customer, charge.FailureMsg)
-	
+
 	return leaf
 }
 

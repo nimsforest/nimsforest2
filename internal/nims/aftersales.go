@@ -71,15 +71,15 @@ func (n *AfterSalesNim) handlePaymentCompleted(ctx context.Context, leaf core.Le
 	// Create a followup task via compost
 	taskID := fmt.Sprintf("task-%s-%d", payment.CustomerID, time.Now().Unix())
 	task := Task{
-		ID:          taskID,
-		CustomerID:  payment.CustomerID,
-		Type:        "followup",
-		Description: fmt.Sprintf("Follow up on purchase of %s (%.2f %s)", 
+		ID:         taskID,
+		CustomerID: payment.CustomerID,
+		Type:       "followup",
+		Description: fmt.Sprintf("Follow up on purchase of %s (%.2f %s)",
 			payment.ItemID, payment.Amount, payment.Currency),
-		Status:      "pending",
-		DueDate:     time.Now().Add(24 * time.Hour), // Follow up in 24 hours
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
+		Status:    "pending",
+		DueDate:   time.Now().Add(24 * time.Hour), // Follow up in 24 hours
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
 	}
 
 	// Send task state change to humus (decomposer will apply to soil)
@@ -135,15 +135,15 @@ func (n *AfterSalesNim) handlePaymentFailed(ctx context.Context, leaf core.Leaf)
 	// Create urgent followup task
 	taskID := fmt.Sprintf("task-%s-failed-%d", payment.CustomerID, time.Now().Unix())
 	task := Task{
-		ID:          taskID,
-		CustomerID:  payment.CustomerID,
-		Type:        "payment_failure",
+		ID:         taskID,
+		CustomerID: payment.CustomerID,
+		Type:       "payment_failure",
 		Description: fmt.Sprintf("Reach out about failed payment (%.2f %s): %s",
 			payment.Amount, payment.Currency, payment.Reason),
-		Status:      "urgent",
-		DueDate:     time.Now().Add(2 * time.Hour), // Urgent - follow up in 2 hours
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
+		Status:    "urgent",
+		DueDate:   time.Now().Add(2 * time.Hour), // Urgent - follow up in 2 hours
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
 	}
 
 	_, err := n.CompostStruct(taskID, "create", task)

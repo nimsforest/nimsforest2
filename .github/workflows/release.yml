@@ -64,14 +64,19 @@ jobs:
         go-version: '1.24.x'
         cache: true
     
-    - name: Build for Linux/Debian
+    - name: Create source archive for Linux/Debian
       run: |
-        go build -v -ldflags="-s -w -X main.Version=${{ needs.create-release.outputs.version }}" \
-          -o forest ./cmd/forest
+        # This is a library project - create source archive
+        VERSION="${{ needs.create-release.outputs.version }}"
+        ARCHIVE_NAME="nimsforest-${VERSION}-linux-${{ matrix.goarch }}"
+        
+        # Create a directory with the source
+        mkdir -p ${ARCHIVE_NAME}
+        cp -r internal ${ARCHIVE_NAME}/
+        cp go.mod go.sum README.md LICENSE* ${ARCHIVE_NAME}/ 2>/dev/null || true
         
         # Create tarball
-        ARCHIVE_NAME="forest-${{ needs.create-release.outputs.version }}-linux-${{ matrix.goarch }}"
-        tar czf ${ARCHIVE_NAME}.tar.gz forest
+        tar czf ${ARCHIVE_NAME}.tar.gz ${ARCHIVE_NAME}
         
         echo "ASSET_PATH=${ARCHIVE_NAME}.tar.gz" >> $GITHUB_ENV
         echo "ASSET_NAME=${ARCHIVE_NAME}.tar.gz" >> $GITHUB_ENV

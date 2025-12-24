@@ -158,7 +158,7 @@ func TestForestEndToEnd(t *testing.T) {
 	t.Run("VerifyLeaves", func(t *testing.T) {
 		// Subscribe to wind to catch emitted leaves
 		leafCaught := make(chan core.Leaf, 10)
-		
+
 		sub, err := wind.Catch("followup.>", func(leaf core.Leaf) {
 			leafCaught <- leaf
 		})
@@ -196,7 +196,7 @@ func TestForestEndToEnd(t *testing.T) {
 		select {
 		case leaf := <-leafCaught:
 			t.Logf("✅ Caught leaf: %s from %s", leaf.Subject, leaf.Source)
-			
+
 			// Verify it's a followup leaf
 			if leaf.Subject != "followup.required" {
 				t.Errorf("Expected subject 'followup.required', got '%s'", leaf.Subject)
@@ -324,7 +324,7 @@ func TestForestComponents(t *testing.T) {
 		var expected, actual map[string]interface{}
 		json.Unmarshal(testData, &expected)
 		json.Unmarshal(data, &actual)
-		
+
 		if fmt.Sprintf("%v", expected) != fmt.Sprintf("%v", actual) {
 			t.Errorf("Expected data %v, got %v", expected, actual)
 		}

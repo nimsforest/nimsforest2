@@ -12,12 +12,12 @@ import (
 // Compost represents a state change entry in the humus.
 // It records what entity changed, what action was performed, and the new data.
 type Compost struct {
-	Entity    string          `json:"entity"`    // Entity identifier (e.g., "tasks/followup-123")
-	Action    string          `json:"action"`    // Action: create, update, delete
-	Data      json.RawMessage `json:"data"`      // New state data
-	NimName   string          `json:"nim"`       // Nim that created this compost
-	Timestamp time.Time       `json:"ts"`        // When this compost was created
-	Slot      uint64          `json:"slot"`      // Sequence number in the stream
+	Entity    string          `json:"entity"` // Entity identifier (e.g., "tasks/followup-123")
+	Action    string          `json:"action"` // Action: create, update, delete
+	Data      json.RawMessage `json:"data"`   // New state data
+	NimName   string          `json:"nim"`    // Nim that created this compost
+	Timestamp time.Time       `json:"ts"`     // When this compost was created
+	Slot      uint64          `json:"slot"`   // Sequence number in the stream
 }
 
 // Humus represents a JetStream stream for persistent state changes.
@@ -38,13 +38,13 @@ func NewHumus(js nats.JetStreamContext) (*Humus, error) {
 	if err != nil {
 		// Stream doesn't exist, create it
 		_, err = js.AddStream(&nats.StreamConfig{
-			Name:        streamName,
-			Subjects:    []string{"humus.>"},
-			Storage:     nats.FileStorage,
-			Retention:   nats.LimitsPolicy,  // Keep all messages up to limits
-			MaxAge:      7 * 24 * time.Hour, // Keep for 7 days
-			Discard:     nats.DiscardOld,
-			MaxMsgs:     1000000,             // Maximum messages in stream
+			Name:      streamName,
+			Subjects:  []string{"humus.>"},
+			Storage:   nats.FileStorage,
+			Retention: nats.LimitsPolicy,  // Keep all messages up to limits
+			MaxAge:    7 * 24 * time.Hour, // Keep for 7 days
+			Discard:   nats.DiscardOld,
+			MaxMsgs:   1000000, // Maximum messages in stream
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to create stream %s: %w", streamName, err)
@@ -109,7 +109,7 @@ func (h *Humus) Add(nimName, entity, action string, data []byte) (uint64, error)
 		return 0, fmt.Errorf("failed to publish compost: %w", err)
 	}
 
-	log.Printf("[Humus] Composted: nim=%s, entity=%s, action=%s, slot=%d", 
+	log.Printf("[Humus] Composted: nim=%s, entity=%s, action=%s, slot=%d",
 		nimName, entity, action, ack.Sequence)
 	return ack.Sequence, nil
 }
@@ -142,7 +142,7 @@ func (h *Humus) Decompose(handler func(compost Compost)) error {
 
 		// Acknowledge the message
 		msg.Ack()
-	}, 
+	},
 		nats.Durable(consumerName),
 		nats.DeliverAll(),
 		nats.AckExplicit(),

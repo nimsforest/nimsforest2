@@ -295,10 +295,10 @@ func TestMockNim_Integration(t *testing.T) {
 
 	// Track what the nim does
 	handledLeaves := make(chan Leaf, 1)
-	
+
 	// Create the base nim first
 	baseNim := NewBaseNim("payment-nim", wind, humus, soil)
-	
+
 	// Create a mock nim that handles payment events
 	mockNim := &MockNim{
 		BaseNim:  baseNim,

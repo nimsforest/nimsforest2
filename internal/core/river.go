@@ -12,9 +12,9 @@ import (
 // RiverData represents unstructured external data flowing into the system.
 // This is raw data from external sources like webhooks, APIs, etc.
 type RiverData struct {
-	Subject   string    `json:"subject"`   // Raw source identifier (e.g., "stripe.webhook")
-	Data      []byte    `json:"data"`      // Unstructured payload
-	Timestamp time.Time `json:"ts"`        // When this data entered the river
+	Subject   string    `json:"subject"` // Raw source identifier (e.g., "stripe.webhook")
+	Data      []byte    `json:"data"`    // Unstructured payload
+	Timestamp time.Time `json:"ts"`      // When this data entered the river
 }
 
 // River represents a JetStream stream for external unstructured data.
@@ -35,13 +35,13 @@ func NewRiver(js nats.JetStreamContext) (*River, error) {
 	if err != nil {
 		// Stream doesn't exist, create it
 		_, err = js.AddStream(&nats.StreamConfig{
-			Name:        streamName,
-			Subjects:    []string{"river.>"},
-			Storage:     nats.FileStorage,
-			Retention:   nats.WorkQueuePolicy,
-			MaxAge:      24 * time.Hour,     // Keep data for 24 hours
-			Discard:     nats.DiscardOld,
-			MaxMsgs:     100000,              // Maximum messages in stream
+			Name:      streamName,
+			Subjects:  []string{"river.>"},
+			Storage:   nats.FileStorage,
+			Retention: nats.WorkQueuePolicy,
+			MaxAge:    24 * time.Hour, // Keep data for 24 hours
+			Discard:   nats.DiscardOld,
+			MaxMsgs:   100000, // Maximum messages in stream
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to create stream %s: %w", streamName, err)

@@ -15,7 +15,7 @@ func jsonEqual(a, b []byte) bool {
 	if err := json.Unmarshal(b, &j2); err != nil {
 		return false
 	}
-	
+
 	// Convert back to JSON to normalize
 	b1, _ := json.Marshal(j1)
 	b2, _ := json.Marshal(j2)
@@ -269,15 +269,15 @@ func TestDecomposer_MultipleOperations(t *testing.T) {
 
 	// Add multiple compost entries
 	entity := "tasks/task-1"
-	
+
 	// Create
 	humus.Add("test-nim", entity, "create", []byte(`{"status": "pending"}`))
 	time.Sleep(300 * time.Millisecond)
-	
+
 	// Update
 	humus.Add("test-nim", entity, "update", []byte(`{"status": "in_progress"}`))
 	time.Sleep(300 * time.Millisecond)
-	
+
 	// Update again
 	humus.Add("test-nim", entity, "update", []byte(`{"status": "complete"}`))
 	time.Sleep(300 * time.Millisecond)

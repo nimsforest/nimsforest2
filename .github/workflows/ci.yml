@@ -117,17 +117,13 @@ jobs:
     
     - name: Build for Linux
       run: |
-        go build -v -o forest-linux-${{ matrix.goarch }} ./cmd/forest
+        # This is a library project - verify all packages compile
+        echo "Building all packages for linux/${{ matrix.goarch }}..."
+        go build -v ./...
+        echo "✓ All packages compile successfully for linux/${{ matrix.goarch }}"
       env:
         GOOS: linux
         GOARCH: ${{ matrix.goarch }}
-    
-    - name: Upload build artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: forest-linux-${{ matrix.goarch }}
-        path: forest-linux-${{ matrix.goarch }}
-        retention-days: 7
 
   integration-test:
     name: Integration Tests

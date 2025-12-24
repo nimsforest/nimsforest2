@@ -13,13 +13,13 @@ func SetupTestNATS(t *testing.T) (*nats.Conn, nats.JetStreamContext) {
 	if err != nil {
 		t.Skipf("NATS not available: %v (run 'make start' to start NATS)", err)
 	}
-	
+
 	js, err := nc.JetStream()
 	if err != nil {
 		nc.Close()
 		t.Skipf("JetStream not available: %v", err)
 	}
-	
+
 	return nc, js
 }
 

@@ -48,17 +48,41 @@ jobs:
       env:
         NATS_URL: nats://localhost:4222
     
+    - name: Clean NATS data after core tests
+      run: |
+        pkill -9 nats-server || true
+        rm -rf /tmp/nats-data
+        mkdir -p /tmp/nats-data
+        nats-server --jetstream --store_dir=/tmp/nats-data -p 4222 -m 8222 > /tmp/nats-server.log 2>&1 &
+        sleep 2
+    
     - name: Run tree tests
       run: |
         go test -v -race -coverprofile=coverage-trees.txt -covermode=atomic ./internal/trees/...
       env:
         NATS_URL: nats://localhost:4222
     
+    - name: Clean NATS data after tree tests
+      run: |
+        pkill -9 nats-server || true
+        rm -rf /tmp/nats-data
+        mkdir -p /tmp/nats-data
+        nats-server --jetstream --store_dir=/tmp/nats-data -p 4222 -m 8222 > /tmp/nats-server.log 2>&1 &
+        sleep 2
+    
     - name: Run nim tests
       run: |
         go test -v -race -coverprofile=coverage-nims.txt -covermode=atomic ./internal/nims/...
       env:
         NATS_URL: nats://localhost:4222
+    
+    - name: Clean NATS data before e2e tests
+      run: |
+        pkill -9 nats-server || true
+        rm -rf /tmp/nats-data
+        mkdir -p /tmp/nats-data
+        nats-server --jetstream --store_dir=/tmp/nats-data -p 4222 -m 8222 > /tmp/nats-server.log 2>&1 &
+        sleep 2
     
     - name: Run e2e tests
       run: |

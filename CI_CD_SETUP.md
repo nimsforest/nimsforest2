@@ -2,7 +2,7 @@
 
 ## Overview
 
-A comprehensive CI/CD pipeline has been added to NimsForest, optimized for Debian-based deployment targets. The pipeline provides automated testing, building, releasing, and packaging for production use.
+A comprehensive CI/CD pipeline has been added to NimsForest, optimized for Debian-based deployment targets using Make as the primary build system. The pipeline provides automated testing, building, releasing, and packaging for production use.
 
 ## What's Been Added
 
@@ -25,13 +25,9 @@ A comprehensive CI/CD pipeline has been added to NimsForest, optimized for Debia
 - **Purpose**: Automated releases for version tags
 - **Features**:
   - Automatic changelog generation from commits
-  - Multi-platform binary builds:
-    - linux/amd64, linux/arm64
-    - darwin/amd64, darwin/arm64
-    - windows/amd64
+  - Multi-platform binary builds (Linux, macOS, Windows × multiple architectures)
   - Asset packaging (tar.gz for Unix, zip for Windows)
   - Automated GitHub release creation
-  - Multi-arch Docker image building and publishing
   - Version injection into binaries
 - **When it runs**: Push tags matching `v*` (e.g., `v1.0.0`)
 
@@ -66,36 +62,14 @@ Code coverage configuration:
 - GitHub checks integration
 - Coverage annotations on PRs
 
-#### 3. **`.dockerignore`**
-Optimizes Docker builds by excluding:
-- Git files
-- Documentation (except README)
-- IDE files
-- Build artifacts and logs
-- CI/CD configuration
-
-### Docker Support
-
-#### **`Dockerfile`**
-- **Base**: Debian Bookworm (stable)
-- **Multi-stage build**: Smaller final image
-- **Security**: Non-root user (forest)
-- **Health checks**: Automatic process monitoring
-- **Size**: Optimized with build caching
-
-#### **`docker-compose.yml`** (in DEPLOYMENT.md)
-- Complete stack with NATS + NimsForest
-- Health checks for both services
-- Persistent volumes for NATS data
-- Monitoring port exposure
-
 ### Documentation
 
 #### 1. **`DEPLOYMENT.md`**
 Comprehensive deployment guide covering:
 - System requirements
 - Debian package installation
-- Docker deployment options
+- Binary installation
+- Building from source with Make
 - Systemd service configuration
 - NATS server setup
 - Production considerations
@@ -132,11 +106,10 @@ Complete CI/CD documentation:
 
 .codecov.yml                      # Codecov configuration
 .golangci.yml                     # Linter configuration
-.dockerignore                     # Docker build exclusions
-Dockerfile                        # Debian-based image
 DEPLOYMENT.md                     # Deployment guide
 CI_CD.md                          # CI/CD documentation
 CI_CD_SETUP.md                    # This file
+CI_CD_FILES_SUMMARY.txt           # Quick reference
 README.md                         # Updated with badges
 ```
 
@@ -151,9 +124,11 @@ sudo dpkg -i nimsforest_VERSION_amd64.deb
 sudo systemctl start nimsforest
 ```
 
-**Run with Docker:**
+**Binary Installation:**
 ```bash
-docker run -d -e NATS_URL=nats://localhost:4222 yourusername/nimsforest:latest
+wget https://github.com/yourusername/nimsforest/releases/latest/download/forest-linux-amd64.tar.gz
+tar xzf forest-linux-amd64.tar.gz
+./forest
 ```
 
 ### For Developers
@@ -165,20 +140,16 @@ make lint          # Run linter
 make check         # All checks
 ```
 
+**Build from source:**
+```bash
+make setup         # Complete environment setup
+make build         # Build binary
+```
+
 **Create a release:**
 ```bash
 git tag -a v1.0.0 -m "Release v1.0.0"
 git push origin v1.0.0
-```
-
-**Build Debian package locally:**
-```bash
-# Install dependencies
-sudo apt-get install dpkg-dev debhelper
-
-# Build
-make build
-# Then follow steps in debian-package.yml
 ```
 
 ## Required GitHub Secrets
@@ -187,15 +158,11 @@ To enable all features, add these secrets to your GitHub repository:
 
 ### Optional but Recommended
 - `CODECOV_TOKEN` - For coverage reporting (get from codecov.io)
-- `DOCKER_USERNAME` - For Docker Hub publishing
-- `DOCKER_PASSWORD` - Docker Hub token
 
 ### Adding Secrets
 ```bash
 # Via GitHub CLI
 gh secret set CODECOV_TOKEN --body "your-token"
-gh secret set DOCKER_USERNAME --body "your-username"
-gh secret set DOCKER_PASSWORD --body "your-token"
 ```
 
 Or via GitHub web interface:
@@ -228,7 +195,7 @@ CI Workflow Triggered
 ```
 Push tag v1.0.0
   ↓
-Three Workflows Triggered (parallel)
+Two Workflows Triggered (parallel)
   ├── Release Workflow
   │   ├── Generate changelog
   │   ├── Create GitHub release
@@ -236,9 +203,7 @@ Three Workflows Triggered (parallel)
   │   │   ├── Linux (amd64, arm64)
   │   │   ├── macOS (amd64, arm64)
   │   │   └── Windows (amd64)
-  │   ├── Upload assets
-  │   └── Build & push Docker image
-  │       └── Tags: latest, 1.0.0, 1.0, 1
+  │   └── Upload assets
   │
   ├── Debian Package Workflow
   │   ├── Build .deb for amd64
@@ -257,18 +222,19 @@ Three Workflows Triggered (parallel)
 - ✅ Coverage tracking prevents regressions
 - ✅ Consistent builds across platforms
 - ✅ Fast feedback on PRs
+- ✅ Make-based workflow for consistency
 
 ### For Users
 - ✅ Pre-built binaries for all platforms
 - ✅ Native Debian packages with systemd
-- ✅ Docker images for containerized deployments
+- ✅ Simple Make commands for building
 - ✅ Automated changelogs for releases
 - ✅ Verified and tested releases
 
 ### For Operations
 - ✅ Easy installation via package manager
 - ✅ Systemd integration for service management
-- ✅ Security-hardened Docker images
+- ✅ Make commands for all operations
 - ✅ Proper logging and monitoring setup
 - ✅ Graceful updates and rollbacks
 
@@ -281,11 +247,57 @@ Three Workflows Triggered (parallel)
 - ✅ macOS (amd64, arm64)
 - ✅ Windows (amd64)
 
-### Docker Support
-- ✅ Multi-architecture images (amd64, arm64)
-- ✅ Debian Bookworm base
-- ✅ Non-root user
-- ✅ Health checks
+### Build System
+- ✅ Complete Make-based workflow
+- ✅ Automated NATS server management
+- ✅ Development environment setup
+- ✅ Multi-platform builds
+
+## Make Commands Reference
+
+### Setup & Installation
+```bash
+make setup             # Complete environment setup
+make deps              # Download Go dependencies
+make install-nats      # Install NATS server
+make verify            # Verify environment
+```
+
+### NATS Management
+```bash
+make start             # Start NATS with JetStream
+make stop              # Stop NATS server
+make restart           # Restart NATS
+make status            # Check NATS status
+```
+
+### Testing
+```bash
+make test              # Run unit tests
+make test-integration  # Run integration tests
+make test-coverage     # Run tests with coverage
+```
+
+### Building
+```bash
+make build             # Build for current platform
+make build-all         # Build for all platforms
+make run               # Build and run
+```
+
+### Code Quality
+```bash
+make fmt               # Format code
+make lint              # Run linter
+make vet               # Run go vet
+make check             # All checks
+```
+
+### Development
+```bash
+make dev               # Complete dev setup
+make ci                # Run CI checks locally
+```
 
 ## Monitoring CI/CD
 
@@ -336,9 +348,8 @@ linters:
    - Replace `yourusername/nimsforest` with your actual GitHub repository
    - Update in: README.md, CI_CD.md, DEPLOYMENT.md, workflow files
 
-2. **Configure Secrets**
+2. **Configure Secrets** (optional)
    - Add CODECOV_TOKEN for coverage reporting
-   - Add Docker credentials if using Docker Hub
 
 3. **Test the Pipeline**
    ```bash
@@ -381,14 +392,16 @@ linters:
 - Verify dpkg-deb is installed
 - Check package structure matches Debian standards
 
-### Docker Build Fails
-- Verify Dockerfile syntax
-- Check if base images are available
-- Test build locally first
+### Make Commands Failing
+- Run `make verify` to check environment
+- Ensure Go 1.22+ is installed
+- Check NATS server installation
+- Review Make output for specific errors
 
 For more details, see:
 - **[CI_CD.md](./CI_CD.md)** - Complete CI/CD documentation
 - **[DEPLOYMENT.md](./DEPLOYMENT.md)** - Deployment troubleshooting
+- **[Makefile](./Makefile)** - All available Make commands
 - **GitHub Actions logs** - Real-time workflow execution details
 
 ## Support
@@ -401,4 +414,4 @@ For more details, see:
 
 **CI/CD Setup Complete! 🎉**
 
-The NimsForest project now has a production-ready CI/CD pipeline optimized for Debian deployments.
+The NimsForest project now has a production-ready CI/CD pipeline optimized for Debian deployments using Make as the build system.

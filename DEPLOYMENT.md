@@ -6,7 +6,8 @@ This guide covers deployment options for NimsForest on Debian-based systems.
 
 - [System Requirements](#system-requirements)
 - [Debian Package Installation](#debian-package-installation)
-- [Docker Deployment](#docker-deployment)
+- [Binary Installation](#binary-installation)
+- [Building from Source](#building-from-source)
 - [Systemd Service](#systemd-service)
 - [Configuration](#configuration)
 - [NATS Setup](#nats-setup)
@@ -79,89 +80,79 @@ sudo systemctl status nimsforest
 sudo journalctl -u nimsforest -f
 ```
 
-## Docker Deployment
+## Binary Installation
 
-### Using Docker Compose
+### Download Pre-built Binary
 
-Create a `docker-compose.yml` file:
-
-```yaml
-version: '3.8'
-
-services:
-  nats:
-    image: nats:2.12-alpine
-    container_name: nimsforest-nats
-    command:
-      - "--jetstream"
-      - "--store_dir=/data"
-      - "--http_port=8222"
-    ports:
-      - "4222:4222"
-      - "8222:8222"
-    volumes:
-      - nats-data:/data
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8222/healthz"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-
-  nimsforest:
-    image: yourusername/nimsforest:latest
-    container_name: nimsforest
-    depends_on:
-      nats:
-        condition: service_healthy
-    environment:
-      - NATS_URL=nats://nats:4222
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "pgrep", "-x", "forest"]
-      interval: 30s
-      timeout: 3s
-      retries: 3
-
-volumes:
-  nats-data:
-```
-
-Deploy with:
+Download the latest release for your platform:
 
 ```bash
-docker-compose up -d
+# For AMD64
+wget https://github.com/yourusername/nimsforest/releases/latest/download/forest-linux-amd64.tar.gz
+tar xzf forest-linux-amd64.tar.gz
+
+# For ARM64
+wget https://github.com/yourusername/nimsforest/releases/latest/download/forest-linux-arm64.tar.gz
+tar xzf forest-linux-arm64.tar.gz
+
+# Make executable
+chmod +x forest
+
+# Move to system location
+sudo mv forest /usr/local/bin/
+
+# Verify installation
+forest --version
 ```
 
-### Standalone Docker
+## Building from Source
+
+### Prerequisites
+
+Ensure you have the required tools:
 
 ```bash
-# Pull the image
-docker pull yourusername/nimsforest:latest
+# Install Go (if not already installed)
+wget https://go.dev/dl/go1.24.linux-amd64.tar.gz
+sudo tar -C /usr/local -xzf go1.24.linux-amd64.tar.gz
+export PATH=$PATH:/usr/local/go/bin
 
-# Run the container
-docker run -d \
-  --name nimsforest \
-  --restart unless-stopped \
-  -e NATS_URL=nats://your-nats-server:4222 \
-  yourusername/nimsforest:latest
+# Install Make
+sudo apt-get update
+sudo apt-get install -y make git
 ```
 
-### Build from Source
+### Build with Make
 
 ```bash
 # Clone the repository
 git clone https://github.com/yourusername/nimsforest.git
 cd nimsforest
 
-# Build the Docker image
-docker build -t nimsforest:local .
+# Complete setup (downloads dependencies, installs NATS)
+make setup
 
-# Run
-docker run -d \
-  --name nimsforest \
-  -e NATS_URL=nats://localhost:4222 \
-  nimsforest:local
+# Build the application
+make build
+
+# The binary will be created as: ./forest
+
+# Optionally, install to system
+sudo cp forest /usr/local/bin/
+sudo chmod +x /usr/local/bin/forest
+```
+
+### Build for Multiple Platforms
+
+```bash
+# Build for all supported platforms
+make build-all
+
+# This creates:
+# - forest-linux-amd64
+# - forest-linux-arm64
+# - forest-darwin-amd64
+# - forest-darwin-arm64
 ```
 
 ## Systemd Service
@@ -329,6 +320,18 @@ ExecStart=/usr/local/bin/nats-server -c /etc/nats/nats.conf
 ```
 
 ## Production Considerations
+
+### Quick Development Workflow
+
+```bash
+# Complete development setup
+make dev
+
+# This runs:
+# - make setup    (install dependencies)
+# - make start    (start NATS)
+# - make test     (run tests)
+```
 
 ### Security
 

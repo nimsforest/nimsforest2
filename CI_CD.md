@@ -83,10 +83,6 @@ NimsForest uses GitHub Actions for automated testing, building, and releasing. T
 - Creates zip files (`.zip`) for Windows
 - Uploads all assets to GitHub release
 
-#### Docker Build (optional)
-- Builds multi-platform Docker image
-- Pushes to Docker Hub if credentials are configured
-- Tags: `latest`, `major.minor.patch`, `major.minor`, `major`
 
 ### 3. Debian Package Workflow (`.github/workflows/debian-package.yml`)
 
@@ -134,15 +130,6 @@ Configures Codecov with:
 - Automatic PR comments with coverage diff
 - GitHub checks integration
 
-### `.dockerignore`
-
-Excludes from Docker builds:
-- Git files
-- Documentation (except README)
-- IDE files
-- Build artifacts
-- Logs
-- CI/CD files
 
 ## Usage
 
@@ -186,13 +173,11 @@ make vet
    - CI workflow validates the tag
    - Release workflow creates GitHub release
    - Debian package workflow builds `.deb` files
-   - Docker workflow publishes images
 
 4. **Verify release**:
    - Check GitHub Releases page
    - Download and test binaries
    - Test Debian package installation
-   - Pull and test Docker image
 
 ### Manual Workflow Dispatch
 
@@ -216,18 +201,11 @@ Add these to your GitHub repository settings (Settings → Secrets and variables
 - `CODECOV_TOKEN`: Codecov upload token
   - Get from: https://codecov.io/gh/yourusername/nimsforest/settings
 
-#### For Docker Hub (Optional)
-- `DOCKER_USERNAME`: Docker Hub username
-- `DOCKER_PASSWORD`: Docker Hub password or access token
-  - Create token at: https://hub.docker.com/settings/security
-
 ### Setting Secrets
 
 Via GitHub CLI:
 ```bash
 gh secret set CODECOV_TOKEN --body "your-token-here"
-gh secret set DOCKER_USERNAME --body "your-username"
-gh secret set DOCKER_PASSWORD --body "your-password"
 ```
 
 Via GitHub Web:
@@ -295,11 +273,6 @@ go mod download
 - Check GitHub token permissions
 - Ensure release was created successfully
 - Review workflow logs for errors
-
-#### Docker Push Failing
-- Verify Docker Hub credentials are set
-- Check Docker Hub repository exists
-- Ensure repository is public or token has push access
 
 ### Debian Package Issues
 

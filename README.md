@@ -693,16 +693,18 @@ NimsForest supports multiple deployment options optimized for Debian-based syste
    sudo systemctl start nimsforest
    ```
 
-2. **Docker Compose**:
-   ```bash
-   docker-compose up -d
-   ```
-
-3. **Binary Release**:
+2. **Binary Release**:
    ```bash
    wget https://github.com/yourusername/nimsforest/releases/latest/download/forest-linux-amd64.tar.gz
    tar xzf forest-linux-amd64.tar.gz
    ./forest
+   ```
+
+3. **Build from Source**:
+   ```bash
+   make setup
+   make build
+   sudo cp forest /usr/local/bin/
    ```
 
 For detailed deployment instructions, see **[DEPLOYMENT.md](./DEPLOYMENT.md)**.

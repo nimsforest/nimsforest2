@@ -1,0 +1,164 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, 'cursor/**' ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        go-version: ['1.23.x', '1.24.x']
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ matrix.go-version }}
+        cache: true
+    
+    - name: Install NATS Server
+      run: |
+        curl -sf https://binaries.nats.dev/nats-io/nats-server/v2@latest | sh
+        sudo mv nats-server /usr/local/bin/
+        nats-server --version
+    
+    - name: Download dependencies
+      run: |
+        go mod download
+        go mod verify
+    
+    - name: Start NATS Server
+      run: |
+        mkdir -p /tmp/nats-data
+        nats-server --jetstream --store_dir=/tmp/nats-data -p 4222 -m 8222 > /tmp/nats-server.log 2>&1 &
+        sleep 2
+        # Verify NATS is running
+        curl -f http://localhost:8222/varz || (cat /tmp/nats-server.log && exit 1)
+    
+    - name: Run tests with coverage
+      run: |
+        go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
+      env:
+        NATS_URL: nats://localhost:4222
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        file: ./coverage.txt
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+      env:
+        CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+    
+    - name: Stop NATS Server
+      if: always()
+      run: |
+        pkill -9 nats-server || true
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.24.x'
+        cache: true
+    
+    - name: Run go fmt
+      run: |
+        if [ -n "$(gofmt -s -l .)" ]; then
+          echo "Go code is not formatted:"
+          gofmt -s -d .
+          exit 1
+        fi
+    
+    - name: Run go vet
+      run: go vet ./...
+    
+    - name: Install golangci-lint
+      run: |
+        curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.62.2
+    
+    - name: Run golangci-lint
+      run: $(go env GOPATH)/bin/golangci-lint run --timeout=5m
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        goos: [linux, darwin]
+        goarch: [amd64, arm64]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.24.x'
+        cache: true
+    
+    - name: Build
+      run: |
+        go build -v -o forest-${{ matrix.goos }}-${{ matrix.goarch }} ./cmd/forest
+      env:
+        GOOS: ${{ matrix.goos }}
+        GOARCH: ${{ matrix.goarch }}
+    
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: forest-${{ matrix.goos }}-${{ matrix.goarch }}
+        path: forest-${{ matrix.goos }}-${{ matrix.goarch }}
+        retention-days: 7
+
+  integration-test:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: [test, lint]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.24.x'
+        cache: true
+    
+    - name: Install NATS Server
+      run: |
+        curl -sf https://binaries.nats.dev/nats-io/nats-server/v2@latest | sh
+        sudo mv nats-server /usr/local/bin/
+        nats-server --version
+    
+    - name: Download dependencies
+      run: go mod download
+    
+    - name: Run integration tests
+      run: make test-integration
+      env:
+        NATS_URL: nats://localhost:4222
+    
+    - name: Stop NATS Server
+      if: always()
+      run: pkill -9 nats-server || true

@@ -2,9 +2,12 @@
 
 An event-driven organizational orchestration system built with Go, NATS, and JetStream.
 
+[![CI](https://github.com/yourusername/nimsforest/actions/workflows/ci.yml/badge.svg)](https://github.com/yourusername/nimsforest/actions/workflows/ci.yml)
 [![Go Version](https://img.shields.io/badge/Go-1.23+-00ADD8?style=flat&logo=go)](https://golang.org)
 [![NATS](https://img.shields.io/badge/NATS-2.12.3-27AAE1?style=flat&logo=nats)](https://nats.io)
-[![Test Coverage](https://img.shields.io/badge/coverage-75%25-green?style=flat)](./PROGRESS.md)
+[![codecov](https://codecov.io/gh/yourusername/nimsforest/branch/main/graph/badge.svg)](https://codecov.io/gh/yourusername/nimsforest)
+[![Go Report Card](https://goreportcard.com/badge/github.com/yourusername/nimsforest)](https://goreportcard.com/report/github.com/yourusername/nimsforest)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## Overview
 

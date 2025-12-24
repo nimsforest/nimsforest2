@@ -1,8 +1,12 @@
 # Build stage
-FROM golang:1.24-alpine AS builder
+FROM golang:1.24-bookworm AS builder
 
 # Install build dependencies
-RUN apk add --no-cache git make
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    make \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
 WORKDIR /build
@@ -17,19 +21,23 @@ RUN go mod download
 COPY . .
 
 # Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo \
+RUN CGO_ENABLED=0 GOOS=linux go build -a \
     -ldflags="-s -w" \
     -o forest ./cmd/forest
 
-# Final stage
-FROM alpine:latest
+# Final stage - Debian Bookworm slim
+FROM debian:bookworm-slim
 
-# Install ca-certificates for HTTPS and curl for health checks
-RUN apk --no-cache add ca-certificates curl
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    procps \
+    && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
-RUN addgroup -g 1000 forest && \
-    adduser -D -u 1000 -G forest forest
+RUN groupadd -g 1000 forest && \
+    useradd -u 1000 -g forest -s /bin/bash -m forest
 
 # Set working directory
 WORKDIR /app

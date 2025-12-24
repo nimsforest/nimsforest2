@@ -52,6 +52,7 @@ issues:
 
 output:
   formats:
-    - format: colored-line-number
+    colored-line-number:
+      path: stdout
   print-issued-lines: true
   print-linter-name: true

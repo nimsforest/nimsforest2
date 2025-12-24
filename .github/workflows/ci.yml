@@ -34,18 +34,43 @@ jobs:
     
     - name: Start NATS Server
       run: |
+        # Clean any existing NATS data to ensure fresh state for tests
+        rm -rf /tmp/nats-data
         mkdir -p /tmp/nats-data
         nats-server --jetstream --store_dir=/tmp/nats-data -p 4222 -m 8222 > /tmp/nats-server.log 2>&1 &
         sleep 2
         # Verify NATS is running
         curl -f http://localhost:8222/varz || (cat /tmp/nats-server.log && exit 1)
     
-    - name: Run tests with coverage
+    - name: Run core tests
       run: |
-        # Run all tests including e2e
-        go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
+        go test -v -race -coverprofile=coverage-core.txt -covermode=atomic ./internal/core/...
       env:
         NATS_URL: nats://localhost:4222
+    
+    - name: Run tree tests
+      run: |
+        go test -v -race -coverprofile=coverage-trees.txt -covermode=atomic ./internal/trees/...
+      env:
+        NATS_URL: nats://localhost:4222
+    
+    - name: Run nim tests
+      run: |
+        go test -v -race -coverprofile=coverage-nims.txt -covermode=atomic ./internal/nims/...
+      env:
+        NATS_URL: nats://localhost:4222
+    
+    - name: Run e2e tests
+      run: |
+        go test -v -race -coverprofile=coverage-e2e.txt -covermode=atomic ./test/e2e/...
+      env:
+        NATS_URL: nats://localhost:4222
+    
+    - name: Merge coverage reports
+      run: |
+        # Combine all coverage files
+        echo "mode: atomic" > coverage.txt
+        grep -h -v "^mode:" coverage-*.txt >> coverage.txt || true
     
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4

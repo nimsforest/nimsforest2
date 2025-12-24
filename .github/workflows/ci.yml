@@ -196,8 +196,16 @@ jobs:
     - name: Download dependencies
       run: go mod download
     
+    - name: Start NATS Server
+      run: |
+        rm -rf /tmp/nats-data
+        mkdir -p /tmp/nats-data
+        nats-server --jetstream --store_dir=/tmp/nats-data -p 4222 -m 8222 > /tmp/nats-server.log 2>&1 &
+        sleep 2
+        curl -f http://localhost:8222/varz || (cat /tmp/nats-server.log && exit 1)
+    
     - name: Run integration tests
-      run: make test-integration
+      run: go test -v -race ./test/e2e/...
       env:
         NATS_URL: nats://localhost:4222
     

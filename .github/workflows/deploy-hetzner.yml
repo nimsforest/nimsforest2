@@ -1,0 +1,145 @@
+name: Deploy to Hetzner
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        type: choice
+        options:
+          - production
+          - staging
+        default: staging
+
+jobs:
+  deploy:
+    name: Deploy to Hetzner
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'production' }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.24.x'
+        cache: true
+    
+    - name: Build for Linux AMD64
+      run: |
+        GOOS=linux GOARCH=amd64 go build -o forest -ldflags="-s -w" ./cmd/forest
+        chmod +x forest
+    
+    - name: Create deployment package
+      run: |
+        mkdir -p deploy
+        cp forest deploy/
+        cp scripts/deploy.sh deploy/
+        cp scripts/systemd/nimsforest.service deploy/
+        tar czf nimsforest-deploy.tar.gz deploy/
+    
+    - name: Install SSH key
+      uses: shimataro/ssh-key-action@v2
+      with:
+        key: ${{ secrets.HETZNER_SSH_PRIVATE_KEY }}
+        known_hosts: ${{ secrets.HETZNER_KNOWN_HOSTS }}
+    
+    - name: Copy deployment package to server
+      run: |
+        scp -o StrictHostKeyChecking=no nimsforest-deploy.tar.gz ${{ secrets.HETZNER_SSH_USER }}@${{ secrets.HETZNER_HOST }}:/tmp/
+    
+    - name: Deploy on Hetzner server
+      run: |
+        ssh -o StrictHostKeyChecking=no ${{ secrets.HETZNER_SSH_USER }}@${{ secrets.HETZNER_HOST }} << 'ENDSSH'
+          set -e
+          
+          echo "🚀 Starting deployment..."
+          
+          # Extract deployment package
+          cd /tmp
+          tar xzf nimsforest-deploy.tar.gz
+          cd deploy
+          
+          # Make deploy script executable
+          chmod +x deploy.sh
+          
+          # Run deployment script
+          sudo ./deploy.sh
+          
+          # Cleanup
+          cd /tmp
+          rm -rf deploy nimsforest-deploy.tar.gz
+          
+          echo "✅ Deployment completed successfully!"
+        ENDSSH
+    
+    - name: Verify deployment
+      run: |
+        ssh -o StrictHostKeyChecking=no ${{ secrets.HETZNER_SSH_USER }}@${{ secrets.HETZNER_HOST }} << 'ENDSSH'
+          # Check service status
+          sudo systemctl status nimsforest --no-pager
+          
+          # Check if service is active
+          if sudo systemctl is-active --quiet nimsforest; then
+            echo "✅ Service is running"
+          else
+            echo "❌ Service is not running"
+            exit 1
+          fi
+          
+          # Get version info
+          /usr/local/bin/forest --version || echo "Version command not available"
+        ENDSSH
+    
+    - name: Notify deployment status
+      if: always()
+      run: |
+        if [ "${{ job.status }}" == "success" ]; then
+          echo "✅ Deployment to Hetzner completed successfully!"
+        else
+          echo "❌ Deployment to Hetzner failed!"
+        fi
+
+  rollback:
+    name: Rollback deployment
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: failure()
+    environment: ${{ github.event.inputs.environment || 'production' }}
+    
+    steps:
+    - name: Install SSH key
+      uses: shimataro/ssh-key-action@v2
+      with:
+        key: ${{ secrets.HETZNER_SSH_PRIVATE_KEY }}
+        known_hosts: ${{ secrets.HETZNER_KNOWN_HOSTS }}
+    
+    - name: Perform rollback
+      run: |
+        ssh -o StrictHostKeyChecking=no ${{ secrets.HETZNER_SSH_USER }}@${{ secrets.HETZNER_HOST }} << 'ENDSSH'
+          set -e
+          
+          echo "⚠️  Performing rollback..."
+          
+          # Check if backup exists
+          if [ -f /opt/nimsforest/backups/forest.backup ]; then
+            # Stop service
+            sudo systemctl stop nimsforest
+            
+            # Restore backup
+            sudo cp /opt/nimsforest/backups/forest.backup /usr/local/bin/forest
+            sudo chmod +x /usr/local/bin/forest
+            
+            # Start service
+            sudo systemctl start nimsforest
+            
+            echo "✅ Rollback completed successfully!"
+          else
+            echo "⚠️  No backup found, skipping rollback"
+          fi
+        ENDSSH

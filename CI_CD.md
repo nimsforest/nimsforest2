@@ -11,6 +11,7 @@ NimsForest uses GitHub Actions for automated testing, building, and releasing. T
 - ✅ Code coverage reporting via Codecov
 - ✅ Multi-platform binary builds
 - ✅ Automated Debian package creation
+- ✅ Continuous deployment to Hetzner Cloud
 - ✅ Docker image building and publishing
 - ✅ Release automation with changelog generation
 
@@ -98,6 +99,39 @@ NimsForest uses GitHub Actions for automated testing, building, and releasing. T
   5. Build binary for target architecture
   6. Generate control file with metadata
   7. Create systemd service file
+
+### 4. Hetzner Deployment Workflow (`.github/workflows/deploy-hetzner.yml`)
+
+**Triggers**: Release published, Manual dispatch
+
+**Jobs**:
+
+#### Deploy
+- Environment: Production or Staging (selectable)
+- Steps:
+  1. Checkout code
+  2. Set up Go
+  3. Build Linux AMD64 binary
+  4. Create deployment package with scripts
+  5. Install SSH key from secrets
+  6. Copy package to Hetzner server via SCP
+  7. Execute deployment script on server
+  8. Verify service is running
+  9. Report deployment status
+
+#### Rollback (on failure)
+- Automatically triggers if deployment fails
+- Restores previous binary from backup
+- Restarts service with previous version
+
+**Key Features**:
+- Zero-downtime deployment
+- Automatic backup before deployment
+- Service health verification
+- Automatic rollback on failure
+- Supports multiple environments
+
+For complete setup instructions, see **[HETZNER_DEPLOYMENT.md](./HETZNER_DEPLOYMENT.md)**.
   8. Create postinst/prerm scripts
   9. Build `.deb` package
   10. Upload artifact

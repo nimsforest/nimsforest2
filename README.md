@@ -686,39 +686,49 @@ NimsForest supports multiple deployment options optimized for Debian-based syste
 
 ### Quick Deploy Options
 
-1. **Debian Package** (Recommended for Debian/Ubuntu):
+1. **Continuous Deployment to Hetzner** (Recommended for Production):
+   - Automatic deployment on release
+   - One-click manual deployment via GitHub Actions
+   - See **[HETZNER_DEPLOYMENT.md](./HETZNER_DEPLOYMENT.md)** for complete setup guide
+
+2. **Debian Package** (Recommended for Debian/Ubuntu):
    ```bash
    wget https://github.com/yourusername/nimsforest/releases/latest/download/nimsforest_VERSION_amd64.deb
    sudo dpkg -i nimsforest_VERSION_amd64.deb
    sudo systemctl start nimsforest
    ```
 
-2. **Binary Release**:
+3. **Binary Release**:
    ```bash
    wget https://github.com/yourusername/nimsforest/releases/latest/download/forest-linux-amd64.tar.gz
    tar xzf forest-linux-amd64.tar.gz
    ./forest
    ```
 
-3. **Build from Source**:
+4. **Build from Source**:
    ```bash
    make setup
    make build
    sudo cp forest /usr/local/bin/
    ```
 
-For detailed deployment instructions, see **[DEPLOYMENT.md](./DEPLOYMENT.md)**.
+For detailed deployment instructions, see:
+- **[HETZNER_DEPLOYMENT.md](./HETZNER_DEPLOYMENT.md)** - Continuous Deployment to Hetzner Cloud
+- **[DEPLOYMENT.md](./DEPLOYMENT.md)** - General deployment guide
 
 ## Production Considerations
 
 ### Deployment Strategies
 
-1. **Single Instance**: Run one forest process
-2. **Multiple Instances**: Use queue groups for load balancing
-3. **Dedicated Workers**: Separate trees, nims, and decomposers
-4. **Containerization**: Docker image with NATS sidecar
+1. **Continuous Deployment (Hetzner)**: Automated deployment via GitHub Actions
+2. **Single Instance**: Run one forest process
+3. **Multiple Instances**: Use queue groups for load balancing
+4. **Dedicated Workers**: Separate trees, nims, and decomposers
+5. **Containerization**: Docker image with NATS sidecar
 
-See **[DEPLOYMENT.md](./DEPLOYMENT.md)** for complete production deployment guide.
+See deployment guides:
+- **[HETZNER_DEPLOYMENT.md](./HETZNER_DEPLOYMENT.md)** - Automated CD to Hetzner Cloud
+- **[DEPLOYMENT.md](./DEPLOYMENT.md)** - General deployment guide
 
 ### Monitoring
 
@@ -745,6 +755,7 @@ Environment variables:
 
 ### User Documentation
 - **[README.md](./README.md)** - This file, project overview and quick start
+- **[HETZNER_DEPLOYMENT.md](./HETZNER_DEPLOYMENT.md)** - Continuous Deployment to Hetzner Cloud
 - **[DEPLOYMENT.md](./DEPLOYMENT.md)** - Production deployment guide for Debian
 - **[CI_CD.md](./CI_CD.md)** - Continuous Integration/Deployment documentation
 - **[VALIDATION_GUIDE.md](./VALIDATION_GUIDE.md)** - How to validate the CI/CD pipeline

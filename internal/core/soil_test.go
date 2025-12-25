@@ -43,7 +43,7 @@ func TestSoil_BuryAndDig(t *testing.T) {
 	// Bury new entity (create)
 	entity := "test/entity"
 	data := []byte(`{"status": "active"}`)
-	
+
 	err = soil.Bury(entity, data, 0)
 	if err != nil {
 		t.Fatalf("Failed to bury entity: %v", err)
@@ -74,7 +74,7 @@ func TestSoil_OptimisticLocking(t *testing.T) {
 	}
 
 	entity := "test/locked"
-	
+
 	// Create entity
 	err = soil.Bury(entity, []byte(`{"value": 1}`), 0)
 	if err != nil {
@@ -123,7 +123,7 @@ func TestSoil_CreateConflict(t *testing.T) {
 	}
 
 	entity := "test/conflict"
-	
+
 	// Create entity
 	err = soil.Bury(entity, []byte(`{"first": true}`), 0)
 	if err != nil {

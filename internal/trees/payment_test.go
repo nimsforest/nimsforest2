@@ -217,7 +217,7 @@ func TestPaymentTree_Integration(t *testing.T) {
 
 	// Create wind
 	wind := core.NewWind(nc)
-	
+
 	// Create a fresh river with unique stream name for this test
 	// We'll use the default river which is fine since NewRiver reuses existing streams
 	river, err := core.NewRiver(js)
@@ -240,8 +240,8 @@ func TestPaymentTree_Integration(t *testing.T) {
 	// Instead of using the Watch method which creates a consumer,
 	// we'll manually observe the river for this test
 	riverReceived := make(chan core.RiverData, 1)
-	err = river.ObserveWithConsumer("river.stripe.webhook", 
-		fmt.Sprintf("payment-tree-test-%d", time.Now().UnixNano()), 
+	err = river.ObserveWithConsumer("river.stripe.webhook",
+		fmt.Sprintf("payment-tree-test-%d", time.Now().UnixNano()),
 		func(data core.RiverData) {
 			riverReceived <- data
 			// Parse and drop the leaf

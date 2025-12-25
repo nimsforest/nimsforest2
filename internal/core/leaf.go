@@ -10,10 +10,10 @@ import (
 // Leaves are the standardized data packets that flow through the wind,
 // carrying typed information between trees and nims.
 type Leaf struct {
-	Subject   string          `json:"subject"`   // Event type identifier (e.g., "payment.completed")
-	Data      json.RawMessage `json:"data"`      // Structured payload as JSON
-	Source    string          `json:"source"`    // The tree or nim that created this leaf
-	Timestamp time.Time       `json:"ts"`        // When this leaf was created
+	Subject   string          `json:"subject"` // Event type identifier (e.g., "payment.completed")
+	Data      json.RawMessage `json:"data"`    // Structured payload as JSON
+	Source    string          `json:"source"`  // The tree or nim that created this leaf
+	Timestamp time.Time       `json:"ts"`      // When this leaf was created
 }
 
 // NewLeaf creates a new leaf with the given parameters.
@@ -70,6 +70,6 @@ func (l *Leaf) UnmarshalJSON(data []byte) error {
 
 // String returns a string representation of the leaf for logging.
 func (l *Leaf) String() string {
-	return fmt.Sprintf("Leaf{subject=%s, source=%s, ts=%s}", 
+	return fmt.Sprintf("Leaf{subject=%s, source=%s, ts=%s}",
 		l.Subject, l.Source, l.Timestamp.Format(time.RFC3339))
 }

@@ -1,0 +1,52 @@
+version: 2
+
+run:
+  timeout: 5m
+  tests: true
+  modules-download-mode: readonly
+
+linters:
+  enable:
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - misspell
+    - gocyclo
+  disable:
+    - errcheck
+
+linters-settings:
+  gocyclo:
+    min-complexity: 15
+  dupl:
+    threshold: 100
+  goconst:
+    min-len: 3
+    min-occurrences: 3
+  misspell:
+    locale: US
+
+issues:
+  exclude-use-default: true
+  max-issues-per-linter: 50
+  max-same-issues: 3
+  exclude-rules:
+    - path: '.*_test\.go'
+      linters:
+        - errcheck
+        - gosec
+    - linters:
+        - staticcheck
+      text: "SA1019"
+    - linters:
+        - errcheck
+      text: "Error return value of.*\\.(Nak|Ack).*is not checked"
+
+output:
+  formats:
+    colored-line-number:
+      path: stdout
+  print-issued-lines: true
+  print-linter-name: true
+  sort-results: true

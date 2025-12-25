@@ -2,9 +2,12 @@
 
 An event-driven organizational orchestration system built with Go, NATS, and JetStream.
 
+[![CI](https://github.com/yourusername/nimsforest/actions/workflows/ci.yml/badge.svg)](https://github.com/yourusername/nimsforest/actions/workflows/ci.yml)
 [![Go Version](https://img.shields.io/badge/Go-1.23+-00ADD8?style=flat&logo=go)](https://golang.org)
 [![NATS](https://img.shields.io/badge/NATS-2.12.3-27AAE1?style=flat&logo=nats)](https://nats.io)
-[![Test Coverage](https://img.shields.io/badge/coverage-75%25-green?style=flat)](./PROGRESS.md)
+[![codecov](https://codecov.io/gh/yourusername/nimsforest/branch/main/graph/badge.svg)](https://codecov.io/gh/yourusername/nimsforest)
+[![Go Report Card](https://goreportcard.com/badge/github.com/yourusername/nimsforest)](https://goreportcard.com/report/github.com/yourusername/nimsforest)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## Overview
 
@@ -367,6 +370,9 @@ make test-integration
 
 # Generate coverage report
 make test-coverage
+
+# Validate CI/CD setup
+make validate
 ```
 
 ### Code Quality
@@ -390,9 +396,6 @@ make check
 ```bash
 # Build for current platform
 make build
-
-# Build for all platforms
-make build-all
 ```
 
 ## NATS Connection Details
@@ -677,14 +680,45 @@ Humus: [
 // Can time-travel to any point
 ```
 
+## Deployment
+
+NimsForest supports multiple deployment options optimized for Debian-based systems:
+
+### Quick Deploy Options
+
+1. **Debian Package** (Recommended for Debian/Ubuntu):
+   ```bash
+   wget https://github.com/yourusername/nimsforest/releases/latest/download/nimsforest_VERSION_amd64.deb
+   sudo dpkg -i nimsforest_VERSION_amd64.deb
+   sudo systemctl start nimsforest
+   ```
+
+2. **Binary Release**:
+   ```bash
+   wget https://github.com/yourusername/nimsforest/releases/latest/download/forest-linux-amd64.tar.gz
+   tar xzf forest-linux-amd64.tar.gz
+   ./forest
+   ```
+
+3. **Build from Source**:
+   ```bash
+   make setup
+   make build
+   sudo cp forest /usr/local/bin/
+   ```
+
+For detailed deployment instructions, see **[DEPLOYMENT.md](./DEPLOYMENT.md)**.
+
 ## Production Considerations
 
-### Deployment
+### Deployment Strategies
 
 1. **Single Instance**: Run one forest process
 2. **Multiple Instances**: Use queue groups for load balancing
 3. **Dedicated Workers**: Separate trees, nims, and decomposers
 4. **Containerization**: Docker image with NATS sidecar
+
+See **[DEPLOYMENT.md](./DEPLOYMENT.md)** for complete production deployment guide.
 
 ### Monitoring
 
@@ -709,13 +743,19 @@ Environment variables:
 
 ## Documentation
 
-For detailed implementation specifications, see:
-- `Cursorinstructions.md` - Complete architecture and API specifications
-- `TASK_BREAKDOWN.md` - Development task breakdown
-- `PROGRESS.md` - Current development status
-- `PHASE2_SUMMARY.md` - Core components completion
-- `PHASE3_SUMMARY.md` - Base interfaces completion
-- `PHASE4_SUMMARY.md` - Example implementations completion
+### User Documentation
+- **[README.md](./README.md)** - This file, project overview and quick start
+- **[DEPLOYMENT.md](./DEPLOYMENT.md)** - Production deployment guide for Debian
+- **[CI_CD.md](./CI_CD.md)** - Continuous Integration/Deployment documentation
+- **[VALIDATION_GUIDE.md](./VALIDATION_GUIDE.md)** - How to validate the CI/CD pipeline
+
+### Developer Documentation
+- **[Cursorinstructions.md](./Cursorinstructions.md)** - Complete architecture and API specifications
+- **[TASK_BREAKDOWN.md](./TASK_BREAKDOWN.md)** - Development task breakdown
+- **[PROGRESS.md](./PROGRESS.md)** - Current development status
+- **[PHASE2_SUMMARY.md](./PHASE2_SUMMARY.md)** - Core components completion
+- **[PHASE3_SUMMARY.md](./PHASE3_SUMMARY.md)** - Base interfaces completion
+- **[PHASE4_SUMMARY.md](./PHASE4_SUMMARY.md)** - Example implementations completion
 
 ## Testing
 

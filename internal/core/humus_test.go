@@ -312,7 +312,7 @@ func TestHumus_OrderingGuarantee(t *testing.T) {
 		// Verify slots are in order
 		mu.Lock()
 		defer mu.Unlock()
-		
+
 		if len(slots) != numComposts {
 			t.Errorf("Expected %d slots, got %d", numComposts, len(slots))
 		}

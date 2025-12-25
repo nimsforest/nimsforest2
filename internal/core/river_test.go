@@ -234,7 +234,7 @@ func TestRiver_StreamInfo(t *testing.T) {
 
 	// Flow some data and verify count increases
 	river.Flow("test.data", []byte(`{"test": true}`))
-	
+
 	info, err = river.StreamInfo()
 	if err != nil {
 		t.Fatalf("Failed to get updated stream info: %v", err)

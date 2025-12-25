@@ -352,7 +352,7 @@ func TestAfterSalesNim_Integration(t *testing.T) {
 		ItemID:     "item_integration",
 	}
 
-	if err := wind.Drop(*core.NewLeaf("payment.completed", 
+	if err := wind.Drop(*core.NewLeaf("payment.completed",
 		mustMarshal(t, payment), "integration-test")); err != nil {
 		t.Fatalf("Failed to drop payment leaf: %v", err)
 	}

@@ -198,7 +198,7 @@ func TestLeaf_RoundTrip(t *testing.T) {
 	if roundtrip.Source != original.Source {
 		t.Error("Source mismatch after round trip")
 	}
-	
+
 	// Compare JSON data semantically
 	var origData, roundtripData map[string]interface{}
 	if err := json.Unmarshal(original.Data, &origData); err != nil {
@@ -217,9 +217,9 @@ func TestLeaf_RoundTrip(t *testing.T) {
 
 // Helper function
 func contains(s, substr string) bool {
-	return len(s) > 0 && len(substr) > 0 && s != "" && substr != "" && 
-		   (s == substr || len(s) > len(substr) && (s[:len(substr)] == substr || s[len(s)-len(substr):] == substr || 
-		   (len(s) > len(substr)*2 && findInString(s, substr))))
+	return len(s) > 0 && len(substr) > 0 && s != "" && substr != "" &&
+		(s == substr || len(s) > len(substr) && (s[:len(substr)] == substr || s[len(s)-len(substr):] == substr ||
+			(len(s) > len(substr)*2 && findInString(s, substr))))
 }
 
 func findInString(s, substr string) bool {

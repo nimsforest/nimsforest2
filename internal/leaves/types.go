@@ -15,11 +15,11 @@ type PaymentCompleted struct {
 // PaymentFailed represents a failed payment event.
 // This leaf is emitted when a payment attempt is unsuccessful.
 type PaymentFailed struct {
-	CustomerID string `json:"customer_id"`
+	CustomerID string  `json:"customer_id"`
 	Amount     float64 `json:"amount"`
-	Currency   string `json:"currency"`
-	ItemID     string `json:"item_id"`
-	Reason     string `json:"reason"`
+	Currency   string  `json:"currency"`
+	ItemID     string  `json:"item_id"`
+	Reason     string  `json:"reason"`
 }
 
 // FollowupRequired represents a task that needs followup action.
@@ -33,8 +33,8 @@ type FollowupRequired struct {
 // EmailSend represents a request to send an email.
 // This leaf would be caught by a communications nim.
 type EmailSend struct {
-	To      string `json:"to"`
-	Subject string `json:"subject"`
-	Body    string `json:"body"`
+	To         string `json:"to"`
+	Subject    string `json:"subject"`
+	Body       string `json:"body"`
 	TemplateID string `json:"template_id,omitempty"`
 }

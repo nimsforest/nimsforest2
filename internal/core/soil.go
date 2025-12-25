@@ -25,8 +25,8 @@ func NewSoil(js nats.JetStreamContext) (*Soil, error) {
 		kv, err = js.CreateKeyValue(&nats.KeyValueConfig{
 			Bucket:      bucketName,
 			Description: "NimsForest current state storage",
-			History:     10,                    // Keep last 10 revisions
-			TTL:         0,                     // No TTL - data persists
+			History:     10, // Keep last 10 revisions
+			TTL:         0,  // No TTL - data persists
 			Storage:     nats.FileStorage,
 		})
 		if err != nil {
@@ -58,7 +58,7 @@ func (s *Soil) Dig(entity string) ([]byte, uint64, error) {
 		return nil, 0, fmt.Errorf("failed to dig entity %s: %w", entity, err)
 	}
 
-	log.Printf("[Soil] Dug entity: %s (revision: %d, size: %d bytes)", 
+	log.Printf("[Soil] Dug entity: %s (revision: %d, size: %d bytes)",
 		entity, entry.Revision(), len(entry.Value()))
 	return entry.Value(), entry.Revision(), nil
 }
@@ -76,7 +76,7 @@ func (s *Soil) Bury(entity string, data []byte, expectedRevision uint64) error {
 	}
 
 	var err error
-	
+
 	if expectedRevision == 0 {
 		// Create - entity should not exist
 		_, err = s.kv.Create(entity, data)
@@ -98,7 +98,7 @@ func (s *Soil) Bury(entity string, data []byte, expectedRevision uint64) error {
 			}
 			return fmt.Errorf("failed to update entity %s: %w", entity, err)
 		}
-		log.Printf("[Soil] Buried update to entity: %s (revision: %d, size: %d bytes)", 
+		log.Printf("[Soil] Buried update to entity: %s (revision: %d, size: %d bytes)",
 			entity, expectedRevision, len(data))
 	}
 
@@ -169,7 +169,7 @@ func (s *Soil) Watch(pattern string, handler func(entity string, data []byte, re
 			if entry == nil {
 				continue
 			}
-			
+
 			// Skip deleted entries
 			if entry.Operation() == nats.KeyValueDelete || entry.Operation() == nats.KeyValuePurge {
 				log.Printf("[Soil] Watched entity deleted: %s", entry.Key())

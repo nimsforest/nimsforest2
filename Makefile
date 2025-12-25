@@ -235,8 +235,15 @@ test-coverage: ## Run tests with coverage report
 
 build: ## Build the application
 	@echo "$(BLUE)🔨 Building $(BINARY_NAME)...$(NC)"
-	@go build -o $(BINARY_NAME) ./cmd/forest
-	@echo "$(GREEN)✅ Built: $(BINARY_NAME)$(NC)"
+	@if [ -d cmd/forest ]; then \
+		go build -o $(BINARY_NAME) ./cmd/forest; \
+		echo "$(GREEN)✅ Built: $(BINARY_NAME)$(NC)"; \
+	else \
+		echo "$(YELLOW)⚠️  cmd/forest not found - this is a library project$(NC)"; \
+		echo "$(BLUE)ℹ️  Running go build to verify compilation...$(NC)"; \
+		go build ./...; \
+		echo "$(GREEN)✅ All packages compile successfully$(NC)"; \
+	fi
 
 build-all: ## Build for all platforms
 	@echo "$(BLUE)🔨 Building for all platforms...$(NC)"
@@ -316,3 +323,99 @@ dev: setup start test ## Complete development setup and validation
 
 ci: deps verify test vet ## Run CI checks (used in continuous integration)
 	@echo "$(GREEN)✅ All CI checks passed$(NC)"
+
+##@ Validation
+
+validate-quick: verify test ## Quick validation (prerequisites, modules, tests)
+	@echo "$(GREEN)✅ Quick validation passed$(NC)"
+
+validate-build: build ## Validate build process
+	@echo "$(BLUE)🔍 Validating build...$(NC)"
+	@if [ -f $(BINARY_NAME) ]; then \
+		echo "$(GREEN)✅ Binary created: $(BINARY_NAME)$(NC)"; \
+		if [ -x $(BINARY_NAME) ]; then \
+			echo "$(GREEN)✅ Binary is executable$(NC)"; \
+		else \
+			echo "$(RED)❌ Binary is not executable$(NC)"; \
+			exit 1; \
+		fi; \
+	else \
+		echo "$(YELLOW)⚠️  No binary (library project)$(NC)"; \
+		echo "$(GREEN)✅ All packages compile successfully$(NC)"; \
+	fi
+
+validate-workflows: ## Validate GitHub Actions workflow files
+	@echo "$(BLUE)🔍 Validating workflow files...$(NC)"
+	@if [ -f .github/workflows/ci.yml ] && [ -f .github/workflows/release.yml ] && [ -f .github/workflows/debian-package.yml ]; then \
+		echo "$(GREEN)✅ All workflow files present$(NC)"; \
+	else \
+		echo "$(RED)❌ Missing workflow files$(NC)"; \
+		exit 1; \
+	fi
+	@if command -v yamllint > /dev/null 2>&1; then \
+		for file in .github/workflows/*.yml; do \
+			if yamllint $$file > /dev/null 2>&1; then \
+				echo "$(GREEN)✅ $$(basename $$file) syntax valid$(NC)"; \
+			else \
+				echo "$(RED)❌ $$(basename $$file) syntax invalid$(NC)"; \
+				yamllint $$file; \
+				exit 1; \
+			fi; \
+		done; \
+	else \
+		echo "$(YELLOW)⚠️  yamllint not installed, skipping syntax check$(NC)"; \
+	fi
+
+validate-docs: ## Validate documentation files exist
+	@echo "$(BLUE)🔍 Checking documentation...$(NC)"
+	@MISSING=0; \
+	for doc in README.md DEPLOYMENT.md CI_CD.md CI_CD_SETUP.md VALIDATION_GUIDE.md Makefile; do \
+		if [ -f $$doc ]; then \
+			echo "$(GREEN)✅ $$doc$(NC)"; \
+		else \
+			echo "$(RED)❌ $$doc missing$(NC)"; \
+			MISSING=1; \
+		fi; \
+	done; \
+	if [ $$MISSING -eq 1 ]; then exit 1; fi
+
+validate-config: ## Validate configuration files
+	@echo "$(BLUE)🔍 Checking configuration files...$(NC)"
+	@MISSING=0; \
+	for conf in .golangci.yml .codecov.yml; do \
+		if [ -f $$conf ]; then \
+			echo "$(GREEN)✅ $$conf$(NC)"; \
+		else \
+			echo "$(RED)❌ $$conf missing$(NC)"; \
+			MISSING=1; \
+		fi; \
+	done; \
+	if [ $$MISSING -eq 1 ]; then exit 1; fi
+
+validate-nats: start ## Validate NATS integration
+	@echo "$(BLUE)🔍 Validating NATS integration...$(NC)"
+	@sleep 1
+	@if curl -f http://localhost:$(NATS_MONITOR_PORT)/varz > /dev/null 2>&1; then \
+		echo "$(GREEN)✅ NATS is running and responding$(NC)"; \
+	else \
+		echo "$(RED)❌ NATS is not responding$(NC)"; \
+		exit 1; \
+	fi
+	@$(MAKE) stop
+
+validate-all: validate-quick validate-build validate-workflows validate-docs validate-config ## Run all validations
+	@echo ""
+	@echo "$(GREEN)╔═══════════════════════════════════════════════════════════════════════╗$(NC)"
+	@echo "$(GREEN)║                                                                       ║$(NC)"
+	@echo "$(GREEN)║                 ✅ ALL VALIDATIONS PASSED! ✅                        ║$(NC)"
+	@echo "$(GREEN)║                                                                       ║$(NC)"
+	@echo "$(GREEN)║              Your CI/CD pipeline is ready to use!                    ║$(NC)"
+	@echo "$(GREEN)║                                                                       ║$(NC)"
+	@echo "$(GREEN)╚═══════════════════════════════════════════════════════════════════════╝$(NC)"
+	@echo ""
+	@echo "Next steps:"
+	@echo "  1. Push to GitHub to trigger CI"
+	@echo "  2. Create a test tag: git tag v0.0.1-test"
+	@echo "  3. Review VALIDATION_GUIDE.md for detailed testing"
+
+validate: validate-all ## Alias for validate-all

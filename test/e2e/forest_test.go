@@ -50,8 +50,9 @@ func TestForestEndToEnd(t *testing.T) {
 		t.Fatalf("Failed to create soil: %v", err)
 	}
 
-	// Start decomposer
-	decomposer, err := core.RunDecomposer(humus, soil)
+	// Start decomposer with unique consumer name
+	consumerName := fmt.Sprintf("decomposer-%d", time.Now().UnixNano())
+	decomposer, err := core.RunDecomposerWithConsumer(humus, soil, consumerName)
 	if err != nil {
 		t.Fatalf("Failed to start decomposer: %v", err)
 	}
@@ -158,7 +159,7 @@ func TestForestEndToEnd(t *testing.T) {
 	t.Run("VerifyLeaves", func(t *testing.T) {
 		// Subscribe to wind to catch emitted leaves
 		leafCaught := make(chan core.Leaf, 10)
-		
+
 		sub, err := wind.Catch("followup.>", func(leaf core.Leaf) {
 			leafCaught <- leaf
 		})
@@ -196,7 +197,7 @@ func TestForestEndToEnd(t *testing.T) {
 		select {
 		case leaf := <-leafCaught:
 			t.Logf("✅ Caught leaf: %s from %s", leaf.Subject, leaf.Source)
-			
+
 			// Verify it's a followup leaf
 			if leaf.Subject != "followup.required" {
 				t.Errorf("Expected subject 'followup.required', got '%s'", leaf.Subject)
@@ -304,8 +305,9 @@ func TestForestComponents(t *testing.T) {
 		}
 		t.Logf("Added compost at slot %d", slot)
 
-		// Start decomposer briefly
-		decomposer, err := core.RunDecomposer(humus, soil)
+		// Start decomposer briefly with unique consumer name
+		consumerName := fmt.Sprintf("decomposer-%d", time.Now().UnixNano())
+		decomposer, err := core.RunDecomposerWithConsumer(humus, soil, consumerName)
 		if err != nil {
 			t.Fatalf("Failed to start decomposer: %v", err)
 		}
@@ -324,7 +326,7 @@ func TestForestComponents(t *testing.T) {
 		var expected, actual map[string]interface{}
 		json.Unmarshal(testData, &expected)
 		json.Unmarshal(data, &actual)
-		
+
 		if fmt.Sprintf("%v", expected) != fmt.Sprintf("%v", actual) {
 			t.Errorf("Expected data %v, got %v", expected, actual)
 		}

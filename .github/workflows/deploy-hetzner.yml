@@ -1,6 +1,9 @@
 name: Deploy to Hetzner
 
 on:
+  push:
+    branches:
+      - main
   release:
     types: [published]
   workflow_dispatch:
@@ -18,7 +21,7 @@ jobs:
   deploy:
     name: Deploy to Hetzner
     runs-on: ubuntu-latest
-    environment: ${{ github.event.inputs.environment || 'production' }}
+    environment: ${{ github.event.inputs.environment || (github.event_name == 'release' && 'production' || 'staging') }}
     
     steps:
     - name: Checkout code
@@ -65,10 +68,13 @@ jobs:
     - name: Notify deployment status
       if: always()
       run: |
+        ENV="${{ github.event.inputs.environment || (github.event_name == 'release' && 'production' || 'staging') }}"
         if [ "${{ job.status }}" == "success" ]; then
-          echo "✅ Deployment to Hetzner completed successfully!"
+          echo "✅ Deployment to $ENV completed successfully!"
+          echo "Trigger: ${{ github.event_name }}"
+          echo "Ref: ${{ github.ref }}"
         else
-          echo "❌ Deployment to Hetzner failed!"
+          echo "❌ Deployment to $ENV failed!"
         fi
 
   rollback:

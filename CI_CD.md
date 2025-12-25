@@ -102,36 +102,33 @@ NimsForest uses GitHub Actions for automated testing, building, and releasing. T
 
 ### 4. Hetzner Deployment Workflow (`.github/workflows/deploy-hetzner.yml`)
 
-**Triggers**: Release published, Manual dispatch
+**Triggers**: 
+- Push to `main` → **Staging** (automatic)
+- Release published (`v*`) → **Production** (automatic)
+- Manual dispatch → **Your choice**
 
 **Jobs**:
 
 #### Deploy
-- Environment: Production or Staging (selectable)
+- Uses Make commands: `make deps`, `make build-deploy`, `make deploy-package`
+- Environment auto-selected based on trigger
 - Steps:
-  1. Checkout code
-  2. Set up Go
-  3. Build Linux AMD64 binary
-  4. Create deployment package with scripts
-  5. Install SSH key from secrets
-  6. Copy package to Hetzner server via SCP
-  7. Execute deployment script on server
-  8. Verify service is running
-  9. Report deployment status
-
-#### Rollback (on failure)
-- Automatically triggers if deployment fails
-- Restores previous binary from backup
-- Restarts service with previous version
+  1. Checkout code and setup Go
+  2. Build deployment binary with Make
+  3. Create deployment package with Make
+  4. Copy package to server via SCP
+  5. Deploy via SSH script invocation
+  6. Verify service health
+  7. Auto-rollback on failure
 
 **Key Features**:
+- **Automatic staging on every push to main**
+- **Automatic production on release**
+- Make-based for consistency
 - Zero-downtime deployment
-- Automatic backup before deployment
-- Service health verification
-- Automatic rollback on failure
-- Supports multiple environments
+- Automatic rollback
 
-For complete setup instructions, see **[HETZNER_DEPLOYMENT.md](./HETZNER_DEPLOYMENT.md)**.
+Setup: [HETZNER_DEPLOYMENT.md](./HETZNER_DEPLOYMENT.md) | Quick ref: [DEPLOYMENT_QUICKREF.md](./DEPLOYMENT_QUICKREF.md)
   8. Create postinst/prerm scripts
   9. Build `.deb` package
   10. Upload artifact

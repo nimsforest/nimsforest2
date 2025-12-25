@@ -690,53 +690,49 @@ Humus: [
 
 ## Deployment
 
-NimsForest supports multiple deployment options optimized for Debian-based systems:
+### Automatic Deployment (Recommended)
 
-### Quick Deploy Options
+**Staging**: Push to `main` → Auto-deploys  
+**Production**: Create release → Auto-deploys
 
-1. **Continuous Deployment to Hetzner** (Recommended for Production):
-   - Automatic deployment on release
-   - One-click manual deployment via GitHub Actions
-   - See **[HETZNER_DEPLOYMENT.md](./HETZNER_DEPLOYMENT.md)** for complete setup guide
+```bash
+# Deploy to staging
+git push origin main
 
-2. **Debian Package** (Recommended for Debian/Ubuntu):
-   ```bash
-   wget https://github.com/yourusername/nimsforest/releases/latest/download/nimsforest_VERSION_amd64.deb
-   sudo dpkg -i nimsforest_VERSION_amd64.deb
-   sudo systemctl start nimsforest
-   ```
+# Deploy to production
+git tag -a v1.0.0 -m "Release v1.0.0"
+git push origin v1.0.0
+```
 
-3. **Binary Release**:
-   ```bash
-   wget https://github.com/yourusername/nimsforest/releases/latest/download/forest-linux-amd64.tar.gz
-   tar xzf forest-linux-amd64.tar.gz
-   ./forest
-   ```
+Setup: [HETZNER_DEPLOYMENT.md](./HETZNER_DEPLOYMENT.md) | Quick ref: [DEPLOYMENT_QUICKREF.md](./DEPLOYMENT_QUICKREF.md)
 
-4. **Build from Source**:
-   ```bash
-   make setup
-   make build
-   sudo cp forest /usr/local/bin/
-   ```
+### Traditional Methods
 
-For detailed deployment instructions, see:
-- **[HETZNER_DEPLOYMENT.md](./HETZNER_DEPLOYMENT.md)** - Continuous Deployment to Hetzner Cloud
-- **[DEPLOYMENT.md](./DEPLOYMENT.md)** - General deployment guide
+**Debian Package**:
+```bash
+wget https://github.com/yourusername/nimsforest/releases/latest/download/nimsforest_VERSION_amd64.deb
+sudo dpkg -i nimsforest_VERSION_amd64.deb
+```
+
+**Manual with Make**:
+```bash
+make deploy-package
+scp nimsforest-deploy.tar.gz root@SERVER:/tmp/
+ssh root@SERVER 'bash -s' < scripts/deploy.sh deploy
+```
+
+See: [DEPLOYMENT.md](./DEPLOYMENT.md) for all options
 
 ## Production Considerations
 
-### Deployment Strategies
+**Automatic Deployment**: 
+- Staging on push to `main`
+- Production on release
+- See [HETZNER_DEPLOYMENT.md](./HETZNER_DEPLOYMENT.md)
 
-1. **Continuous Deployment (Hetzner)**: Automated deployment via GitHub Actions
-2. **Single Instance**: Run one forest process
-3. **Multiple Instances**: Use queue groups for load balancing
-4. **Dedicated Workers**: Separate trees, nims, and decomposers
-5. **Containerization**: Docker image with NATS sidecar
-
-See deployment guides:
-- **[HETZNER_DEPLOYMENT.md](./HETZNER_DEPLOYMENT.md)** - Automated CD to Hetzner Cloud
-- **[DEPLOYMENT.md](./DEPLOYMENT.md)** - General deployment guide
+**Scaling**: Use NATS queue groups for load balancing  
+**Monitoring**: systemd + journald logging  
+**Cost**: ~€5/month per environment on Hetzner
 
 ### Monitoring
 
@@ -761,12 +757,15 @@ Environment variables:
 
 ## Documentation
 
-### User Documentation
-- **[README.md](./README.md)** - This file, project overview and quick start
-- **[HETZNER_DEPLOYMENT.md](./HETZNER_DEPLOYMENT.md)** - Continuous Deployment to Hetzner Cloud
-- **[DEPLOYMENT.md](./DEPLOYMENT.md)** - Production deployment guide for Debian
-- **[CI_CD.md](./CI_CD.md)** - Continuous Integration/Deployment documentation
-- **[VALIDATION_GUIDE.md](./VALIDATION_GUIDE.md)** - How to validate the CI/CD pipeline
+### Deployment
+- **[DEPLOYMENT_QUICKREF.md](./DEPLOYMENT_QUICKREF.md)** - Quick reference for all deployment commands
+- **[HETZNER_DEPLOYMENT.md](./HETZNER_DEPLOYMENT.md)** - Complete Hetzner setup guide
+- **[DEPLOYMENT.md](./DEPLOYMENT.md)** - Traditional deployment methods
+
+### Development
+- **[README.md](./README.md)** - This file
+- **[CI_CD.md](./CI_CD.md)** - CI/CD pipeline documentation
+- **[Makefile](./Makefile)** - All build commands (`make help`)
 
 ### Developer Documentation
 - **[Cursorinstructions.md](./Cursorinstructions.md)** - Complete architecture and API specifications

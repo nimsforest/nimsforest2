@@ -1,26 +1,98 @@
-# Continuous Deployment to Hetzner
+# Hetzner Deployment Guide
 
-This guide covers setting up continuous deployment of NimsForest to Hetzner Cloud or Dedicated servers.
+Complete guide for deploying NimsForest to Hetzner Cloud with automatic CD.
+
+## Quick Summary
+
+- **Staging**: Auto-deploys on push to `main`
+- **Production**: Auto-deploys on release (tag `v*`)
+- **Manual**: Trigger via GitHub Actions UI
+- **Cost**: ~€5/month per environment
 
 ## Table of Contents
 
-- [Overview](#overview)
-- [Prerequisites](#prerequisites)
+- [Quick Start](#quick-start)
 - [Initial Server Setup](#initial-server-setup)
 - [GitHub Configuration](#github-configuration)
 - [Deployment Workflow](#deployment-workflow)
 - [Manual Deployment](#manual-deployment)
-- [Monitoring and Management](#monitoring-and-management)
+- [Monitoring](#monitoring)
 - [Troubleshooting](#troubleshooting)
-- [Security Best Practices](#security-best-practices)
 
-## Overview
+---
 
-NimsForest uses GitHub Actions to automatically deploy to Hetzner servers when:
-- A new release is published
-- Manual deployment is triggered via GitHub Actions
+## Quick Start
 
-### Deployment Architecture
+### 1. Create Servers (10 min)
+
+```bash
+# Staging server
+hcloud server create --name nimsforest-staging --type cpx11 --image ubuntu-22.04
+
+# Production server (when ready)
+hcloud server create --name nimsforest-prod --type cpx11 --image ubuntu-22.04
+```
+
+### 2. Setup Servers (5 min each)
+
+```bash
+# For each server
+ssh root@SERVER_IP
+wget https://raw.githubusercontent.com/youruser/nimsforest/main/scripts/setup-hetzner-server.sh
+chmod +x setup-hetzner-server.sh
+sudo ./setup-hetzner-server.sh
+```
+
+### 3. Configure GitHub Secrets (5 min)
+
+```bash
+# Generate keys
+ssh-keygen -t ed25519 -f ~/.ssh/deploy_staging
+ssh-keygen -t ed25519 -f ~/.ssh/deploy_prod
+
+# Copy to servers
+ssh-copy-id -i ~/.ssh/deploy_staging.pub root@STAGING_IP
+ssh-copy-id -i ~/.ssh/deploy_prod.pub root@PROD_IP
+
+# Add to GitHub (for staging)
+gh secret set HETZNER_SSH_PRIVATE_KEY --env staging < ~/.ssh/deploy_staging
+gh secret set HETZNER_SSH_USER --env staging --body "root"
+gh secret set HETZNER_HOST --env staging --body "STAGING_IP"
+gh secret set HETZNER_KNOWN_HOSTS --env staging < <(ssh-keyscan STAGING_IP)
+
+# Add to GitHub (for production)
+gh secret set HETZNER_SSH_PRIVATE_KEY --env production < ~/.ssh/deploy_prod
+gh secret set HETZNER_SSH_USER --env production --body "root"
+gh secret set HETZNER_HOST --env production --body "PROD_IP"
+gh secret set HETZNER_KNOWN_HOSTS --env production < <(ssh-keyscan PROD_IP)
+```
+
+### 4. Deploy!
+
+```bash
+# Staging: Just push to main
+git push origin main
+# → Auto-deploys to staging
+
+# Production: Create a release
+git tag -a v1.0.0 -m "Release v1.0.0"
+git push origin v1.0.0
+# → Auto-deploys to production
+```
+
+**Done!** 🎉
+
+---
+
+## Deployment Triggers
+
+| Event | Environment | When |
+|-------|-------------|------|
+| Push to `main` | **Staging** | Every commit to main branch |
+| Release created (`v*`) | **Production** | When you publish a release |
+| Manual trigger | **Your choice** | Via GitHub Actions UI |
+
+### Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -53,36 +125,14 @@ NimsForest uses GitHub Actions to automatically deploy to Hetzner servers when:
          └──────────────────┘
 ```
 
-## Prerequisites
+## Server Requirements
 
-### 1. Hetzner Server
+**Minimum per environment**:
+- Ubuntu 22.04 or Debian 11+
+- 2GB RAM, 2 vCPU (Hetzner CPX11)
+- Public IP address
 
-You need a Hetzner Cloud instance or Dedicated server with:
-- **OS**: Ubuntu 20.04 LTS or later / Debian 11 or later
-- **CPU**: 2+ cores recommended
-- **RAM**: 2GB+ recommended
-- **Disk**: 20GB+ recommended
-- **Network**: Public IP address
-- **SSH**: SSH access configured
-
-#### Recommended Hetzner Cloud Plans
-
-| Plan | vCPU | RAM | Disk | Price/month | Use Case |
-|------|------|-----|------|-------------|----------|
-| CPX11 | 2 | 2GB | 40GB | ~€4.51 | Development/Testing |
-| CPX21 | 3 | 4GB | 80GB | ~€9.04 | Small Production |
-| CPX31 | 4 | 8GB | 160GB | ~€16.68 | Production |
-
-### 2. GitHub Repository
-
-Your NimsForest repository hosted on GitHub with Actions enabled.
-
-### 3. Local Requirements
-
-For initial setup:
-- SSH client
-- Access to your Hetzner server
-- Access to your GitHub repository settings
+**Recommended**: Start with CPX11 (~€4.51/month) for each environment
 
 ## Initial Server Setup
 

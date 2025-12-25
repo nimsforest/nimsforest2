@@ -46,13 +46,16 @@ A comprehensive CI/CD pipeline has been added to NimsForest, optimized for Debia
 #### 4. **Hetzner Deployment Workflow** (`.github/workflows/deploy-hetzner.yml`)
 - **Purpose**: Continuous deployment to Hetzner Cloud servers
 - **Features**:
-  - Automatic deployment on release publication
+  - **Automatic staging deployment** on push to `main`
+  - **Automatic production deployment** on release publication
   - Manual deployment trigger with environment selection
   - Zero-downtime deployment with automatic rollback
-  - SSH-based secure deployment
+  - SSH-based secure deployment using Make commands
   - Service health verification
-  - Backup creation before deployment
-- **When it runs**: Release published or manual trigger
+- **When it runs**: 
+  - Push to `main` → Staging
+  - Release published (`v*`) → Production
+  - Manual trigger → Your choice
 
 ### Configuration Files
 

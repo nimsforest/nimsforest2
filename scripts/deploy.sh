@@ -4,6 +4,14 @@
 #
 # This script automates the deployment of NimsForest on a Hetzner server
 # It handles service management, backups, and rollback capabilities
+#
+# Usage:
+#   deploy.sh deploy    - Deploy from /tmp/nimsforest-deploy.tar.gz
+#   deploy.sh rollback  - Rollback to previous version
+#   deploy.sh verify    - Verify deployment
+#
+# This script is designed to be piped via SSH:
+#   ssh user@host 'bash -s' < deploy.sh deploy
 
 set -e
 
@@ -217,6 +225,30 @@ rollback() {
     fi
 }
 
+# Extract deployment package from /tmp
+extract_package() {
+    log_info "Extracting deployment package..."
+    
+    if [ ! -f "/tmp/nimsforest-deploy.tar.gz" ]; then
+        log_error "Deployment package not found at /tmp/nimsforest-deploy.tar.gz"
+        exit 1
+    fi
+    
+    cd /tmp
+    tar xzf nimsforest-deploy.tar.gz
+    cd deploy
+    
+    log_info "Package extracted to /tmp/deploy"
+}
+
+# Cleanup deployment files
+cleanup() {
+    log_info "Cleaning up deployment files..."
+    cd /
+    rm -rf /tmp/deploy /tmp/nimsforest-deploy.tar.gz
+    log_info "Cleanup complete"
+}
+
 # Main deployment function
 deploy() {
     log_info "=========================================="
@@ -224,6 +256,7 @@ deploy() {
     log_info "=========================================="
     
     check_root
+    extract_package
     create_user
     create_directories
     backup_current
@@ -232,6 +265,7 @@ deploy() {
     install_service
     start_service
     verify_installation
+    cleanup
     
     log_info "=========================================="
     log_info "  ✅ Deployment Completed Successfully!"
@@ -247,6 +281,45 @@ deploy() {
     log_info "  - Stop:          sudo systemctl stop $SERVICE_NAME"
 }
 
+# Enhanced verify that returns proper exit codes
+verify_deployment() {
+    log_info "=========================================="
+    log_info "  Verifying Deployment"
+    log_info "=========================================="
+    
+    # Check service status
+    if systemctl is-active --quiet "$SERVICE_NAME"; then
+        log_info "✅ Service $SERVICE_NAME is running"
+        systemctl status "$SERVICE_NAME" --no-pager || true
+    else
+        log_error "❌ Service $SERVICE_NAME is not running"
+        log_error "Recent logs:"
+        journalctl -u "$SERVICE_NAME" -n 20 --no-pager || true
+        exit 1
+    fi
+    
+    # Check binary exists
+    if [ -f "$INSTALL_DIR/$BINARY_NAME" ]; then
+        log_info "✅ Binary exists at $INSTALL_DIR/$BINARY_NAME"
+    else
+        log_error "❌ Binary not found"
+        exit 1
+    fi
+    
+    # Check NATS connectivity (optional)
+    if command -v curl &> /dev/null; then
+        if curl -s -f http://localhost:8222/varz &> /dev/null; then
+            log_info "✅ NATS server is accessible"
+        else
+            log_warn "⚠️  NATS server not accessible on localhost:8222"
+        fi
+    fi
+    
+    log_info "=========================================="
+    log_info "  ✅ Deployment Verification Successful"
+    log_info "=========================================="
+}
+
 # Handle command line arguments
 case "${1:-deploy}" in
     deploy)
@@ -257,10 +330,15 @@ case "${1:-deploy}" in
         rollback
         ;;
     verify)
-        verify_installation
+        verify_deployment
         ;;
     *)
         echo "Usage: $0 {deploy|rollback|verify}"
+        echo ""
+        echo "Commands:"
+        echo "  deploy   - Deploy application from /tmp/nimsforest-deploy.tar.gz"
+        echo "  rollback - Rollback to previous version"
+        echo "  verify   - Verify deployment is working"
         exit 1
         ;;
 esac

@@ -113,7 +113,24 @@ ssh root@YOUR_SERVER_IP "sudo journalctl -u nimsforest -n 100"
 ssh root@YOUR_SERVER_IP "sudo systemctl status nats"
 
 # Rollback to previous version
-ssh root@YOUR_SERVER_IP "cd /opt/nimsforest && sudo ./deploy.sh rollback"
+ssh root@YOUR_SERVER_IP 'bash -s' < scripts/deploy.sh rollback
+
+# Verify deployment
+ssh root@YOUR_SERVER_IP 'bash -s' < scripts/deploy.sh verify
+```
+
+## Using Make Commands
+
+```bash
+# Build deployment package locally
+make deploy-package
+
+# Deploy to server
+scp nimsforest-deploy.tar.gz root@YOUR_SERVER_IP:/tmp/
+ssh root@YOUR_SERVER_IP 'bash -s' < scripts/deploy.sh deploy
+
+# Verify all deployment files
+make deploy-verify
 ```
 
 ## Need Help?

@@ -253,6 +253,19 @@ build-all: ## Build for all platforms
 	@GOOS=darwin GOARCH=arm64 go build -o $(BINARY_NAME)-darwin-arm64 ./cmd/forest
 	@echo "$(GREEN)✅ Built all platforms$(NC)"
 
+build-deploy: ## Build optimized binary for deployment (Linux AMD64)
+	@echo "$(BLUE)🔨 Building deployment binary...$(NC)"
+	@if [ -d cmd/forest ]; then \
+		GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o $(BINARY_NAME) ./cmd/forest; \
+		chmod +x $(BINARY_NAME); \
+		echo "$(GREEN)✅ Deployment binary ready: $(BINARY_NAME)$(NC)"; \
+	else \
+		echo "$(YELLOW)⚠️  cmd/forest not found - this is a library project$(NC)"; \
+		echo "$(BLUE)ℹ️  Verifying all packages compile for linux/amd64...$(NC)"; \
+		GOOS=linux GOARCH=amd64 go build ./...; \
+		echo "$(GREEN)✅ All packages compile successfully for deployment$(NC)"; \
+	fi
+
 run: build ## Build and run the application
 	@echo "$(BLUE)▶️  Running $(BINARY_NAME)...$(NC)"
 	@./$(BINARY_NAME)
@@ -419,3 +432,54 @@ validate-all: validate-quick validate-build validate-workflows validate-docs val
 	@echo "  3. Review VALIDATION_GUIDE.md for detailed testing"
 
 validate: validate-all ## Alias for validate-all
+
+##@ Deployment
+
+deploy-package: build-deploy ## Create deployment package
+	@echo "$(BLUE)📦 Creating deployment package...$(NC)"
+	@if [ -f $(BINARY_NAME) ]; then \
+		mkdir -p deploy; \
+		cp $(BINARY_NAME) deploy/; \
+		cp scripts/deploy.sh deploy/ 2>/dev/null || echo "$(YELLOW)⚠️  scripts/deploy.sh not found$(NC)"; \
+		cp scripts/systemd/nimsforest.service deploy/ 2>/dev/null || echo "$(YELLOW)⚠️  service file not found$(NC)"; \
+		tar czf nimsforest-deploy.tar.gz deploy/; \
+		rm -rf deploy/; \
+		echo "$(GREEN)✅ Deployment package created: nimsforest-deploy.tar.gz$(NC)"; \
+	else \
+		echo "$(YELLOW)⚠️  No binary to package - library project$(NC)"; \
+		echo "$(BLUE)ℹ️  Creating package with scripts only...$(NC)"; \
+		mkdir -p deploy; \
+		cp scripts/deploy.sh deploy/ 2>/dev/null || (echo "$(RED)❌ scripts/deploy.sh not found$(NC)" && exit 1); \
+		cp scripts/systemd/nimsforest.service deploy/ 2>/dev/null || (echo "$(RED)❌ service file not found$(NC)" && exit 1); \
+		tar czf nimsforest-deploy.tar.gz deploy/; \
+		rm -rf deploy/; \
+		echo "$(GREEN)✅ Deployment package created (scripts only): nimsforest-deploy.tar.gz$(NC)"; \
+	fi
+
+deploy-verify: ## Verify deployment files exist
+	@echo "$(BLUE)🔍 Verifying deployment files...$(NC)"
+	@if [ -f scripts/deploy.sh ]; then \
+		echo "$(GREEN)✅ deploy.sh$(NC)"; \
+	else \
+		echo "$(RED)❌ deploy.sh missing$(NC)"; \
+		exit 1; \
+	fi
+	@if [ -f scripts/setup-hetzner-server.sh ]; then \
+		echo "$(GREEN)✅ setup-hetzner-server.sh$(NC)"; \
+	else \
+		echo "$(RED)❌ setup-hetzner-server.sh missing$(NC)"; \
+		exit 1; \
+	fi
+	@if [ -f scripts/systemd/nimsforest.service ]; then \
+		echo "$(GREEN)✅ nimsforest.service$(NC)"; \
+	else \
+		echo "$(RED)❌ nimsforest.service missing$(NC)"; \
+		exit 1; \
+	fi
+	@if [ -f .github/workflows/deploy-hetzner.yml ]; then \
+		echo "$(GREEN)✅ deploy-hetzner.yml$(NC)"; \
+	else \
+		echo "$(RED)❌ deploy-hetzner.yml missing$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(GREEN)✅ All deployment files present$(NC)"

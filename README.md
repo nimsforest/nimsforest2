@@ -359,6 +359,14 @@ View all available commands:
 make help
 ```
 
+#### Deployment Commands
+
+```bash
+make build-deploy      # Build optimized binary for deployment
+make deploy-package    # Create deployment package (tar.gz)
+make deploy-verify     # Verify all deployment files exist
+```
+
 ### Running Tests
 
 ```bash

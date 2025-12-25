@@ -327,7 +327,23 @@ The deployment workflow performs these steps:
 
 If you need to deploy manually without GitHub Actions:
 
-### Option 1: Direct Deployment from Local Machine
+### Option 1: Direct Deployment from Local Machine (Using Make)
+
+```bash
+# Build and package using Make
+make deploy-package
+
+# Copy to server
+scp nimsforest-deploy.tar.gz root@YOUR_SERVER_IP:/tmp/
+
+# Deploy on server
+ssh root@YOUR_SERVER_IP 'bash -s' < scripts/deploy.sh deploy
+
+# Verify deployment
+ssh root@YOUR_SERVER_IP 'bash -s' < scripts/deploy.sh verify
+```
+
+### Option 1b: Manual Shell Commands
 
 ```bash
 # Build binary
@@ -348,7 +364,7 @@ ssh root@YOUR_SERVER_IP << 'EOF'
 EOF
 ```
 
-### Option 2: Build on Server
+### Option 2: Build on Server (Using Make)
 
 ```bash
 # SSH to server
@@ -362,12 +378,17 @@ cd nimsforest
 cd nimsforest
 git pull origin main
 
-# Build and deploy
-make build
+# Build optimized deployment binary
+make build-deploy
+
+# Use deployment script
 sudo systemctl stop nimsforest
 sudo cp /usr/local/bin/forest /opt/nimsforest/backups/forest.backup
 sudo cp forest /usr/local/bin/forest
 sudo systemctl start nimsforest
+
+# Verify
+make verify
 ```
 
 ## Monitoring and Management
@@ -498,17 +519,16 @@ The workflow automatically rolls back if verification fails.
 #### Manual Rollback:
 
 ```bash
-# SSH to server
+# Method 1: Using deployment script (recommended)
+ssh root@YOUR_SERVER_IP 'bash -s' < scripts/deploy.sh rollback
+
+# Method 2: SSH and run on server
 ssh root@YOUR_SERVER_IP
 
 # Check available backups
 ls -lah /opt/nimsforest/backups/
 
-# Rollback using script
-cd /opt/nimsforest
-sudo ./deploy.sh rollback
-
-# Or manually
+# Rollback manually
 sudo systemctl stop nimsforest
 sudo cp /opt/nimsforest/backups/forest.backup /usr/local/bin/forest
 sudo chmod +x /usr/local/bin/forest
@@ -725,11 +745,13 @@ hcloud server describe nimsforest-prod
 ### Essential Commands
 
 ```bash
-# Deploy manually
-cd /workspace
-GOOS=linux GOARCH=amd64 go build -o forest ./cmd/forest
-scp forest root@SERVER:/tmp/
-ssh root@SERVER 'bash -s' < scripts/deploy.sh
+# Build and deploy using Make
+make deploy-package
+scp nimsforest-deploy.tar.gz root@SERVER:/tmp/
+ssh root@SERVER 'bash -s' < scripts/deploy.sh deploy
+
+# Verify deployment
+ssh root@SERVER 'bash -s' < scripts/deploy.sh verify
 
 # Check service
 ssh root@SERVER 'sudo systemctl status nimsforest'
@@ -741,7 +763,7 @@ ssh root@SERVER 'sudo journalctl -u nimsforest -f'
 ssh root@SERVER 'sudo systemctl restart nimsforest'
 
 # Rollback
-ssh root@SERVER 'cd /opt/nimsforest && sudo ./deploy.sh rollback'
+ssh root@SERVER 'bash -s' < scripts/deploy.sh rollback
 ```
 
 ### GitHub Actions Commands

@@ -30,18 +30,14 @@ jobs:
         go-version: '1.24.x'
         cache: true
     
-    - name: Build for Linux AMD64
-      run: |
-        GOOS=linux GOARCH=amd64 go build -o forest -ldflags="-s -w" ./cmd/forest
-        chmod +x forest
+    - name: Download dependencies
+      run: make deps
+    
+    - name: Build deployment binary
+      run: make build-deploy
     
     - name: Create deployment package
-      run: |
-        mkdir -p deploy
-        cp forest deploy/
-        cp scripts/deploy.sh deploy/
-        cp scripts/systemd/nimsforest.service deploy/
-        tar czf nimsforest-deploy.tar.gz deploy/
+      run: make deploy-package
     
     - name: Install SSH key
       uses: shimataro/ssh-key-action@v2
@@ -51,50 +47,20 @@ jobs:
     
     - name: Copy deployment package to server
       run: |
-        scp -o StrictHostKeyChecking=no nimsforest-deploy.tar.gz ${{ secrets.HETZNER_SSH_USER }}@${{ secrets.HETZNER_HOST }}:/tmp/
+        scp -o StrictHostKeyChecking=no nimsforest-deploy.tar.gz \
+          ${{ secrets.HETZNER_SSH_USER }}@${{ secrets.HETZNER_HOST }}:/tmp/
     
     - name: Deploy on Hetzner server
       run: |
-        ssh -o StrictHostKeyChecking=no ${{ secrets.HETZNER_SSH_USER }}@${{ secrets.HETZNER_HOST }} << 'ENDSSH'
-          set -e
-          
-          echo "🚀 Starting deployment..."
-          
-          # Extract deployment package
-          cd /tmp
-          tar xzf nimsforest-deploy.tar.gz
-          cd deploy
-          
-          # Make deploy script executable
-          chmod +x deploy.sh
-          
-          # Run deployment script
-          sudo ./deploy.sh
-          
-          # Cleanup
-          cd /tmp
-          rm -rf deploy nimsforest-deploy.tar.gz
-          
-          echo "✅ Deployment completed successfully!"
-        ENDSSH
+        ssh -o StrictHostKeyChecking=no \
+          ${{ secrets.HETZNER_SSH_USER }}@${{ secrets.HETZNER_HOST }} \
+          'bash -s' < scripts/deploy.sh deploy
     
     - name: Verify deployment
       run: |
-        ssh -o StrictHostKeyChecking=no ${{ secrets.HETZNER_SSH_USER }}@${{ secrets.HETZNER_HOST }} << 'ENDSSH'
-          # Check service status
-          sudo systemctl status nimsforest --no-pager
-          
-          # Check if service is active
-          if sudo systemctl is-active --quiet nimsforest; then
-            echo "✅ Service is running"
-          else
-            echo "❌ Service is not running"
-            exit 1
-          fi
-          
-          # Get version info
-          /usr/local/bin/forest --version || echo "Version command not available"
-        ENDSSH
+        ssh -o StrictHostKeyChecking=no \
+          ${{ secrets.HETZNER_SSH_USER }}@${{ secrets.HETZNER_HOST }} \
+          'bash -s' < scripts/deploy.sh verify
     
     - name: Notify deployment status
       if: always()
@@ -121,25 +87,6 @@ jobs:
     
     - name: Perform rollback
       run: |
-        ssh -o StrictHostKeyChecking=no ${{ secrets.HETZNER_SSH_USER }}@${{ secrets.HETZNER_HOST }} << 'ENDSSH'
-          set -e
-          
-          echo "⚠️  Performing rollback..."
-          
-          # Check if backup exists
-          if [ -f /opt/nimsforest/backups/forest.backup ]; then
-            # Stop service
-            sudo systemctl stop nimsforest
-            
-            # Restore backup
-            sudo cp /opt/nimsforest/backups/forest.backup /usr/local/bin/forest
-            sudo chmod +x /usr/local/bin/forest
-            
-            # Start service
-            sudo systemctl start nimsforest
-            
-            echo "✅ Rollback completed successfully!"
-          else
-            echo "⚠️  No backup found, skipping rollback"
-          fi
-        ENDSSH
+        ssh -o StrictHostKeyChecking=no \
+          ${{ secrets.HETZNER_SSH_USER }}@${{ secrets.HETZNER_HOST }} \
+          'bash -s' < scripts/deploy.sh rollback

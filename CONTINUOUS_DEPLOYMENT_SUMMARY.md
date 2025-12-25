@@ -450,8 +450,13 @@ For issues or questions:
 git tag -a v1.0.0 -m "Release v1.0.0"
 git push origin v1.0.0
 
-# Manual deployment
+# Manual deployment via GitHub Actions
 gh workflow run deploy-hetzner.yml -f environment=production
+
+# Build and deploy manually using Make
+make deploy-package
+scp nimsforest-deploy.tar.gz root@SERVER:/tmp/
+ssh root@SERVER 'bash -s' < scripts/deploy.sh deploy
 
 # Check deployment status
 gh run watch
@@ -465,8 +470,14 @@ ssh root@SERVER "sudo journalctl -u nimsforest -f"
 # Restart service
 ssh root@SERVER "sudo systemctl restart nimsforest"
 
+# Verify deployment
+ssh root@SERVER 'bash -s' < scripts/deploy.sh verify
+
 # Rollback
-ssh root@SERVER "cd /opt/nimsforest && sudo ./deploy.sh rollback"
+ssh root@SERVER 'bash -s' < scripts/deploy.sh rollback
+
+# Verify deployment files locally
+make deploy-verify
 ```
 
 ---

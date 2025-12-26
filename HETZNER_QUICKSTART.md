@@ -19,6 +19,8 @@ chmod +x setup-server.sh && sudo ./setup-server.sh
 exit
 
 # OPTION B: If repo is PRIVATE (recommended - simpler!)
+# Run from YOUR LOCAL MACHINE (in the nimsforest directory):
+cd /path/to/nimsforest  # your local repo
 scp scripts/setup-server.sh root@YOUR_SERVER_IP:/tmp/
 ssh root@YOUR_SERVER_IP "cd /tmp && chmod +x setup-server.sh && sudo ./setup-server.sh"
 

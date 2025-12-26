@@ -695,7 +695,7 @@ Humus: [
 ```bash
 # 1. Create server at https://console.hetzner.cloud/ (Ubuntu 22.04, CPX11)
 
-# 2. Run setup on server (private repo - use SCP):
+# 2. Run setup on server (from YOUR LOCAL MACHINE):
 scp scripts/setup-server.sh root@YOUR_SERVER_IP:/tmp/
 ssh root@YOUR_SERVER_IP "cd /tmp && chmod +x setup-server.sh && sudo ./setup-server.sh"
 

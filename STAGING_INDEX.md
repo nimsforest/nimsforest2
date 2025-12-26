@@ -25,6 +25,8 @@ Choose your preferred approach:
 | **[SETUP_SUMMARY.md](./SETUP_SUMMARY.md)** | Overview, commands reference, and next steps | 5 min | Quick reference |
 | **[STAGING_SETUP_FLOW.md](./STAGING_SETUP_FLOW.md)** | Visual flowchart of the entire process | 2 min | Visual learners |
 | **[STAGING_QUICK_REFERENCE.txt](./STAGING_QUICK_REFERENCE.txt)** | One-page quick reference card | 1 min | Print-friendly |
+| **[WHERE_TO_RUN_COMMANDS.md](./WHERE_TO_RUN_COMMANDS.md)** | Where to run local vs server commands | 3 min | Beginners |
+| **[PRIVATE_REPO_SETUP.md](./PRIVATE_REPO_SETUP.md)** | Setting up with private repositories | 5 min | Private repos |
 
 ---
 
@@ -72,6 +74,9 @@ Choose your preferred approach:
 
 **"My repository is private"**
 → [PRIVATE_REPO_SETUP.md](./PRIVATE_REPO_SETUP.md)
+
+**"Where do I run these commands?"**
+→ [WHERE_TO_RUN_COMMANDS.md](./WHERE_TO_RUN_COMMANDS.md)
 
 ---
 

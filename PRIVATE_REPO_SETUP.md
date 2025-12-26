@@ -6,15 +6,30 @@ Since your repository is private, you can't use `wget` to download the setup scr
 
 ## Option 1: Copy Script via SCP (Easiest)
 
+**Run these commands on YOUR LOCAL MACHINE** (where you cloned the repo):
+
 ```bash
-# On your local machine, copy the setup script to the server
+# Make sure you're in your project directory
+cd /path/to/nimsforest  # wherever you cloned it
+
+# Copy the setup script from your local machine to the server
 scp scripts/setup-server.sh root@YOUR_SERVER_IP:/tmp/
+# This copies FROM: your local scripts/setup-server.sh
+#             TO:   server's /tmp/setup-server.sh
 
 # SSH to server and run it
 ssh root@YOUR_SERVER_IP
 cd /tmp
 chmod +x setup-server.sh
 sudo ./setup-server.sh
+```
+
+**Or do it all in one command:**
+
+```bash
+# From your local machine, in the nimsforest directory:
+scp scripts/setup-server.sh root@YOUR_SERVER_IP:/tmp/ && \
+ssh root@YOUR_SERVER_IP "cd /tmp && chmod +x setup-server.sh && sudo ./setup-server.sh"
 ```
 
 ---

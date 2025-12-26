@@ -759,9 +759,17 @@ Environment variables:
 ## Documentation
 
 ### Deployment
+
+#### Current Deployment (SSH-based)
 - **[DEPLOYMENT_QUICKREF.md](./DEPLOYMENT_QUICKREF.md)** - Quick reference for all deployment commands
 - **[DEPLOYMENT_SSH.md](./DEPLOYMENT_SSH.md)** - SSH deployment to any Linux server
 - **[DEPLOYMENT.md](./DEPLOYMENT.md)** - Traditional deployment methods
+
+#### Deployment Options Analysis
+- **[DEPLOYMENT_OPTIONS_SUMMARY.md](./DEPLOYMENT_OPTIONS_SUMMARY.md)** - ⭐ Executive summary and recommendation
+- **[ENVIRONMENTS_COMPARISON_QUICKSTART.md](./ENVIRONMENTS_COMPARISON_QUICKSTART.md)** - Quick comparison (1-minute read)
+- **[GITHUB_ENVIRONMENTS_GUIDE.md](./GITHUB_ENVIRONMENTS_GUIDE.md)** - Complete guide to deployment options
+- **[HYBRID_APPROACH_EXAMPLE.md](./HYBRID_APPROACH_EXAMPLE.md)** - Step-by-step implementation example
 
 ### Development
 - **[README.md](./README.md)** - This file

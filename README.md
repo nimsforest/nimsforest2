@@ -690,7 +690,29 @@ Humus: [
 
 ## Deployment
 
-### Automatic Deployment (Recommended)
+### Quick Start - Set Up Staging on Hetzner (5 min)
+
+```bash
+# 1. Create server at https://console.hetzner.cloud/ (Ubuntu 22.04, CPX11)
+# 2. Run setup on server:
+ssh root@YOUR_SERVER_IP
+wget https://raw.githubusercontent.com/YOUR_USERNAME/nimsforest/main/scripts/setup-server.sh
+chmod +x setup-server.sh && sudo ./setup-server.sh && exit
+
+# 3. Configure deployment (one command):
+./scripts/setup-staging-local.sh YOUR_SERVER_IP
+
+# 4. Deploy!
+git push origin main
+```
+
+**Guides:** 
+- 🚀 [Quick Start](./HETZNER_QUICKSTART.md) - Fastest way to get started
+- 📋 [Setup Checklist](./STAGING_SETUP_CHECKLIST.md) - Track your progress
+- 📖 [Complete Guide](./STAGING_SETUP_GUIDE.md) - Detailed walkthrough
+- 🔧 [SSH Deployment](./DEPLOYMENT_SSH.md) - Platform-agnostic docs
+
+### Automatic Deployment (Once Configured)
 
 **Staging**: Push to `main` → Auto-deploys  
 **Production**: Create release → Auto-deploys
@@ -703,8 +725,6 @@ git push origin main
 git tag -a v1.0.0 -m "Release v1.0.0"
 git push origin v1.0.0
 ```
-
-Setup: [DEPLOYMENT_SSH.md](./DEPLOYMENT_SSH.md) | Quick ref: [DEPLOYMENT_QUICKREF.md](./DEPLOYMENT_QUICKREF.md)
 
 ### Traditional Methods
 

@@ -78,6 +78,9 @@ Choose your preferred approach:
 **"Where do I run these commands?"**
 → [WHERE_TO_RUN_COMMANDS.md](./WHERE_TO_RUN_COMMANDS.md)
 
+**"Is this deployment method common? Can't I deploy directly from GitHub?"**
+→ [DEPLOYMENT_METHODS_EXPLAINED.md](./DEPLOYMENT_METHODS_EXPLAINED.md) - You already do!
+
 ---
 
 ## ⚡ TL;DR - The Absolute Minimum

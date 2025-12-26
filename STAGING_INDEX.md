@@ -75,6 +75,9 @@ Choose your preferred approach:
 **"My repository is private"**
 → [PRIVATE_REPO_SETUP.md](./PRIVATE_REPO_SETUP.md)
 
+**"I don't have the repo on my local machine"**
+→ [SETUP_WITHOUT_LOCAL_REPO.md](./SETUP_WITHOUT_LOCAL_REPO.md) - Just paste the script!
+
 **"Where do I run these commands?"**
 → [WHERE_TO_RUN_COMMANDS.md](./WHERE_TO_RUN_COMMANDS.md)
 

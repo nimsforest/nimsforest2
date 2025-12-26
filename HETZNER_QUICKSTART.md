@@ -12,17 +12,22 @@ The fastest way to get a staging server running on Hetzner.
 
 # 2. Set up the server
 
-# OPTION A: If repo is PUBLIC
+# OPTION A: Don't have repo locally? (Easiest!)
+# Just SSH and paste the script - see SETUP_WITHOUT_LOCAL_REPO.md
+ssh root@YOUR_SERVER_IP
+# Then paste the script content (cat > setup-server.sh << 'EOF' ...)
+# Full instructions: cat SETUP_WITHOUT_LOCAL_REPO.md
+
+# OPTION B: Have repo locally?
+# Copy from local machine:
+cd /path/to/nimsforest
+scp scripts/setup-server.sh root@YOUR_SERVER_IP:/tmp/
+ssh root@YOUR_SERVER_IP "cd /tmp && chmod +x setup-server.sh && sudo ./setup-server.sh"
+
+# OPTION C: Public repo only
 ssh root@YOUR_SERVER_IP
 wget https://raw.githubusercontent.com/YOUR_USERNAME/nimsforest/main/scripts/setup-server.sh
 chmod +x setup-server.sh && sudo ./setup-server.sh
-exit
-
-# OPTION B: If repo is PRIVATE (recommended - simpler!)
-# Run from YOUR LOCAL MACHINE (in the nimsforest directory):
-cd /path/to/nimsforest  # your local repo
-scp scripts/setup-server.sh root@YOUR_SERVER_IP:/tmp/
-ssh root@YOUR_SERVER_IP "cd /tmp && chmod +x setup-server.sh && sudo ./setup-server.sh"
 
 # 3. Configure local deployment (one command!)
 ./scripts/setup-staging-local.sh YOUR_SERVER_IP

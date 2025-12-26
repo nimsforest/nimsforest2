@@ -253,6 +253,19 @@ build-all: ## Build for all platforms
 	@GOOS=darwin GOARCH=arm64 go build -o $(BINARY_NAME)-darwin-arm64 ./cmd/forest
 	@echo "$(GREEN)✅ Built all platforms$(NC)"
 
+build-deploy: ## Build optimized binary for deployment (Linux AMD64)
+	@echo "$(BLUE)🔨 Building deployment binary...$(NC)"
+	@if [ -d cmd/forest ]; then \
+		GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o $(BINARY_NAME) ./cmd/forest; \
+		chmod +x $(BINARY_NAME); \
+		echo "$(GREEN)✅ Deployment binary ready: $(BINARY_NAME)$(NC)"; \
+	else \
+		echo "$(YELLOW)⚠️  cmd/forest not found - this is a library project$(NC)"; \
+		echo "$(BLUE)ℹ️  Verifying all packages compile for linux/amd64...$(NC)"; \
+		GOOS=linux GOARCH=amd64 go build ./...; \
+		echo "$(GREEN)✅ All packages compile successfully for deployment$(NC)"; \
+	fi
+
 run: build ## Build and run the application
 	@echo "$(BLUE)▶️  Running $(BINARY_NAME)...$(NC)"
 	@./$(BINARY_NAME)
@@ -419,3 +432,158 @@ validate-all: validate-quick validate-build validate-workflows validate-docs val
 	@echo "  3. Review VALIDATION_GUIDE.md for detailed testing"
 
 validate: validate-all ## Alias for validate-all
+
+##@ Deployment
+
+deploy-package: build-deploy ## Create deployment package
+	@echo "$(BLUE)📦 Creating deployment package...$(NC)"
+	@mkdir -p deploy
+	@if [ -f $(BINARY_NAME) ]; then \
+		cp $(BINARY_NAME) deploy/; \
+	fi
+	@cp Makefile deploy/ 2>/dev/null || echo "$(YELLOW)⚠️  Makefile not copied$(NC)"
+	@cp scripts/systemd/nimsforest.service deploy/ 2>/dev/null || echo "$(YELLOW)⚠️  service file not found$(NC)"
+	@tar czf nimsforest-deploy.tar.gz deploy/
+	@rm -rf deploy/
+	@echo "$(GREEN)✅ Deployment package created: nimsforest-deploy.tar.gz$(NC)"
+
+deploy-verify: ## Verify deployment files exist
+	@echo "$(BLUE)🔍 Verifying deployment files...$(NC)"
+	@if [ -f Makefile ]; then \
+		echo "$(GREEN)✅ Makefile$(NC)"; \
+	else \
+		echo "$(RED)❌ Makefile missing$(NC)"; \
+		exit 1; \
+	fi
+	@if [ -f scripts/setup-server.sh ]; then \
+		echo "$(GREEN)✅ setup-server.sh$(NC)"; \
+	else \
+		echo "$(RED)❌ setup-server.sh missing$(NC)"; \
+		exit 1; \
+	fi
+	@if [ -f scripts/systemd/nimsforest.service ]; then \
+		echo "$(GREEN)✅ nimsforest.service$(NC)"; \
+	else \
+		echo "$(RED)❌ nimsforest.service missing$(NC)"; \
+		exit 1; \
+	fi
+	@if [ -f .github/workflows/deploy.yml ]; then \
+		echo "$(GREEN)✅ deploy.yml$(NC)"; \
+	else \
+		echo "$(RED)❌ deploy.yml missing$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(GREEN)✅ All deployment files present$(NC)"
+
+##@ Server Operations (run on server)
+
+SERVER_BINARY := /usr/local/bin/forest
+SERVER_SERVICE := nimsforest
+SERVER_USER := forest
+SERVER_DATA_DIR := /var/lib/nimsforest
+SERVER_LOG_DIR := /var/log/nimsforest
+SERVER_BACKUP_DIR := /opt/nimsforest/backups
+SERVER_SERVICE_FILE := /etc/systemd/system/$(SERVER_SERVICE).service
+
+server-deploy: ## Deploy on server (run this on the server)
+	@echo "$(BLUE)🚀 Starting server deployment...$(NC)"
+	@if [ "$$(id -u)" -ne 0 ]; then \
+		echo "$(RED)❌ Must run as root$(NC)"; \
+		exit 1; \
+	fi
+	@$(MAKE) server-create-user
+	@$(MAKE) server-create-dirs
+	@$(MAKE) server-backup
+	@$(MAKE) server-stop
+	@$(MAKE) server-install-binary
+	@$(MAKE) server-install-service
+	@$(MAKE) server-start
+	@$(MAKE) server-verify
+	@echo "$(GREEN)✅ Deployment completed successfully!$(NC)"
+
+server-create-user: ## Create service user
+	@if ! id $(SERVER_USER) &>/dev/null; then \
+		echo "$(BLUE)Creating user $(SERVER_USER)...$(NC)"; \
+		useradd -r -s /bin/false -d $(SERVER_DATA_DIR) $(SERVER_USER); \
+	fi
+
+server-create-dirs: ## Create required directories
+	@echo "$(BLUE)Creating directories...$(NC)"
+	@mkdir -p $(SERVER_DATA_DIR) $(SERVER_LOG_DIR) $(SERVER_BACKUP_DIR)
+	@chown -R $(SERVER_USER):$(SERVER_USER) $(SERVER_DATA_DIR) $(SERVER_LOG_DIR)
+
+server-backup: ## Backup current binary
+	@if [ -f $(SERVER_BINARY) ]; then \
+		echo "$(BLUE)Backing up current binary...$(NC)"; \
+		cp $(SERVER_BINARY) $(SERVER_BACKUP_DIR)/forest.backup.$$(date +%Y%m%d_%H%M%S); \
+		cp $(SERVER_BINARY) $(SERVER_BACKUP_DIR)/forest.backup; \
+	fi
+
+server-stop: ## Stop service
+	@echo "$(BLUE)Stopping service...$(NC)"
+	@systemctl stop $(SERVER_SERVICE) 2>/dev/null || true
+
+server-install-binary: ## Install binary
+	@if [ -f ./$(BINARY_NAME) ]; then \
+		echo "$(BLUE)Installing binary...$(NC)"; \
+		cp ./$(BINARY_NAME) $(SERVER_BINARY); \
+		chmod +x $(SERVER_BINARY); \
+		chown root:root $(SERVER_BINARY); \
+	else \
+		echo "$(RED)❌ Binary not found$(NC)"; \
+		exit 1; \
+	fi
+
+server-install-service: ## Install systemd service
+	@echo "$(BLUE)Installing systemd service...$(NC)"
+	@if [ -f ./nimsforest.service ]; then \
+		cp ./nimsforest.service $(SERVER_SERVICE_FILE); \
+	elif [ -f ../scripts/systemd/nimsforest.service ]; then \
+		cp ../scripts/systemd/nimsforest.service $(SERVER_SERVICE_FILE); \
+	else \
+		echo "$(YELLOW)Creating default service file...$(NC)"; \
+		printf '[Unit]\nDescription=NimsForest Event Orchestration System\nAfter=network.target nats.service\nWants=nats.service\n\n[Service]\nType=simple\nUser=%s\nGroup=%s\nWorkingDirectory=%s\nEnvironment="NATS_URL=nats://localhost:4222"\nExecStart=%s\nRestart=on-failure\nRestartSec=10\nStandardOutput=journal\nStandardError=journal\nSyslogIdentifier=nimsforest\n\nNoNewPrivileges=true\nPrivateTmp=true\nProtectSystem=strict\nProtectHome=true\nReadWritePaths=%s %s\n\n[Install]\nWantedBy=multi-user.target\n' \
+			"$(SERVER_USER)" "$(SERVER_USER)" "$(SERVER_DATA_DIR)" "$(SERVER_BINARY)" "$(SERVER_DATA_DIR)" "$(SERVER_LOG_DIR)" \
+			> $(SERVER_SERVICE_FILE); \
+	fi
+	@chmod 644 $(SERVER_SERVICE_FILE)
+	@systemctl daemon-reload
+
+server-start: ## Start service
+	@echo "$(BLUE)Starting service...$(NC)"
+	@systemctl enable $(SERVER_SERVICE)
+	@systemctl start $(SERVER_SERVICE)
+	@sleep 2
+
+server-verify: ## Verify deployment
+	@echo "$(BLUE)Verifying deployment...$(NC)"
+	@if systemctl is-active --quiet $(SERVER_SERVICE); then \
+		echo "$(GREEN)✅ Service is running$(NC)"; \
+		systemctl status $(SERVER_SERVICE) --no-pager || true; \
+	else \
+		echo "$(RED)❌ Service failed to start$(NC)"; \
+		journalctl -u $(SERVER_SERVICE) -n 20 --no-pager; \
+		exit 1; \
+	fi
+
+server-rollback: ## Rollback to previous version
+	@echo "$(YELLOW)⚠️  Rolling back...$(NC)"
+	@if [ -f $(SERVER_BACKUP_DIR)/forest.backup ]; then \
+		systemctl stop $(SERVER_SERVICE); \
+		cp $(SERVER_BACKUP_DIR)/forest.backup $(SERVER_BINARY); \
+		chmod +x $(SERVER_BINARY); \
+		systemctl start $(SERVER_SERVICE); \
+		echo "$(GREEN)✅ Rollback complete$(NC)"; \
+	else \
+		echo "$(RED)❌ No backup found$(NC)"; \
+		exit 1; \
+	fi
+
+server-status: ## Check service status
+	@systemctl status $(SERVER_SERVICE) --no-pager
+
+server-logs: ## View service logs
+	@journalctl -u $(SERVER_SERVICE) -f
+
+server-restart: ## Restart service
+	@systemctl restart $(SERVER_SERVICE)

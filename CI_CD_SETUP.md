@@ -43,6 +43,20 @@ A comprehensive CI/CD pipeline has been added to NimsForest, optimized for Debia
   - Attaches to GitHub releases
 - **When it runs**: Version tags or manual dispatch
 
+#### 4. **SSH Deployment Workflow** (`.github/workflows/deploy.yml`)
+- **Purpose**: Continuous deployment to any Linux server via SSH (platform-agnostic)
+- **Features**:
+  - **Automatic staging deployment** on push to `main`
+  - **Automatic production deployment** on release publication
+  - Manual deployment trigger with environment selection
+  - Zero-downtime deployment with automatic rollback
+  - SSH-based secure deployment using Make commands
+  - Service health verification
+- **When it runs**: 
+  - Push to `main` → Staging
+  - Release published (`v*`) → Production
+  - Manual trigger → Your choice
+
 ### Configuration Files
 
 #### 1. **`.golangci.yml`**
@@ -64,7 +78,19 @@ Code coverage configuration:
 
 ### Documentation
 
-#### 1. **`DEPLOYMENT.md`**
+#### 1. **`HETZNER_DEPLOYMENT.md`**
+Complete Hetzner Cloud continuous deployment guide:
+- Hetzner server setup and configuration
+- GitHub Actions deployment workflow
+- SSH key and secrets management
+- Automatic deployment on release
+- Manual deployment triggers
+- Monitoring and management
+- Rollback procedures
+- Security best practices
+- Cost optimization tips
+
+#### 2. **`DEPLOYMENT.md`**
 Comprehensive deployment guide covering:
 - System requirements
 - Debian package installation
@@ -77,7 +103,7 @@ Comprehensive deployment guide covering:
 - Monitoring and backup procedures
 - Troubleshooting guide
 
-#### 2. **`CI_CD.md`**
+#### 3. **`CI_CD.md`**
 Complete CI/CD documentation:
 - Workflow descriptions
 - Configuration file explanations
@@ -87,12 +113,12 @@ Complete CI/CD documentation:
 - Best practices
 - Performance optimization tips
 
-#### 3. **Updated `README.md`**
+#### 4. **Updated `README.md`**
 - CI/CD status badges
 - Codecov badge
 - Go Report Card badge
 - License badge
-- Quick deployment section
+- Quick deployment section with Hetzner CD
 - Links to new documentation
 
 ## File Structure
@@ -102,10 +128,18 @@ Complete CI/CD documentation:
 └── workflows/
     ├── ci.yml                    # Main CI pipeline
     ├── release.yml               # Release automation
-    └── debian-package.yml        # Debian package builder
+    ├── debian-package.yml        # Debian package builder
+    └── deploy-hetzner.yml        # Hetzner CD pipeline
+
+scripts/
+├── deploy.sh                     # Deployment script for server
+├── setup-server.sh       # Initial server setup
+└── systemd/
+    └── nimsforest.service        # systemd service file
 
 .codecov.yml                      # Codecov configuration
 .golangci.yml                     # Linter configuration
+HETZNER_DEPLOYMENT.md             # Hetzner CD guide
 DEPLOYMENT.md                     # Deployment guide
 CI_CD.md                          # CI/CD documentation
 CI_CD_SETUP.md                    # This file
@@ -157,6 +191,12 @@ git push origin v1.0.0
 
 To enable all features, add these secrets to your GitHub repository:
 
+### For SSH-Based Deployment (any Linux server)
+- `SSH_PRIVATE_KEY` - SSH private key for deployment access
+- `SSH_USER` - SSH user (typically `root`)
+- `SSH_HOST` - Server IP address or hostname
+- `SSH_KNOWN_HOSTS` - SSH host key fingerprint
+
 ### Optional but Recommended
 - `CODECOV_TOKEN` - For coverage reporting (get from codecov.io)
 
@@ -164,10 +204,16 @@ To enable all features, add these secrets to your GitHub repository:
 ```bash
 # Via GitHub CLI
 gh secret set CODECOV_TOKEN --body "your-token"
+gh secret set SSH_PRIVATE_KEY --env staging < ~/.ssh/deploy_staging
+gh secret set SSH_USER --env staging --body "root"
+gh secret set SSH_HOST --env staging --body "STAGING_IP"
+gh secret set SSH_KNOWN_HOSTS --env staging < <(ssh-keyscan STAGING_IP)
 ```
 
 Or via GitHub web interface:
-Settings → Secrets and variables → Actions → New repository secret
+Settings → Environments → staging/production → Add secret
+
+For complete SSH deployment setup, see **[DEPLOYMENT_SSH.md](./DEPLOYMENT_SSH.md)**.
 
 ## CI/CD Pipeline Flow
 

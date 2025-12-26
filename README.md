@@ -359,6 +359,14 @@ View all available commands:
 make help
 ```
 
+#### Deployment Commands
+
+```bash
+make build-deploy      # Build optimized binary for deployment
+make deploy-package    # Create deployment package (tar.gz)
+make deploy-verify     # Verify all deployment files exist
+```
+
 ### Running Tests
 
 ```bash
@@ -682,43 +690,50 @@ Humus: [
 
 ## Deployment
 
-NimsForest supports multiple deployment options optimized for Debian-based systems:
+### Automatic Deployment (Recommended)
 
-### Quick Deploy Options
+**Staging**: Push to `main` → Auto-deploys  
+**Production**: Create release → Auto-deploys
 
-1. **Debian Package** (Recommended for Debian/Ubuntu):
-   ```bash
-   wget https://github.com/yourusername/nimsforest/releases/latest/download/nimsforest_VERSION_amd64.deb
-   sudo dpkg -i nimsforest_VERSION_amd64.deb
-   sudo systemctl start nimsforest
-   ```
+```bash
+# Deploy to staging
+git push origin main
 
-2. **Binary Release**:
-   ```bash
-   wget https://github.com/yourusername/nimsforest/releases/latest/download/forest-linux-amd64.tar.gz
-   tar xzf forest-linux-amd64.tar.gz
-   ./forest
-   ```
+# Deploy to production
+git tag -a v1.0.0 -m "Release v1.0.0"
+git push origin v1.0.0
+```
 
-3. **Build from Source**:
-   ```bash
-   make setup
-   make build
-   sudo cp forest /usr/local/bin/
-   ```
+Setup: [DEPLOYMENT_SSH.md](./DEPLOYMENT_SSH.md) | Quick ref: [DEPLOYMENT_QUICKREF.md](./DEPLOYMENT_QUICKREF.md)
 
-For detailed deployment instructions, see **[DEPLOYMENT.md](./DEPLOYMENT.md)**.
+### Traditional Methods
+
+**Debian Package**:
+```bash
+wget https://github.com/yourusername/nimsforest/releases/latest/download/nimsforest_VERSION_amd64.deb
+sudo dpkg -i nimsforest_VERSION_amd64.deb
+```
+
+**Manual with Make**:
+```bash
+make deploy-package
+scp nimsforest-deploy.tar.gz root@SERVER:/tmp/
+ssh root@SERVER 'bash -s' < scripts/deploy.sh deploy
+```
+
+See: [DEPLOYMENT.md](./DEPLOYMENT.md) for all options
 
 ## Production Considerations
 
-### Deployment Strategies
+**Automatic Deployment**: 
+- Staging on push to `main`
+- Production on release
+- Works with any SSH-accessible Linux server
+- See [DEPLOYMENT_SSH.md](./DEPLOYMENT_SSH.md)
 
-1. **Single Instance**: Run one forest process
-2. **Multiple Instances**: Use queue groups for load balancing
-3. **Dedicated Workers**: Separate trees, nims, and decomposers
-4. **Containerization**: Docker image with NATS sidecar
-
-See **[DEPLOYMENT.md](./DEPLOYMENT.md)** for complete production deployment guide.
+**Scaling**: Use NATS queue groups for load balancing  
+**Monitoring**: systemd + journald logging  
+**Cost**: ~€5/month per server (Hetzner) or use your own
 
 ### Monitoring
 
@@ -743,11 +758,15 @@ Environment variables:
 
 ## Documentation
 
-### User Documentation
-- **[README.md](./README.md)** - This file, project overview and quick start
-- **[DEPLOYMENT.md](./DEPLOYMENT.md)** - Production deployment guide for Debian
-- **[CI_CD.md](./CI_CD.md)** - Continuous Integration/Deployment documentation
-- **[VALIDATION_GUIDE.md](./VALIDATION_GUIDE.md)** - How to validate the CI/CD pipeline
+### Deployment
+- **[DEPLOYMENT_QUICKREF.md](./DEPLOYMENT_QUICKREF.md)** - Quick reference for all deployment commands
+- **[DEPLOYMENT_SSH.md](./DEPLOYMENT_SSH.md)** - SSH deployment to any Linux server
+- **[DEPLOYMENT.md](./DEPLOYMENT.md)** - Traditional deployment methods
+
+### Development
+- **[README.md](./README.md)** - This file
+- **[CI_CD.md](./CI_CD.md)** - CI/CD pipeline documentation
+- **[Makefile](./Makefile)** - All build commands (`make help`)
 
 ### Developer Documentation
 - **[Cursorinstructions.md](./Cursorinstructions.md)** - Complete architecture and API specifications

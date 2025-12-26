@@ -476,10 +476,10 @@ deploy-verify: ## Verify deployment files exist
 		echo "$(RED)❌ nimsforest.service missing$(NC)"; \
 		exit 1; \
 	fi
-	@if [ -f .github/workflows/deploy-hetzner.yml ]; then \
-		echo "$(GREEN)✅ deploy-hetzner.yml$(NC)"; \
+	@if [ -f .github/workflows/deploy.yml ]; then \
+		echo "$(GREEN)✅ deploy.yml$(NC)"; \
 	else \
-		echo "$(RED)❌ deploy-hetzner.yml missing$(NC)"; \
+		echo "$(RED)❌ deploy.yml missing$(NC)"; \
 		exit 1; \
 	fi
 	@echo "$(GREEN)✅ All deployment files present$(NC)"

@@ -1,13 +1,21 @@
-# Hetzner Deployment Guide
+# SSH-Based Deployment Guide
 
-Complete guide for deploying NimsForest to Hetzner Cloud with automatic CD.
+Deploy NimsForest to **any Linux server** with SSH access - completely platform-agnostic!
 
-## Quick Summary
+## Works With
+
+- ✅ **Hetzner Cloud** (recommended, ~€5/month)
+- ✅ **DigitalOcean** Droplets
+- ✅ **AWS EC2** / Lightsail
+- ✅ **Linode** / Vultr / OVH
+- ✅ **Your own hardware** (bare metal, VPS, VM)
+- ✅ **Any Linux server** with SSH access
+
+## Automatic Deployment
 
 - **Staging**: Auto-deploys on push to `main`
 - **Production**: Auto-deploys on release (tag `v*`)
 - **Manual**: Trigger via GitHub Actions UI
-- **Cost**: ~€5/month per environment
 
 ## Table of Contents
 
@@ -25,13 +33,25 @@ Complete guide for deploying NimsForest to Hetzner Cloud with automatic CD.
 
 ### 1. Create Servers (10 min)
 
-```bash
-# Staging server
-hcloud server create --name nimsforest-staging --type cpx11 --image ubuntu-22.04
+**Any cloud provider or your own hardware!**
 
-# Production server (when ready)
+**Hetzner Cloud** (recommended):
+```bash
+hcloud server create --name nimsforest-staging --type cpx11 --image ubuntu-22.04
 hcloud server create --name nimsforest-prod --type cpx11 --image ubuntu-22.04
 ```
+
+**DigitalOcean**:
+```bash
+doctl compute droplet create nimsforest-staging --size s-1vcpu-2gb --image ubuntu-22-04-x64
+```
+
+**AWS EC2**:
+```bash
+aws ec2 run-instances --image-id ami-0c55b159cbfafe1f0 --instance-type t3.small
+```
+
+**Or**: Use any provider's web UI / existing servers
 
 ### 2. Setup Servers (5 min each)
 
@@ -46,25 +66,25 @@ sudo ./setup-hetzner-server.sh
 ### 3. Configure GitHub Secrets (5 min)
 
 ```bash
-# Generate keys
-ssh-keygen -t ed25519 -f ~/.ssh/deploy_staging
-ssh-keygen -t ed25519 -f ~/.ssh/deploy_prod
+# Generate deployment SSH keys
+ssh-keygen -t ed25519 -f ~/.ssh/deploy_staging -N ""
+ssh-keygen -t ed25519 -f ~/.ssh/deploy_prod -N ""
 
 # Copy to servers
 ssh-copy-id -i ~/.ssh/deploy_staging.pub root@STAGING_IP
 ssh-copy-id -i ~/.ssh/deploy_prod.pub root@PROD_IP
 
-# Add to GitHub (for staging)
-gh secret set HETZNER_SSH_PRIVATE_KEY --env staging < ~/.ssh/deploy_staging
-gh secret set HETZNER_SSH_USER --env staging --body "root"
-gh secret set HETZNER_HOST --env staging --body "STAGING_IP"
-gh secret set HETZNER_KNOWN_HOSTS --env staging < <(ssh-keyscan STAGING_IP)
+# Add to GitHub (staging environment)
+gh secret set SSH_PRIVATE_KEY --env staging < ~/.ssh/deploy_staging
+gh secret set SSH_USER --env staging --body "root"
+gh secret set SSH_HOST --env staging --body "STAGING_IP"
+gh secret set SSH_KNOWN_HOSTS --env staging < <(ssh-keyscan STAGING_IP)
 
-# Add to GitHub (for production)
-gh secret set HETZNER_SSH_PRIVATE_KEY --env production < ~/.ssh/deploy_prod
-gh secret set HETZNER_SSH_USER --env production --body "root"
-gh secret set HETZNER_HOST --env production --body "PROD_IP"
-gh secret set HETZNER_KNOWN_HOSTS --env production < <(ssh-keyscan PROD_IP)
+# Add to GitHub (production environment)
+gh secret set SSH_PRIVATE_KEY --env production < ~/.ssh/deploy_prod
+gh secret set SSH_USER --env production --body "root"
+gh secret set SSH_HOST --env production --body "PROD_IP"
+gh secret set SSH_KNOWN_HOSTS --env production < <(ssh-keyscan PROD_IP)
 ```
 
 ### 4. Deploy!
@@ -127,12 +147,23 @@ git push origin v1.0.0
 
 ## Server Requirements
 
-**Minimum per environment**:
-- Ubuntu 22.04 or Debian 11+
-- 2GB RAM, 2 vCPU (Hetzner CPX11)
-- Public IP address
+**Any Linux server with**:
+- Ubuntu 22.04 or Debian 11+ (or similar)
+- 2GB RAM, 2 vCPU minimum
+- Public IP address or accessible via SSH
+- Root or sudo access
 
-**Recommended**: Start with CPX11 (~€4.51/month) for each environment
+**Cloud Provider Options**:
+
+| Provider | Instance Type | RAM | Cost/month |
+|----------|--------------|-----|------------|
+| **Hetzner** | CPX11 | 2GB | €4.51 |
+| **DigitalOcean** | Basic | 2GB | $12 |
+| **AWS** | t3.small | 2GB | ~$15 |
+| **Linode** | Nanode | 2GB | $12 |
+| **Your hardware** | Any | 2GB+ | $0 |
+
+**Recommended**: Hetzner for best price/performance
 
 ## Initial Server Setup
 

@@ -704,7 +704,7 @@ git tag -a v1.0.0 -m "Release v1.0.0"
 git push origin v1.0.0
 ```
 
-Setup: [HETZNER_DEPLOYMENT.md](./HETZNER_DEPLOYMENT.md) | Quick ref: [DEPLOYMENT_QUICKREF.md](./DEPLOYMENT_QUICKREF.md)
+Setup: [DEPLOYMENT_SSH.md](./DEPLOYMENT_SSH.md) | Quick ref: [DEPLOYMENT_QUICKREF.md](./DEPLOYMENT_QUICKREF.md)
 
 ### Traditional Methods
 
@@ -728,11 +728,12 @@ See: [DEPLOYMENT.md](./DEPLOYMENT.md) for all options
 **Automatic Deployment**: 
 - Staging on push to `main`
 - Production on release
-- See [HETZNER_DEPLOYMENT.md](./HETZNER_DEPLOYMENT.md)
+- Works with any SSH-accessible Linux server
+- See [DEPLOYMENT_SSH.md](./DEPLOYMENT_SSH.md)
 
 **Scaling**: Use NATS queue groups for load balancing  
 **Monitoring**: systemd + journald logging  
-**Cost**: ~€5/month per environment on Hetzner
+**Cost**: ~€5/month per server (Hetzner) or use your own
 
 ### Monitoring
 
@@ -759,7 +760,7 @@ Environment variables:
 
 ### Deployment
 - **[DEPLOYMENT_QUICKREF.md](./DEPLOYMENT_QUICKREF.md)** - Quick reference for all deployment commands
-- **[HETZNER_DEPLOYMENT.md](./HETZNER_DEPLOYMENT.md)** - Complete Hetzner setup guide
+- **[DEPLOYMENT_SSH.md](./DEPLOYMENT_SSH.md)** - SSH deployment to any Linux server
 - **[DEPLOYMENT.md](./DEPLOYMENT.md)** - Traditional deployment methods
 
 ### Development

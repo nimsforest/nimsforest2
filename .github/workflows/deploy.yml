@@ -1,4 +1,4 @@
-name: Deploy to Hetzner
+name: Deploy via SSH
 
 on:
   push:
@@ -19,7 +19,7 @@ on:
 
 jobs:
   deploy:
-    name: Deploy to Hetzner
+    name: Deploy via SSH
     runs-on: ubuntu-latest
     environment: ${{ github.event.inputs.environment || (github.event_name == 'release' && 'production' || 'staging') }}
     
@@ -45,24 +45,24 @@ jobs:
     - name: Install SSH key
       uses: shimataro/ssh-key-action@v2
       with:
-        key: ${{ secrets.HETZNER_SSH_PRIVATE_KEY }}
-        known_hosts: ${{ secrets.HETZNER_KNOWN_HOSTS }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        known_hosts: ${{ secrets.SSH_KNOWN_HOSTS }}
     
     - name: Copy deployment package to server
       run: |
         scp -o StrictHostKeyChecking=no nimsforest-deploy.tar.gz \
-          ${{ secrets.HETZNER_SSH_USER }}@${{ secrets.HETZNER_HOST }}:/tmp/
+          ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/tmp/
     
-    - name: Deploy on Hetzner server
+    - name: Deploy to server
       run: |
         ssh -o StrictHostKeyChecking=no \
-          ${{ secrets.HETZNER_SSH_USER }}@${{ secrets.HETZNER_HOST }} \
+          ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
           'bash -s' < scripts/deploy.sh deploy
     
     - name: Verify deployment
       run: |
         ssh -o StrictHostKeyChecking=no \
-          ${{ secrets.HETZNER_SSH_USER }}@${{ secrets.HETZNER_HOST }} \
+          ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
           'bash -s' < scripts/deploy.sh verify
     
     - name: Notify deployment status
@@ -88,8 +88,8 @@ jobs:
     - name: Install SSH key
       uses: shimataro/ssh-key-action@v2
       with:
-        key: ${{ secrets.HETZNER_SSH_PRIVATE_KEY }}
-        known_hosts: ${{ secrets.HETZNER_KNOWN_HOSTS }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        known_hosts: ${{ secrets.SSH_KNOWN_HOSTS }}
     
     - name: Perform rollback
       run: |

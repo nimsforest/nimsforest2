@@ -43,8 +43,8 @@ A comprehensive CI/CD pipeline has been added to NimsForest, optimized for Debia
   - Attaches to GitHub releases
 - **When it runs**: Version tags or manual dispatch
 
-#### 4. **Hetzner Deployment Workflow** (`.github/workflows/deploy-hetzner.yml`)
-- **Purpose**: Continuous deployment to Hetzner Cloud servers
+#### 4. **SSH Deployment Workflow** (`.github/workflows/deploy.yml`)
+- **Purpose**: Continuous deployment to any Linux server via SSH (platform-agnostic)
 - **Features**:
   - **Automatic staging deployment** on push to `main`
   - **Automatic production deployment** on release publication
@@ -191,11 +191,11 @@ git push origin v1.0.0
 
 To enable all features, add these secrets to your GitHub repository:
 
-### For Hetzner Continuous Deployment
-- `HETZNER_SSH_PRIVATE_KEY` - SSH private key for deployment access
-- `HETZNER_SSH_USER` - SSH user (typically `root`)
-- `HETZNER_HOST` - Server IP address or hostname
-- `HETZNER_KNOWN_HOSTS` - SSH host key fingerprint
+### For SSH-Based Deployment (any Linux server)
+- `SSH_PRIVATE_KEY` - SSH private key for deployment access
+- `SSH_USER` - SSH user (typically `root`)
+- `SSH_HOST` - Server IP address or hostname
+- `SSH_KNOWN_HOSTS` - SSH host key fingerprint
 
 ### Optional but Recommended
 - `CODECOV_TOKEN` - For coverage reporting (get from codecov.io)
@@ -204,16 +204,16 @@ To enable all features, add these secrets to your GitHub repository:
 ```bash
 # Via GitHub CLI
 gh secret set CODECOV_TOKEN --body "your-token"
-gh secret set HETZNER_SSH_PRIVATE_KEY < ~/.ssh/deploy_key
-gh secret set HETZNER_SSH_USER --body "root"
-gh secret set HETZNER_HOST --body "YOUR_SERVER_IP"
-gh secret set HETZNER_KNOWN_HOSTS < known_hosts
+gh secret set SSH_PRIVATE_KEY --env staging < ~/.ssh/deploy_staging
+gh secret set SSH_USER --env staging --body "root"
+gh secret set SSH_HOST --env staging --body "STAGING_IP"
+gh secret set SSH_KNOWN_HOSTS --env staging < <(ssh-keyscan STAGING_IP)
 ```
 
 Or via GitHub web interface:
-Settings → Secrets and variables → Actions → New repository secret
+Settings → Environments → staging/production → Add secret
 
-For complete Hetzner setup instructions, see **[HETZNER_DEPLOYMENT.md](./HETZNER_DEPLOYMENT.md)**.
+For complete SSH deployment setup, see **[DEPLOYMENT_SSH.md](./DEPLOYMENT_SSH.md)**.
 
 ## CI/CD Pipeline Flow
 

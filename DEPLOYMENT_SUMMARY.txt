@@ -1,0 +1,40 @@
+╔══════════════════════════════════════════════════════════════╗
+║           ✅ PLATFORM-AGNOSTIC SSH DEPLOYMENT                ║
+╚══════════════════════════════════════════════════════════════╝
+
+🌍 WORKS WITH ANY LINUX SERVER
+  ✓ Hetzner Cloud (~€5/month)
+  ✓ DigitalOcean, AWS, Linode
+  ✓ Your own hardware / VPS
+  ✓ Any SSH-accessible server
+
+🔑 NO CLOUD API NEEDED
+  ✓ Just SSH keys
+  ✓ No Hetzner/AWS/DO tokens
+  ✓ Platform-agnostic deployment
+
+🚀 AUTOMATIC DEPLOYMENTS
+  → Push to main = Staging deploy
+  → Create release = Production deploy
+  → Works via SSH to ANY server
+
+📝 GITHUB SECRETS (Generic Names)
+  SSH_PRIVATE_KEY      # SSH key to server
+  SSH_USER             # Usually "root"
+  SSH_HOST             # Server IP
+  SSH_KNOWN_HOSTS      # Fingerprint
+
+📚 DOCUMENTATION
+  DEPLOYMENT_QUICKREF.md  - Quick commands
+  DEPLOYMENT_SSH.md       - Complete guide
+  DEPLOYMENT_CHANGES.md   - What changed
+
+💰 COST EXAMPLES
+  Hetzner:       €4.51/month per server
+  DigitalOcean:  $12/month per server
+  Your hardware: $0
+
+⚡ QUICK START
+  git push origin main          # → Staging
+  git tag v1.0.0 && git push origin v1.0.0  # → Production
+

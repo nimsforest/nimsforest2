@@ -128,7 +128,7 @@ NimsForest uses GitHub Actions for automated testing, building, and releasing. T
 - Zero-downtime deployment
 - Automatic rollback
 
-Setup: [HETZNER_DEPLOYMENT.md](./HETZNER_DEPLOYMENT.md) | Quick ref: [DEPLOYMENT_QUICKREF.md](./DEPLOYMENT_QUICKREF.md)
+Setup: [DEPLOYMENT_SSH.md](./DEPLOYMENT_SSH.md) | Quick ref: [DEPLOYMENT_QUICKREF.md](./DEPLOYMENT_QUICKREF.md)
   8. Create postinst/prerm scripts
   9. Build `.deb` package
   10. Upload artifact

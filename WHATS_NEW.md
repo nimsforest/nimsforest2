@@ -26,9 +26,9 @@ The deployment is completely **platform-agnostic** - it just uses SSH. Works wit
 **After**: 3 files, 953 lines (67% reduction)
 
 **Essential docs**:
-- **[DEPLOYMENT_QUICKREF.md](./DEPLOYMENT_QUICKREF.md)** - Quick commands
-- **[DEPLOYMENT_SSH.md](./DEPLOYMENT_SSH.md)** - Complete guide
-- **[DEPLOYMENT_CHANGES.md](./DEPLOYMENT_CHANGES.md)** - What changed
+- **[DEPLOYMENT_QUICKREF.md](./deployment/DEPLOYMENT_QUICKREF.md)** - Quick commands
+- **[DEPLOYMENT_SSH.md](./deployment/DEPLOYMENT_SSH.md)** - Complete guide
+- **[DEPLOYMENT_CHANGES.md](./deployment/DEPLOYMENT_CHANGES.md)** - What changed
 
 ### 3. Added Automatic Staging
 
@@ -161,9 +161,9 @@ ssh root@SERVER 'bash -s' < scripts/deploy.sh rollback
 
 ## 📖 Documentation
 
-**Start here**: [DEPLOYMENT_QUICKREF.md](./DEPLOYMENT_QUICKREF.md)  
-**Complete guide**: [DEPLOYMENT_SSH.md](./DEPLOYMENT_SSH.md)  
-**What changed**: [DEPLOYMENT_CHANGES.md](./DEPLOYMENT_CHANGES.md)
+**Start here**: [DEPLOYMENT_QUICKREF.md](./deployment/DEPLOYMENT_QUICKREF.md)  
+**Complete guide**: [DEPLOYMENT_SSH.md](./deployment/DEPLOYMENT_SSH.md)  
+**What changed**: [DEPLOYMENT_CHANGES.md](./deployment/DEPLOYMENT_CHANGES.md)
 
 ---
 
@@ -186,7 +186,7 @@ ssh root@SERVER 'bash -s' < scripts/deploy.sh rollback
 4. Push to main to test staging
 5. Create release to test production
 
-See [DEPLOYMENT_SSH.md](./DEPLOYMENT_SSH.md) for detailed instructions.
+See [DEPLOYMENT_SSH.md](./deployment/DEPLOYMENT_SSH.md) for detailed instructions.
 
 ---
 

@@ -489,7 +489,7 @@ Once everything passes:
 ## Support
 
 If validation fails:
-- Review the [CI_CD.md](./CI_CD.md) troubleshooting section
+- Review the [CI_CD.md](./deployment/CI_CD.md) troubleshooting section
 - Check GitHub Actions logs
 - Review workflow files for syntax errors
 - Open an issue with error logs

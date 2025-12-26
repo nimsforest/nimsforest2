@@ -719,7 +719,7 @@ gh secret set STAGING_SSH_KNOWN_HOSTS < <(ssh-keyscan YOUR_SERVER_IP)
 git push origin main
 ```
 
-**Guide:** [STAGING_SETUP.md](./STAGING_SETUP.md) - Complete setup instructions
+**Guide:** [STAGING_SETUP.md](./deployment/STAGING_SETUP.md) - Complete setup instructions
 
 **Note:** This repo is private, so we use pastebin to share the setup script.
 
@@ -752,7 +752,7 @@ scp nimsforest-deploy.tar.gz root@SERVER:/tmp/
 ssh root@SERVER 'bash -s' < scripts/deploy.sh deploy
 ```
 
-See: [DEPLOYMENT.md](./DEPLOYMENT.md) for all options
+See: [DEPLOYMENT.md](./deployment/DEPLOYMENT.md) for all options
 
 ## Production Considerations
 
@@ -760,7 +760,7 @@ See: [DEPLOYMENT.md](./DEPLOYMENT.md) for all options
 - Staging on push to `main`
 - Production on release
 - Works with any SSH-accessible Linux server
-- See [DEPLOYMENT_SSH.md](./DEPLOYMENT_SSH.md)
+- See [DEPLOYMENT_SSH.md](./deployment/DEPLOYMENT_SSH.md)
 
 **Scaling**: Use NATS queue groups for load balancing  
 **Monitoring**: systemd + journald logging  
@@ -790,13 +790,13 @@ Environment variables:
 ## Documentation
 
 ### Deployment
-- **[DEPLOYMENT_QUICKREF.md](./DEPLOYMENT_QUICKREF.md)** - Quick reference for all deployment commands
-- **[DEPLOYMENT_SSH.md](./DEPLOYMENT_SSH.md)** - SSH deployment to any Linux server
-- **[DEPLOYMENT.md](./DEPLOYMENT.md)** - Traditional deployment methods
+- **[DEPLOYMENT_QUICKREF.md](./deployment/DEPLOYMENT_QUICKREF.md)** - Quick reference for all deployment commands
+- **[DEPLOYMENT_SSH.md](./deployment/DEPLOYMENT_SSH.md)** - SSH deployment to any Linux server
+- **[DEPLOYMENT.md](./deployment/DEPLOYMENT.md)** - Traditional deployment methods
 
 ### Development
 - **[README.md](./README.md)** - This file
-- **[CI_CD.md](./CI_CD.md)** - CI/CD pipeline documentation
+- **[CI_CD.md](./deployment/CI_CD.md)** - CI/CD pipeline documentation
 - **[Makefile](./Makefile)** - All build commands (`make help`)
 
 ### Developer Documentation

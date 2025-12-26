@@ -382,7 +382,7 @@ validate-workflows: ## Validate GitHub Actions workflow files
 validate-docs: ## Validate documentation files exist
 	@echo "$(BLUE)🔍 Checking documentation...$(NC)"
 	@MISSING=0; \
-	for doc in README.md DEPLOYMENT.md CI_CD.md CI_CD_SETUP.md VALIDATION_GUIDE.md Makefile; do \
+	for doc in README.md deployment/DEPLOYMENT.md deployment/CI_CD.md deployment/CI_CD_SETUP.md VALIDATION_GUIDE.md Makefile; do \
 		if [ -f $$doc ]; then \
 			echo "$(GREEN)✅ $$doc$(NC)"; \
 		else \

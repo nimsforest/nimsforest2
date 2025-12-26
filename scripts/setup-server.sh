@@ -3,7 +3,8 @@
 # Initial Server Setup for NimsForest
 #
 # This script prepares any fresh Linux server for NimsForest deployment
-# Works with any Ubuntu/Debian server from any provider
+# Designed for Debian and Debian-based distributions (Ubuntu, etc.)
+# Works with any Debian-based server from any provider
 # Run this once when setting up a new server
 
 set -e
@@ -198,7 +199,7 @@ log_info "=========================================="
 log_info ""
 log_info "System Information:"
 log_info "  - Hostname:    $(hostname)"
-log_info "  - OS:          $(lsb_release -ds 2>/dev/null || cat /etc/os-release | grep PRETTY_NAME | cut -d'"' -f2)"
+log_info "  - OS:          $(cat /etc/os-release | grep PRETTY_NAME | cut -d'"' -f2)"
 log_info "  - Kernel:      $(uname -r)"
 log_info "  - Go:          $(go version | cut -d' ' -f3)"
 log_info "  - NATS:        $(nats-server --version 2>&1 | head -n1)"

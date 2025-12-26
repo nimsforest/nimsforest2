@@ -110,6 +110,8 @@ ssh root@YOUR_SERVER_IP
 
 ### 3.2 Download and run the setup script
 
+**If your repo is PUBLIC:**
+
 ```bash
 # On the server, run:
 wget https://raw.githubusercontent.com/YOUR_GITHUB_USERNAME/nimsforest/main/scripts/setup-server.sh
@@ -120,6 +122,28 @@ chmod +x setup-server.sh
 # Run it
 sudo ./setup-server.sh
 ```
+
+**If your repo is PRIVATE (more common):**
+
+```bash
+# On YOUR LOCAL MACHINE (not the server):
+scp scripts/setup-server.sh root@YOUR_SERVER_IP:/tmp/
+
+# Then SSH to server and run:
+ssh root@YOUR_SERVER_IP
+cd /tmp
+chmod +x setup-server.sh
+sudo ./setup-server.sh
+```
+
+Or do it all in one command:
+```bash
+# From your local machine:
+scp scripts/setup-server.sh root@YOUR_SERVER_IP:/tmp/
+ssh root@YOUR_SERVER_IP "cd /tmp && chmod +x setup-server.sh && sudo ./setup-server.sh"
+```
+
+> **Note:** See [PRIVATE_REPO_SETUP.md](./PRIVATE_REPO_SETUP.md) for more options (heredoc, gh cli, etc.)
 
 **This script will:**
 - ✅ Update system packages

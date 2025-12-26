@@ -11,11 +11,16 @@ The fastest way to get a staging server running on Hetzner.
 #    → Copy the IP address
 
 # 2. Set up the server
+
+# OPTION A: If repo is PUBLIC
 ssh root@YOUR_SERVER_IP
 wget https://raw.githubusercontent.com/YOUR_USERNAME/nimsforest/main/scripts/setup-server.sh
 chmod +x setup-server.sh && sudo ./setup-server.sh
-# Wait 3-5 minutes for setup to complete
 exit
+
+# OPTION B: If repo is PRIVATE (recommended - simpler!)
+scp scripts/setup-server.sh root@YOUR_SERVER_IP:/tmp/
+ssh root@YOUR_SERVER_IP "cd /tmp && chmod +x setup-server.sh && sudo ./setup-server.sh"
 
 # 3. Configure local deployment (one command!)
 ./scripts/setup-staging-local.sh YOUR_SERVER_IP
@@ -24,6 +29,8 @@ exit
 git push origin main
 gh run watch
 ```
+
+> **Private repo?** See [PRIVATE_REPO_SETUP.md](./PRIVATE_REPO_SETUP.md) for detailed options.
 
 Done! 🎉
 

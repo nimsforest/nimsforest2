@@ -70,6 +70,9 @@ Choose your preferred approach:
 **"I'm using a different cloud provider"**
 → [DEPLOYMENT_SSH.md](./DEPLOYMENT_SSH.md)
 
+**"My repository is private"**
+→ [PRIVATE_REPO_SETUP.md](./PRIVATE_REPO_SETUP.md)
+
 ---
 
 ## ⚡ TL;DR - The Absolute Minimum
@@ -79,8 +82,12 @@ Choose your preferred approach:
 #    https://console.hetzner.cloud/
 #    Ubuntu 22.04, CPX11, copy IP
 
-# 2. Setup server
-ssh root@YOUR_IP "wget https://raw.githubusercontent.com/USER/nimsforest/main/scripts/setup-server.sh && chmod +x setup-server.sh && sudo ./setup-server.sh"
+# 2. Setup server (for PRIVATE repos - use SCP)
+scp scripts/setup-server.sh root@YOUR_IP:/tmp/
+ssh root@YOUR_IP "cd /tmp && chmod +x setup-server.sh && sudo ./setup-server.sh"
+
+# For PUBLIC repos, use wget:
+# ssh root@YOUR_IP "wget https://raw.githubusercontent.com/USER/nimsforest/main/scripts/setup-server.sh && chmod +x setup-server.sh && sudo ./setup-server.sh"
 
 # 3. Configure deployment (one command!)
 ./scripts/setup-staging-local.sh YOUR_IP

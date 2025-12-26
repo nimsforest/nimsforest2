@@ -694,10 +694,10 @@ Humus: [
 
 ```bash
 # 1. Create server at https://console.hetzner.cloud/ (Ubuntu 22.04, CPX11)
-# 2. Run setup on server:
-ssh root@YOUR_SERVER_IP
-wget https://raw.githubusercontent.com/YOUR_USERNAME/nimsforest/main/scripts/setup-server.sh
-chmod +x setup-server.sh && sudo ./setup-server.sh && exit
+
+# 2. Run setup on server (private repo - use SCP):
+scp scripts/setup-server.sh root@YOUR_SERVER_IP:/tmp/
+ssh root@YOUR_SERVER_IP "cd /tmp && chmod +x setup-server.sh && sudo ./setup-server.sh"
 
 # 3. Configure deployment (one command):
 ./scripts/setup-staging-local.sh YOUR_SERVER_IP

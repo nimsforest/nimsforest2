@@ -17,6 +17,7 @@ Use this checklist to track your progress setting up the staging environment.
 
 ## ☐ Step 2: Server Setup (5 min)
 
+### If repo is PUBLIC:
 - [ ] SSH to server: `ssh root@YOUR_SERVER_IP`
 - [ ] Download setup script:
   ```bash
@@ -25,8 +26,18 @@ Use this checklist to track your progress setting up the staging environment.
 - [ ] Make executable: `chmod +x setup-server.sh`
 - [ ] Run setup: `sudo ./setup-server.sh`
 - [ ] Verify NATS is running: `sudo systemctl status nats`
-- [ ] Verify NATS monitoring: `curl http://localhost:8222/varz`
 - [ ] Exit server: `exit`
+
+### If repo is PRIVATE (recommended method):
+- [ ] Copy script to server (from local):
+  ```bash
+  scp scripts/setup-server.sh root@YOUR_SERVER_IP:/tmp/
+  ```
+- [ ] Run setup remotely:
+  ```bash
+  ssh root@YOUR_SERVER_IP "cd /tmp && chmod +x setup-server.sh && sudo ./setup-server.sh"
+  ```
+- [ ] Verify (SSH and check): `ssh root@YOUR_SERVER_IP "sudo systemctl status nats"`
 
 ## ☐ Step 3: SSH Keys for Deployment (5 min)
 

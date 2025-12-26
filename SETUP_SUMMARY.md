@@ -55,10 +55,15 @@ I've created a complete staging environment setup for you to deploy NimsForest o
 # Copy the IP address
 
 # Step 2: Setup server
+
+# For PRIVATE repos (recommended):
+scp scripts/setup-server.sh root@YOUR_SERVER_IP:/tmp/
+ssh root@YOUR_SERVER_IP "cd /tmp && chmod +x setup-server.sh && sudo ./setup-server.sh"
+
+# For PUBLIC repos:
 ssh root@YOUR_SERVER_IP
 wget https://raw.githubusercontent.com/YOUR_USERNAME/nimsforest/main/scripts/setup-server.sh
 chmod +x setup-server.sh && sudo ./setup-server.sh
-# Wait 3-5 minutes, then exit
 exit
 
 # Step 3: Configure local deployment (automated!)

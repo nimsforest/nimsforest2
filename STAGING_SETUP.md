@@ -7,6 +7,7 @@ Quick guide to set up staging on Hetzner (or any Linux server).
 - Hetzner Cloud account (or any VPS provider)
 - GitHub CLI (`gh`) installed locally
 - SSH access
+- A pastebin account (for private repos)
 
 ---
 
@@ -21,16 +22,39 @@ Copy the server IP address.
 
 ---
 
-## Step 2: Setup Server
+## Step 2: Upload Setup Script to Pastebin
 
-Run the setup script on your server:
+Since this repo is private, we'll use pastebin to share the setup script.
+
+### 2.1: Get the Script Content
+
+The complete setup script is in `scripts/setup-server.sh` in this repository.
+
+**Copy the entire content** of that file (223 lines).
+
+### 2.2: Create Pastebin
+
+1. Go to https://pastebin.com/
+2. Paste the script content from `scripts/setup-server.sh`
+3. Set **"Paste Expiration"**: Never (or 1 year)
+4. Set **"Paste Exposure"**: Unlisted (not public but accessible via URL)
+5. Click **"Create New Paste"**
+6. Click the **"raw"** button to get the raw URL
+
+Your URL will look like: `https://pastebin.com/raw/XXXXX`
+
+---
+
+## Step 3: Run Setup Script on Server
 
 ```bash
 # SSH to server
 ssh root@YOUR_SERVER_IP
 
-# Download and run setup script
-wget https://raw.githubusercontent.com/YOUR_USERNAME/nimsforest/main/scripts/setup-server.sh
+# Download script from pastebin (replace XXXXX with your paste ID)
+wget https://pastebin.com/raw/XXXXX -O setup-server.sh
+
+# Make executable and run
 chmod +x setup-server.sh
 sudo ./setup-server.sh
 ```
@@ -42,9 +66,11 @@ This installs:
 - fail2ban
 - Directory structure
 
+**Note:** Setup takes 3-5 minutes.
+
 ---
 
-## Step 3: Configure GitHub Secrets
+## Step 4: Configure GitHub Secrets
 
 On your local machine where you have GitHub CLI:
 
@@ -67,7 +93,7 @@ gh secret set STAGING_SSH_KNOWN_HOSTS < /tmp/staging_known_hosts
 
 ---
 
-## Step 4: Deploy
+## Step 5: Deploy
 
 ```bash
 git push origin main
@@ -157,25 +183,44 @@ gh secret list | grep STAGING
 
 ---
 
-## Private Repositories
+## Alternative: Direct Copy/Paste (Without Pastebin)
 
-If your repo is private, you can still use the wget method by:
+If you prefer not to use pastebin:
 
-1. **Making scripts/ directory public** (recommended)
-2. **Or copying the script manually:**
-   ```bash
-   # View script locally
-   cat scripts/setup-server.sh
-   
-   # SSH to server and create it
-   ssh root@YOUR_SERVER_IP
-   cat > setup-server.sh << 'EOF'
-   # Paste script content here
-   EOF
-   chmod +x setup-server.sh
-   sudo ./setup-server.sh
-   ```
+```bash
+# SSH to server
+ssh root@YOUR_SERVER_IP
+
+# Create the script
+cat > setup-server.sh << 'EOF'
+# Paste the entire content of scripts/setup-server.sh here
+EOF
+
+chmod +x setup-server.sh
+sudo ./setup-server.sh
+```
 
 ---
 
-That's it! After initial setup, just `git push` to deploy.
+## Other Pastebin Services
+
+Instead of pastebin.com, you can also use:
+
+- **GitHub Gist** (https://gist.github.com/) - Can be private
+  - URL format: `https://gist.githubusercontent.com/USERNAME/GIST_ID/raw/setup-server.sh`
+  
+- **dpaste** (https://dpaste.com/) - Simple, no account needed
+  
+- **Ubuntu Pastebin** (https://paste.ubuntu.com/) - Official Ubuntu pastebin
+
+---
+
+## Summary
+
+After initial setup, deployment is automatic:
+
+1. Make code changes
+2. `git push origin main`
+3. GitHub Actions automatically deploys to staging
+
+**That's it!** No manual steps after the one-time setup.

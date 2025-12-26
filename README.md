@@ -695,22 +695,25 @@ Humus: [
 ```bash
 # 1. Create server at https://console.hetzner.cloud/ (Ubuntu 22.04, CPX11)
 
-# 2. Run setup on server (from YOUR LOCAL MACHINE):
-scp scripts/setup-server.sh root@YOUR_SERVER_IP:/tmp/
-ssh root@YOUR_SERVER_IP "cd /tmp && chmod +x setup-server.sh && sudo ./setup-server.sh"
+# 2. SSH to server and run setup script:
+ssh root@YOUR_SERVER_IP
+wget https://raw.githubusercontent.com/YOUR_USERNAME/nimsforest/main/scripts/setup-server.sh
+chmod +x setup-server.sh && sudo ./setup-server.sh
+exit
 
-# 3. Configure deployment (one command):
-./scripts/setup-staging-local.sh YOUR_SERVER_IP
+# 3. Configure deployment (on local machine):
+ssh-keygen -t ed25519 -f ~/.ssh/nimsforest_staging -N ""
+ssh-copy-id -i ~/.ssh/nimsforest_staging.pub root@YOUR_SERVER_IP
+gh secret set STAGING_SSH_PRIVATE_KEY < ~/.ssh/nimsforest_staging
+gh secret set STAGING_SSH_USER --body "root"
+gh secret set STAGING_SSH_HOST --body "YOUR_SERVER_IP"
+gh secret set STAGING_SSH_KNOWN_HOSTS < <(ssh-keyscan YOUR_SERVER_IP)
 
 # 4. Deploy!
 git push origin main
 ```
 
-**Guides:** 
-- 🚀 [Quick Start](./HETZNER_QUICKSTART.md) - Fastest way to get started
-- 📋 [Setup Checklist](./STAGING_SETUP_CHECKLIST.md) - Track your progress
-- 📖 [Complete Guide](./STAGING_SETUP_GUIDE.md) - Detailed walkthrough
-- 🔧 [SSH Deployment](./DEPLOYMENT_SSH.md) - Platform-agnostic docs
+**Guide:** [STAGING_SETUP.md](./STAGING_SETUP.md) - Complete setup instructions
 
 ### Automatic Deployment (Once Configured)
 

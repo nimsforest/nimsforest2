@@ -1,5 +1,11 @@
 # Deployment Quick Reference
 
+## All Using Make! No Shell Scripts
+
+Everything uses Make commands - both locally and on the server.
+
+---
+
 ## GitHub Secrets Required
 
 **Staging** (auto-deploys on push to main):
@@ -48,95 +54,87 @@ gh secret set PRODUCTION_SSH_KNOWN_HOSTS < <(ssh-keyscan PROD_IP)
 
 ---
 
-## Automatic Deployments
+## Automatic Deployments (Make-based)
 
 ```bash
 # Staging (automatic if secrets configured)
 git push origin main
-# → Deploys to staging server via SSH
-# → Skips with warning if STAGING_* secrets not set
+# → Runs: make deps, make build-deploy, make deploy-package
+# → On server: make server-deploy
 
 # Production (automatic if secrets configured)  
 git tag -a v1.0.0 -m "Release v1.0.0"
 git push origin v1.0.0
-# → Deploys to production server via SSH
-# → Skips with warning if PRODUCTION_* secrets not set
+# → Runs: make deps, make build-deploy, make deploy-package
+# → On server: make server-deploy
 ```
 
 ---
 
-## Platform-Agnostic!
+## Manual Deployment (All Make)
 
-Works with **any Linux server** you can SSH into:
-- Hetzner, DigitalOcean, AWS, Linode, Vultr
-- Your own bare metal / VM / VPS
-- Literally any Ubuntu/Debian server with SSH
-
-**No cloud provider API needed** - just SSH!
-
----
-
-## Manual Deployment
-
-### Using GitHub CLI
+### Local Build
 ```bash
-# Deploy to staging
-gh workflow run deploy.yml -f environment=staging
-
-# Deploy to production
-gh workflow run deploy.yml -f environment=production
+make deploy-package   # Builds and creates package with Makefile
 ```
 
-### Using Make
+### Deploy to Server
 ```bash
-# Build and package
-make deploy-package
-
-# Deploy to any server via SSH
+# Copy to server
 scp nimsforest-deploy.tar.gz root@SERVER:/tmp/
-ssh root@SERVER 'bash -s' < scripts/deploy.sh deploy
+
+# Deploy using Make on server
+ssh root@SERVER << 'EOF'
+  cd /tmp
+  tar xzf nimsforest-deploy.tar.gz
+  cd deploy
+  sudo make server-deploy
+  cd /tmp && rm -rf deploy nimsforest-deploy.tar.gz
+EOF
 ```
 
 ---
 
-## Common Commands
+## Server Commands (Make-based)
+
+All operations on the server use Make:
 
 ```bash
-# Check status
-ssh root@SERVER "sudo systemctl status nimsforest"
+# On server after extracting package
+sudo make server-deploy      # Complete deployment
+sudo make server-verify       # Verify deployment
+sudo make server-rollback     # Rollback to previous version
+sudo make server-status       # Check service status
+sudo make server-logs         # View logs
+sudo make server-restart      # Restart service
+sudo make server-stop         # Stop service
+sudo make server-start        # Start service
+```
 
-# View logs
-ssh root@SERVER "sudo journalctl -u nimsforest -f"
-
-# Restart service
-ssh root@SERVER "sudo systemctl restart nimsforest"
-
-# Rollback
-ssh root@SERVER 'bash -s' < scripts/deploy.sh rollback
-
-# Verify deployment
-ssh root@SERVER 'bash -s' < scripts/deploy.sh verify
+Individual steps (if needed):
+```bash
+sudo make server-create-user      # Create service user
+sudo make server-create-dirs      # Create directories
+sudo make server-backup           # Backup current binary
+sudo make server-install-binary   # Install binary
+sudo make server-install-service  # Install systemd service
 ```
 
 ---
 
-## Make Commands
+## Local Make Commands
 
 ```bash
-make build-deploy      # Build deployment binary
-make deploy-package    # Create deployment package
+make build-deploy      # Build optimized deployment binary
+make deploy-package    # Create deployment package (includes Makefile!)
 make deploy-verify     # Verify deployment files
 make help              # Show all commands
 ```
 
 ---
 
-## Server Setup
+## Server Setup (One-Time)
 
-### 1. Create Server
-Any cloud provider or own hardware - just needs SSH access
-
-### 2. Run Setup Script
 ```bash
 ssh root@SERVER_IP
 wget https://raw.githubusercontent.com/youruser/nimsforest/main/scripts/setup-server.sh
@@ -146,45 +144,66 @@ sudo ./setup-server.sh
 
 This installs:
 - Go (latest)
-- NATS Server with JetStream
+- NATS Server with JetStream  
 - Firewall (UFW)
 - fail2ban
-- Automatic security updates
+- Make (if not present)
+
+---
+
+## Platform-Agnostic!
+
+Works with **any Linux server** with SSH + Make:
+- Hetzner, DigitalOcean, AWS, Linode, Vultr
+- Your own bare metal / VM / VPS
+- Any Ubuntu/Debian server
+
+**No cloud provider API needed** - just SSH!
 
 ---
 
 ## Troubleshooting
 
-**Deployment skipped with warning**:
+**Check what Make targets are available on server**:
 ```bash
+ssh root@SERVER "cd /tmp/deploy && make help"
+```
+
+**View deployment logs**:
+```bash
+ssh root@SERVER "sudo make server-logs"
+```
+
+**Service not running**:
+```bash
+ssh root@SERVER "sudo make server-status"
+ssh root@SERVER "sudo journalctl -u nimsforest -n 50"
+```
+
+**Rollback deployment**:
+```bash
+ssh root@SERVER << 'EOF'
+  cd /tmp/deploy
+  sudo make server-rollback
+EOF
+```
+
+**Deployment skipped with warning**:
+```
 ⚠️  Staging secrets not configured - skipping deployment
 ```
 → Add the required `STAGING_*` or `PRODUCTION_*` secrets
 
-**Deployment fails**: Check GitHub Actions logs
-```bash
-gh run list --workflow=deploy.yml
-gh run view --log
-```
+---
 
-**Service not running**: Check logs on server
-```bash
-ssh root@SERVER "sudo journalctl -u nimsforest -n 50"
-```
+## Why Make Instead of Shell Scripts?
 
-**Need to rollback**: Use deployment script
-```bash
-ssh root@SERVER 'bash -s' < scripts/deploy.sh rollback
-```
-
-**SSH connection fails**: Verify secrets and server access
-```bash
-# Test SSH manually
-ssh root@SERVER
-
-# Check secrets are set
-gh secret list
-```
+✅ **Consistent** - Same tool everywhere  
+✅ **Self-documenting** - `make help` shows all commands  
+✅ **Modular** - Each operation is a separate target  
+✅ **Dependencies** - Make handles task dependencies  
+✅ **Cross-platform** - Works on any Unix system  
+✅ **No extra scripts** - Makefile does everything
 
 ---
 
@@ -195,20 +214,15 @@ gh secret list
 | **Hetzner** | €4.51/month | Best value |
 | **DigitalOcean** | $12/month | Good reliability |
 | **AWS EC2** | ~$15/month | Scalable |
-| **Linode** | $12/month | Solid choice |
 | **Your server** | $0 | Use existing hardware |
 
-**For 2 environments** (staging + production):
-- Hetzner: ~€9/month
-- DigitalOcean: ~$24/month
-- Your hardware: $0
+**For 2 environments**: Hetzner ~€9/month, Your hardware $0
 
 ---
 
 ## Documentation
 
 - **[DEPLOYMENT_SSH.md](./DEPLOYMENT_SSH.md)** - Complete setup guide
-- **[WHATS_NEW.md](./WHATS_NEW.md)** - What changed
 - **[README.md](./README.md)** - Project overview
 - **[Makefile](./Makefile)** - All Make targets
 
@@ -216,14 +230,13 @@ gh secret list
 
 ## Key Points
 
-✅ **Platform-agnostic** - Works with any SSH-accessible Linux server  
-✅ **No API tokens needed** - Just SSH keys  
-✅ **Optional secrets** - Skips deployment with warning if not set  
-✅ **Separate staging/production** - Different secret prefixes  
-✅ **Automatic staging** - Push to main  
-✅ **Automatic production** - Create release  
-✅ **Cost-effective** - Use any provider or own hardware
+✅ **Everything uses Make** - No shell scripts for deployment  
+✅ **Platform-agnostic** - Any SSH-accessible Linux server  
+✅ **No API tokens** - Just SSH keys  
+✅ **Optional secrets** - Skips with warning if not set  
+✅ **Separate environments** - STAGING_* and PRODUCTION_* prefixes  
+✅ **Automatic deployments** - Push to main or create release
 
 ---
 
-**Quick help**: See [DEPLOYMENT_SSH.md](./DEPLOYMENT_SSH.md) for detailed instructions
+**Quick help**: Run `make help` locally or `sudo make help` on server

@@ -65,25 +65,23 @@ jobs:
         key: ${{ secrets.STAGING_SSH_PRIVATE_KEY }}
         known_hosts: ${{ secrets.STAGING_SSH_KNOWN_HOSTS }}
     
-    - name: Copy deployment package to server
-      if: steps.check-staging.outputs.configured == 'true'
-      run: |
-        scp -o StrictHostKeyChecking=no nimsforest-deploy.tar.gz \
-          ${{ secrets.STAGING_SSH_USER }}@${{ secrets.STAGING_SSH_HOST }}:/tmp/
-    
     - name: Deploy to staging server
       if: steps.check-staging.outputs.configured == 'true'
       run: |
+        # Copy package to server
+        scp -o StrictHostKeyChecking=no nimsforest-deploy.tar.gz \
+          ${{ secrets.STAGING_SSH_USER }}@${{ secrets.STAGING_SSH_HOST }}:/tmp/
+        
+        # Extract and deploy using Make
         ssh -o StrictHostKeyChecking=no \
-          ${{ secrets.STAGING_SSH_USER }}@${{ secrets.STAGING_SSH_HOST }} \
-          'bash -s' < scripts/deploy.sh deploy
-    
-    - name: Verify staging deployment
-      if: steps.check-staging.outputs.configured == 'true'
-      run: |
-        ssh -o StrictHostKeyChecking=no \
-          ${{ secrets.STAGING_SSH_USER }}@${{ secrets.STAGING_SSH_HOST }} \
-          'bash -s' < scripts/deploy.sh verify
+          ${{ secrets.STAGING_SSH_USER }}@${{ secrets.STAGING_SSH_HOST }} << 'ENDSSH'
+          cd /tmp
+          tar xzf nimsforest-deploy.tar.gz
+          cd deploy
+          sudo make server-deploy
+          cd /tmp
+          rm -rf deploy nimsforest-deploy.tar.gz
+        ENDSSH
     
     - name: Notify deployment status
       if: always() && steps.check-staging.outputs.configured == 'true'
@@ -141,25 +139,23 @@ jobs:
         key: ${{ secrets.PRODUCTION_SSH_PRIVATE_KEY }}
         known_hosts: ${{ secrets.PRODUCTION_SSH_KNOWN_HOSTS }}
     
-    - name: Copy deployment package to server
-      if: steps.check-production.outputs.configured == 'true'
-      run: |
-        scp -o StrictHostKeyChecking=no nimsforest-deploy.tar.gz \
-          ${{ secrets.PRODUCTION_SSH_USER }}@${{ secrets.PRODUCTION_SSH_HOST }}:/tmp/
-    
     - name: Deploy to production server
       if: steps.check-production.outputs.configured == 'true'
       run: |
+        # Copy package to server
+        scp -o StrictHostKeyChecking=no nimsforest-deploy.tar.gz \
+          ${{ secrets.PRODUCTION_SSH_USER }}@${{ secrets.PRODUCTION_SSH_HOST }}:/tmp/
+        
+        # Extract and deploy using Make
         ssh -o StrictHostKeyChecking=no \
-          ${{ secrets.PRODUCTION_SSH_USER }}@${{ secrets.PRODUCTION_SSH_HOST }} \
-          'bash -s' < scripts/deploy.sh deploy
-    
-    - name: Verify production deployment
-      if: steps.check-production.outputs.configured == 'true'
-      run: |
-        ssh -o StrictHostKeyChecking=no \
-          ${{ secrets.PRODUCTION_SSH_USER }}@${{ secrets.PRODUCTION_SSH_HOST }} \
-          'bash -s' < scripts/deploy.sh verify
+          ${{ secrets.PRODUCTION_SSH_USER }}@${{ secrets.PRODUCTION_SSH_HOST }} << 'ENDSSH'
+          cd /tmp
+          tar xzf nimsforest-deploy.tar.gz
+          cd deploy
+          sudo make server-deploy
+          cd /tmp
+          rm -rf deploy nimsforest-deploy.tar.gz
+        ENDSSH
     
     - name: Notify deployment status
       if: always() && steps.check-production.outputs.configured == 'true'
@@ -215,8 +211,11 @@ jobs:
       if: steps.check-staging.outputs.configured == 'true'
       run: |
         scp -o StrictHostKeyChecking=no nimsforest-deploy.tar.gz ${{ secrets.STAGING_SSH_USER }}@${{ secrets.STAGING_SSH_HOST }}:/tmp/
-        ssh -o StrictHostKeyChecking=no ${{ secrets.STAGING_SSH_USER }}@${{ secrets.STAGING_SSH_HOST }} 'bash -s' < scripts/deploy.sh deploy
-        ssh -o StrictHostKeyChecking=no ${{ secrets.STAGING_SSH_USER }}@${{ secrets.STAGING_SSH_HOST }} 'bash -s' < scripts/deploy.sh verify
+        ssh -o StrictHostKeyChecking=no ${{ secrets.STAGING_SSH_USER }}@${{ secrets.STAGING_SSH_HOST }} << 'ENDSSH'
+          cd /tmp && tar xzf nimsforest-deploy.tar.gz && cd deploy
+          sudo make server-deploy
+          cd /tmp && rm -rf deploy nimsforest-deploy.tar.gz
+        ENDSSH
 
   rollback:
     name: Rollback deployment

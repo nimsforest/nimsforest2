@@ -1,17 +1,69 @@
 # Deployment Quick Reference
 
+## GitHub Secrets Required
+
+**Staging** (auto-deploys on push to main):
+```bash
+STAGING_SSH_PRIVATE_KEY      # SSH key for staging server
+STAGING_SSH_USER             # Usually "root"
+STAGING_SSH_HOST             # Staging server IP
+STAGING_SSH_KNOWN_HOSTS      # SSH fingerprint
+```
+
+**Production** (auto-deploys on release):
+```bash
+PRODUCTION_SSH_PRIVATE_KEY   # SSH key for production server
+PRODUCTION_SSH_USER          # Usually "root"  
+PRODUCTION_SSH_HOST          # Production server IP
+PRODUCTION_SSH_KNOWN_HOSTS   # SSH fingerprint
+```
+
+**⚠️ Secrets are optional** - deployment skips with warning if not configured
+
+---
+
+## Setup Secrets
+
+```bash
+# Generate SSH keys
+ssh-keygen -t ed25519 -f ~/.ssh/deploy_staging -N ""
+ssh-keygen -t ed25519 -f ~/.ssh/deploy_prod -N ""
+
+# Copy to servers
+ssh-copy-id -i ~/.ssh/deploy_staging.pub root@STAGING_IP
+ssh-copy-id -i ~/.ssh/deploy_prod.pub root@PROD_IP
+
+# Add to GitHub (staging)
+gh secret set STAGING_SSH_PRIVATE_KEY < ~/.ssh/deploy_staging
+gh secret set STAGING_SSH_USER --body "root"
+gh secret set STAGING_SSH_HOST --body "STAGING_IP"
+gh secret set STAGING_SSH_KNOWN_HOSTS < <(ssh-keyscan STAGING_IP)
+
+# Add to GitHub (production)
+gh secret set PRODUCTION_SSH_PRIVATE_KEY < ~/.ssh/deploy_prod
+gh secret set PRODUCTION_SSH_USER --body "root"
+gh secret set PRODUCTION_SSH_HOST --body "PROD_IP"
+gh secret set PRODUCTION_SSH_KNOWN_HOSTS < <(ssh-keyscan PROD_IP)
+```
+
+---
+
 ## Automatic Deployments
 
 ```bash
-# Staging (automatic)
+# Staging (automatic if secrets configured)
 git push origin main
 # → Deploys to staging server via SSH
+# → Skips with warning if STAGING_* secrets not set
 
-# Production (automatic)  
+# Production (automatic if secrets configured)  
 git tag -a v1.0.0 -m "Release v1.0.0"
 git push origin v1.0.0
 # → Deploys to production server via SSH
+# → Skips with warning if PRODUCTION_* secrets not set
 ```
+
+---
 
 ## Platform-Agnostic!
 
@@ -21,6 +73,8 @@ Works with **any Linux server** you can SSH into:
 - Literally any Ubuntu/Debian server with SSH
 
 **No cloud provider API needed** - just SSH!
+
+---
 
 ## Manual Deployment
 
@@ -43,6 +97,8 @@ scp nimsforest-deploy.tar.gz root@SERVER:/tmp/
 ssh root@SERVER 'bash -s' < scripts/deploy.sh deploy
 ```
 
+---
+
 ## Common Commands
 
 ```bash
@@ -62,6 +118,8 @@ ssh root@SERVER 'bash -s' < scripts/deploy.sh rollback
 ssh root@SERVER 'bash -s' < scripts/deploy.sh verify
 ```
 
+---
+
 ## Make Commands
 
 ```bash
@@ -71,77 +129,37 @@ make deploy-verify     # Verify deployment files
 make help              # Show all commands
 ```
 
-## Setup Checklist
+---
 
-- [ ] Create Linux servers (any cloud provider or own hardware)
-- [ ] Run setup script on each server
-- [ ] Configure GitHub environments (staging, production)
-- [ ] Add SSH secrets to each environment
-- [ ] Test staging deployment (push to main)
-- [ ] Test production deployment (create release)
+## Server Setup
 
-## GitHub Secrets (per environment)
+### 1. Create Server
+Any cloud provider or own hardware - just needs SSH access
 
-**Generic names - works with any provider!**
-
+### 2. Run Setup Script
 ```bash
-SSH_PRIVATE_KEY      # SSH private key for deployment
-SSH_USER             # Usually "root" or your user
-SSH_HOST             # Server IP or hostname
-SSH_KNOWN_HOSTS      # SSH fingerprint (from ssh-keyscan)
+ssh root@SERVER_IP
+wget https://raw.githubusercontent.com/youruser/nimsforest/main/scripts/setup-server.sh
+chmod +x setup-server.sh
+sudo ./setup-server.sh
 ```
 
-### Setting Secrets
+This installs:
+- Go (latest)
+- NATS Server with JetStream
+- Firewall (UFW)
+- fail2ban
+- Automatic security updates
 
-```bash
-# Generate keys
-ssh-keygen -t ed25519 -f ~/.ssh/deploy_staging -N ""
-ssh-keygen -t ed25519 -f ~/.ssh/deploy_prod -N ""
-
-# Add to servers
-ssh-copy-id -i ~/.ssh/deploy_staging.pub root@STAGING_IP
-ssh-copy-id -i ~/.ssh/deploy_prod.pub root@PROD_IP
-
-# Add to GitHub (staging)
-gh secret set SSH_PRIVATE_KEY --env staging < ~/.ssh/deploy_staging
-gh secret set SSH_USER --env staging --body "root"
-gh secret set SSH_HOST --env staging --body "STAGING_IP"
-gh secret set SSH_KNOWN_HOSTS --env staging < <(ssh-keyscan STAGING_IP)
-
-# Add to GitHub (production)
-gh secret set SSH_PRIVATE_KEY --env production < ~/.ssh/deploy_prod
-gh secret set SSH_USER --env production --body "root"
-gh secret set SSH_HOST --env production --body "PROD_IP"
-gh secret set SSH_KNOWN_HOSTS --env production < <(ssh-keyscan PROD_IP)
-```
-
-## Server Providers
-
-### Hetzner Cloud (Recommended - Best Price)
-```bash
-hcloud server create --name nimsforest-staging --type cpx11 --image ubuntu-22-04
-# €4.51/month
-```
-
-### DigitalOcean
-```bash
-doctl compute droplet create nimsforest-staging --size s-1vcpu-2gb --image ubuntu-22-04-x64
-# $12/month
-```
-
-### AWS EC2
-```bash
-aws ec2 run-instances --image-id ami-0c55b159cbfafe1f0 --instance-type t3.small
-# ~$15/month
-```
-
-### Your Own Server
-```bash
-# Just point SSH to your server!
-# No special setup needed
-```
+---
 
 ## Troubleshooting
+
+**Deployment skipped with warning**:
+```bash
+⚠️  Staging secrets not configured - skipping deployment
+```
+→ Add the required `STAGING_*` or `PRODUCTION_*` secrets
 
 **Deployment fails**: Check GitHub Actions logs
 ```bash
@@ -165,8 +183,10 @@ ssh root@SERVER 'bash -s' < scripts/deploy.sh rollback
 ssh root@SERVER
 
 # Check secrets are set
-gh secret list --env staging
+gh secret list
 ```
+
+---
 
 ## Cost Comparison
 
@@ -183,21 +203,26 @@ gh secret list --env staging
 - DigitalOcean: ~$24/month
 - Your hardware: $0
 
+---
+
 ## Documentation
 
 - **[DEPLOYMENT_SSH.md](./DEPLOYMENT_SSH.md)** - Complete setup guide
-- **[DEPLOYMENT_CHANGES.md](./DEPLOYMENT_CHANGES.md)** - What changed
+- **[WHATS_NEW.md](./WHATS_NEW.md)** - What changed
 - **[README.md](./README.md)** - Project overview
 - **[Makefile](./Makefile)** - All Make targets
+
+---
 
 ## Key Points
 
 ✅ **Platform-agnostic** - Works with any SSH-accessible Linux server  
 ✅ **No API tokens needed** - Just SSH keys  
+✅ **Optional secrets** - Skips deployment with warning if not set  
+✅ **Separate staging/production** - Different secret prefixes  
 ✅ **Automatic staging** - Push to main  
 ✅ **Automatic production** - Create release  
-✅ **Cost-effective** - Use any provider or own hardware  
-✅ **Simple** - Just SSH and Make commands
+✅ **Cost-effective** - Use any provider or own hardware
 
 ---
 

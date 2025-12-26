@@ -1,8 +1,9 @@
 #!/bin/bash
 #
-# Initial Hetzner Server Setup for NimsForest
+# Initial Server Setup for NimsForest
 #
-# This script prepares a fresh Hetzner server for NimsForest deployment
+# This script prepares any fresh Linux server for NimsForest deployment
+# Works with any Ubuntu/Debian server from any provider
 # Run this once when setting up a new server
 
 set -e
@@ -24,7 +25,7 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 log_info "=========================================="
-log_info "  Hetzner Server Setup for NimsForest"
+log_info "  Server Setup for NimsForest"
 log_info "=========================================="
 
 # Update system

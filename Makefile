@@ -464,10 +464,10 @@ deploy-verify: ## Verify deployment files exist
 		echo "$(RED)❌ deploy.sh missing$(NC)"; \
 		exit 1; \
 	fi
-	@if [ -f scripts/setup-hetzner-server.sh ]; then \
-		echo "$(GREEN)✅ setup-hetzner-server.sh$(NC)"; \
+	@if [ -f scripts/setup-server.sh ]; then \
+		echo "$(GREEN)✅ setup-server.sh$(NC)"; \
 	else \
-		echo "$(RED)❌ setup-hetzner-server.sh missing$(NC)"; \
+		echo "$(RED)❌ setup-server.sh missing$(NC)"; \
 		exit 1; \
 	fi
 	@if [ -f scripts/systemd/nimsforest.service ]; then \

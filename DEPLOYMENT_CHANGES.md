@@ -57,9 +57,9 @@ git push origin v1.0.0
 **2. Setup each server** (5 min each)
 ```bash
 ssh root@SERVER_IP
-wget https://raw.githubusercontent.com/youruser/nimsforest/main/scripts/setup-hetzner-server.sh
-chmod +x setup-hetzner-server.sh
-sudo ./setup-hetzner-server.sh
+wget https://raw.githubusercontent.com/youruser/nimsforest/main/scripts/setup-server.sh
+chmod +x setup-server.sh
+sudo ./setup-server.sh
 ```
 
 **3. Configure GitHub secrets** (5 min)

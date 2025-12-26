@@ -58,9 +58,9 @@ aws ec2 run-instances --image-id ami-0c55b159cbfafe1f0 --instance-type t3.small
 ```bash
 # For each server
 ssh root@SERVER_IP
-wget https://raw.githubusercontent.com/youruser/nimsforest/main/scripts/setup-hetzner-server.sh
-chmod +x setup-hetzner-server.sh
-sudo ./setup-hetzner-server.sh
+wget https://raw.githubusercontent.com/youruser/nimsforest/main/scripts/setup-server.sh
+chmod +x setup-server.sh
+sudo ./setup-server.sh
 ```
 
 ### 3. Configure GitHub Secrets (5 min)
@@ -74,18 +74,20 @@ ssh-keygen -t ed25519 -f ~/.ssh/deploy_prod -N ""
 ssh-copy-id -i ~/.ssh/deploy_staging.pub root@STAGING_IP
 ssh-copy-id -i ~/.ssh/deploy_prod.pub root@PROD_IP
 
-# Add to GitHub (staging environment)
-gh secret set SSH_PRIVATE_KEY --env staging < ~/.ssh/deploy_staging
-gh secret set SSH_USER --env staging --body "root"
-gh secret set SSH_HOST --env staging --body "STAGING_IP"
-gh secret set SSH_KNOWN_HOSTS --env staging < <(ssh-keyscan STAGING_IP)
+# Add to GitHub (STAGING - note the prefix!)
+gh secret set STAGING_SSH_PRIVATE_KEY < ~/.ssh/deploy_staging
+gh secret set STAGING_SSH_USER --body "root"
+gh secret set STAGING_SSH_HOST --body "STAGING_IP"
+gh secret set STAGING_SSH_KNOWN_HOSTS < <(ssh-keyscan STAGING_IP)
 
-# Add to GitHub (production environment)
-gh secret set SSH_PRIVATE_KEY --env production < ~/.ssh/deploy_prod
-gh secret set SSH_USER --env production --body "root"
-gh secret set SSH_HOST --env production --body "PROD_IP"
-gh secret set SSH_KNOWN_HOSTS --env production < <(ssh-keyscan PROD_IP)
+# Add to GitHub (PRODUCTION - note the prefix!)
+gh secret set PRODUCTION_SSH_PRIVATE_KEY < ~/.ssh/deploy_prod
+gh secret set PRODUCTION_SSH_USER --body "root"
+gh secret set PRODUCTION_SSH_HOST --body "PROD_IP"
+gh secret set PRODUCTION_SSH_KNOWN_HOSTS < <(ssh-keyscan PROD_IP)
 ```
+
+**⚠️ Secrets are optional!** If not configured, deployment will skip with a warning.
 
 ### 4. Deploy!
 
@@ -209,9 +211,9 @@ Once your server is created, run the initial setup script:
 ssh root@YOUR_SERVER_IP
 
 # Download and run setup script
-wget https://raw.githubusercontent.com/yourusername/nimsforest/main/scripts/setup-hetzner-server.sh
-chmod +x setup-hetzner-server.sh
-sudo ./setup-hetzner-server.sh
+wget https://raw.githubusercontent.com/yourusername/nimsforest/main/scripts/setup-server.sh
+chmod +x setup-server.sh
+sudo ./setup-server.sh
 ```
 
 This script will:
@@ -226,7 +228,7 @@ This script will:
 
 **Manual Setup (if you prefer):**
 
-See the script content in `scripts/setup-hetzner-server.sh` for step-by-step manual instructions.
+See the script content in `scripts/setup-server.sh` for step-by-step manual instructions.
 
 ### Step 3: Verify Server Setup
 

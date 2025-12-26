@@ -1,8 +1,8 @@
 #!/bin/bash
 #
-# NimsForest Deployment Script for Hetzner
+# NimsForest Deployment Script
 #
-# This script automates the deployment of NimsForest on a Hetzner server
+# This script automates the deployment of NimsForest on any Linux server
 # It handles service management, backups, and rollback capabilities
 #
 # Usage:

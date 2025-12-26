@@ -133,7 +133,7 @@ Complete CI/CD documentation:
 
 scripts/
 ├── deploy.sh                     # Deployment script for server
-├── setup-hetzner-server.sh       # Initial server setup
+├── setup-server.sh       # Initial server setup
 └── systemd/
     └── nimsforest.service        # systemd service file
 

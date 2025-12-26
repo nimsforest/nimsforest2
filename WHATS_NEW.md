@@ -58,13 +58,22 @@ The deployment is completely **platform-agnostic** - it just uses SSH. Works wit
 
 **Just SSH!** No cloud provider credentials.
 
-### Per Environment (staging/production):
+### Per Environment:
 
+**Staging** (optional - skips if not set):
 ```bash
-SSH_PRIVATE_KEY      # SSH key to access server
-SSH_USER             # Usually "root"
-SSH_HOST             # Server IP (e.g., 123.45.67.89)
-SSH_KNOWN_HOSTS      # SSH fingerprint
+STAGING_SSH_PRIVATE_KEY      # SSH key
+STAGING_SSH_USER             # Usually "root"
+STAGING_SSH_HOST             # Server IP
+STAGING_SSH_KNOWN_HOSTS      # Fingerprint
+```
+
+**Production** (optional - skips if not set):
+```bash
+PRODUCTION_SSH_PRIVATE_KEY   # SSH key
+PRODUCTION_SSH_USER          # Usually "root"
+PRODUCTION_SSH_HOST          # Server IP
+PRODUCTION_SSH_KNOWN_HOSTS   # Fingerprint
 ```
 
 ### Setup:
@@ -78,18 +87,20 @@ ssh-keygen -t ed25519 -f ~/.ssh/deploy_prod -N ""
 ssh-copy-id -i ~/.ssh/deploy_staging.pub root@STAGING_IP
 ssh-copy-id -i ~/.ssh/deploy_prod.pub root@PROD_IP
 
-# Add to GitHub (staging environment)
-gh secret set SSH_PRIVATE_KEY --env staging < ~/.ssh/deploy_staging
-gh secret set SSH_USER --env staging --body "root"
-gh secret set SSH_HOST --env staging --body "STAGING_IP"
-gh secret set SSH_KNOWN_HOSTS --env staging < <(ssh-keyscan STAGING_IP)
+# Add to GitHub (staging - note the STAGING_ prefix!)
+gh secret set STAGING_SSH_PRIVATE_KEY < ~/.ssh/deploy_staging
+gh secret set STAGING_SSH_USER --body "root"
+gh secret set STAGING_SSH_HOST --body "STAGING_IP"
+gh secret set STAGING_SSH_KNOWN_HOSTS < <(ssh-keyscan STAGING_IP)
 
-# Repeat for production
-gh secret set SSH_PRIVATE_KEY --env production < ~/.ssh/deploy_prod
-gh secret set SSH_USER --env production --body "root"
-gh secret set SSH_HOST --env production --body "PROD_IP"
-gh secret set SSH_KNOWN_HOSTS --env production < <(ssh-keyscan PROD_IP)
+# Add to GitHub (production - note the PRODUCTION_ prefix!)
+gh secret set PRODUCTION_SSH_PRIVATE_KEY < ~/.ssh/deploy_prod
+gh secret set PRODUCTION_SSH_USER --body "root"
+gh secret set PRODUCTION_SSH_HOST --body "PROD_IP"
+gh secret set PRODUCTION_SSH_KNOWN_HOSTS < <(ssh-keyscan PROD_IP)
 ```
+
+**⚠️ Secrets are optional** - deployment will skip with a warning if not configured!
 
 ---
 

@@ -17,8 +17,8 @@ vendor/
 # Go workspace file
 go.work
 
-# Compiled binary
-forest
+# Compiled binary (only ignore the binary, not the cmd/forest directory)
+/forest
 /cmd/forest/forest
 
 # IDE specific files

@@ -82,7 +82,7 @@ func main() {
 
 	// Plant trees
 	fmt.Println("Planting trees...")
-	
+
 	// Specific payment tree for Stripe webhooks
 	paymentTree := trees.NewPaymentTree(wind, river)
 	if err := paymentTree.Start(ctx); err != nil {
@@ -90,7 +90,7 @@ func main() {
 	}
 	defer paymentTree.Stop()
 	fmt.Println("  🌳 PaymentTree planted (watches: river.stripe.webhook)")
-	
+
 	// General tree that demonstrates extensibility
 	generalTree := trees.NewGeneralTree(wind, river)
 	if err := generalTree.Start(ctx); err != nil {
@@ -101,7 +101,7 @@ func main() {
 
 	// Awaken nims
 	fmt.Println("Awakening nims...")
-	
+
 	// Specific aftersales nim for payment events
 	afterSalesNim := nims.NewAfterSalesNim(wind, humus, soil)
 	if err := afterSalesNim.Start(ctx); err != nil {
@@ -109,7 +109,7 @@ func main() {
 	}
 	defer afterSalesNim.Stop()
 	fmt.Println("  🧚 AfterSalesNim awake (catches: payment.completed, payment.failed)")
-	
+
 	// General nim that demonstrates extensibility
 	generalNim := nims.NewGeneralNim(wind, humus, soil)
 	if err := generalNim.Start(ctx); err != nil {

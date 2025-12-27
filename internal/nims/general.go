@@ -57,11 +57,11 @@ func (n *GeneralNim) Subjects() []string {
 // Start begins listening for leaves matching this nim's subjects.
 func (n *GeneralNim) Start(ctx context.Context) error {
 	n.ctx, n.cancel = context.WithCancel(ctx)
-	
+
 	log.Printf("[GeneralNim] 🧚 Starting general nim")
 	log.Printf("[GeneralNim] 💡 TIP: Create your own nim by copying this file!")
 	log.Printf("[GeneralNim]     Catching: %v", n.Subjects())
-	
+
 	// Register handlers for each subject
 	for _, subject := range n.Subjects() {
 		if err := n.Catch(subject, func(leaf core.Leaf) {
@@ -72,7 +72,7 @@ func (n *GeneralNim) Start(ctx context.Context) error {
 			return fmt.Errorf("failed to catch %s: %w", subject, err)
 		}
 	}
-	
+
 	log.Printf("[GeneralNim] Started listening for general events")
 	return nil
 }
@@ -123,11 +123,11 @@ func (n *GeneralNim) handleDataReceived(ctx context.Context, leaf core.Leaf) err
 	// BUSINESS LOGIC EXAMPLE: Create a record of this data
 	recordID := fmt.Sprintf("data-record-%d", time.Now().Unix())
 	record := map[string]interface{}{
-		"id":         recordID,
-		"source":     source,
-		"data":       dataValue,
+		"id":          recordID,
+		"source":      source,
+		"data":        dataValue,
 		"received_at": time.Now().Format(time.RFC3339),
-		"processed":  true,
+		"processed":   true,
 	}
 
 	recordData, _ := json.Marshal(record)
@@ -169,11 +169,11 @@ func (n *GeneralNim) handleStatusUpdate(ctx context.Context, leaf core.Leaf) err
 	// BUSINESS LOGIC EXAMPLE: Update entity status in soil
 	if entityID != nil {
 		entityKey := fmt.Sprintf("entity-%v", entityID)
-		
+
 		// Try to read existing entity
 		existingData, revision, err := n.Dig(entityKey)
 		var entity map[string]interface{}
-		
+
 		if err == nil {
 			// Entity exists, update it
 			json.Unmarshal(existingData, &entity)
@@ -192,13 +192,13 @@ func (n *GeneralNim) handleStatusUpdate(ctx context.Context, leaf core.Leaf) err
 		}
 
 		entityData, _ := json.Marshal(entity)
-		
+
 		// Compost the change
 		action := "update"
 		if revision == 0 {
 			action = "create"
 		}
-		
+
 		slot, err := n.Compost(entityKey, action, entityData)
 		if err != nil {
 			return fmt.Errorf("failed to compost status update: %w", err)
@@ -219,14 +219,14 @@ func (n *GeneralNim) handleNotification(ctx context.Context, leaf core.Leaf) err
 	priority := event["priority"]
 	message := event["message"]
 	recipient := event["recipient"]
-	
+
 	log.Printf("[GeneralNim] 📧 Notification needed: [%v] to %v: %v", priority, recipient, message)
 
 	// BUSINESS LOGIC EXAMPLE: Route based on priority
 	if priority == "high" || priority == "urgent" {
 		// High priority - send immediately
 		log.Printf("[GeneralNim] 🚨 HIGH PRIORITY - sending immediately!")
-		
+
 		// Emit a leaf for immediate sending
 		if err := n.Leaf("notification.send.immediate", leaf.Data); err != nil {
 			log.Printf("[GeneralNim] ⚠️  Failed to emit immediate send: %v", err)
@@ -234,18 +234,18 @@ func (n *GeneralNim) handleNotification(ctx context.Context, leaf core.Leaf) err
 	} else {
 		// Normal priority - queue for batch sending
 		log.Printf("[GeneralNim] 📝 Normal priority - queuing for batch")
-		
+
 		// Create a queued notification record
 		notifID := fmt.Sprintf("notification-%d", time.Now().UnixNano())
 		queuedNotif := map[string]interface{}{
-			"id":         notifID,
-			"priority":   priority,
-			"message":    message,
-			"recipient":  recipient,
-			"queued_at":  time.Now().Format(time.RFC3339),
-			"sent":       false,
+			"id":        notifID,
+			"priority":  priority,
+			"message":   message,
+			"recipient": recipient,
+			"queued_at": time.Now().Format(time.RFC3339),
+			"sent":      false,
 		}
-		
+
 		notifData, _ := json.Marshal(queuedNotif)
 		slot, err := n.Compost(notifID, "create", notifData)
 		if err != nil {
@@ -260,7 +260,7 @@ func (n *GeneralNim) handleNotification(ctx context.Context, leaf core.Leaf) err
 // handleGeneralEvent demonstrates handling catch-all events
 func (n *GeneralNim) handleGeneralEvent(ctx context.Context, leaf core.Leaf) error {
 	log.Printf("[GeneralNim] 📋 Processing general event: %s", leaf.Subject)
-	
+
 	var event map[string]interface{}
 	if err := json.Unmarshal(leaf.Data, &event); err != nil {
 		log.Printf("[GeneralNim] ⚠️  Could not parse event data")
@@ -276,13 +276,13 @@ func (n *GeneralNim) handleGeneralEvent(ctx context.Context, leaf core.Leaf) err
 	// Could archive general events for analytics
 	eventID := fmt.Sprintf("event-%d", time.Now().UnixNano())
 	archiveData := map[string]interface{}{
-		"id":         eventID,
-		"subject":    leaf.Subject,
-		"source":     leaf.Source,
-		"timestamp":  time.Now().Format(time.RFC3339),
-		"data":       event,
+		"id":        eventID,
+		"subject":   leaf.Subject,
+		"source":    leaf.Source,
+		"timestamp": time.Now().Format(time.RFC3339),
+		"data":      event,
 	}
-	
+
 	archiveJSON, _ := json.Marshal(archiveData)
 	slot, err := n.Compost(eventID, "create", archiveJSON)
 	if err != nil {

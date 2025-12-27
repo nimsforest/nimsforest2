@@ -49,7 +49,7 @@ func (t *GeneralTree) Patterns() []string {
 // This implementation shows the basic structure of a tree's observation logic.
 func (t *GeneralTree) Start(ctx context.Context) error {
 	t.ctx, t.cancel = context.WithCancel(ctx)
-	
+
 	log.Printf("[GeneralTree] 🌳 Starting general tree - watching for river.general.>")
 	log.Printf("[GeneralTree] 💡 TIP: Create your own tree by copying this file!")
 	log.Printf("[GeneralTree]     Example patterns: river.api.>, river.crm.>, river.iot.>")
@@ -58,11 +58,11 @@ func (t *GeneralTree) Start(ctx context.Context) error {
 	err := t.Watch("river.general.>", func(data core.RiverData) {
 		t.parseGeneralData(data)
 	})
-	
+
 	if err != nil {
 		return fmt.Errorf("failed to start general tree: %w", err)
 	}
-	
+
 	log.Printf("[GeneralTree] Started watching for general events")
 	return nil
 }

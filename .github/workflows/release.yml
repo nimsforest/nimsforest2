@@ -30,7 +30,7 @@ jobs:
       id: changelog
       run: |
         echo "## What's Changed" > CHANGELOG.md
-        git log $(git describe --tags --abbrev=0 HEAD^)..HEAD --pretty=format:"- %s (%h)" >> CHANGELOG.md
+        git log $(git describe --tags --abbrev=0 HEAD^)..HEAD --pretty=format:"- %s (%h)" >> CHANGELOG.md 2>/dev/null || echo "- Initial release" >> CHANGELOG.md
         cat CHANGELOG.md
     
     - name: Create Release
@@ -52,7 +52,15 @@ jobs:
     
     strategy:
       matrix:
-        goarch: [amd64, arm64]
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+          - goos: darwin
+            goarch: amd64
+          - goos: darwin
+            goarch: arm64
     
     steps:
     - name: Checkout code
@@ -64,28 +72,34 @@ jobs:
         go-version: '1.24.x'
         cache: true
     
-    - name: Create source archive for Linux/Debian
+    - name: Build binary
       run: |
-        # This is a library project - create source archive
         VERSION="${{ needs.create-release.outputs.version }}"
-        ARCHIVE_NAME="nimsforest-${VERSION}-linux-${{ matrix.goarch }}"
+        BINARY_NAME="forest-${{ matrix.goos }}-${{ matrix.goarch }}"
         
-        # Create a directory with the source
-        mkdir -p ${ARCHIVE_NAME}
-        cp -r internal ${ARCHIVE_NAME}/
-        cp go.mod go.sum README.md LICENSE* ${ARCHIVE_NAME}/ 2>/dev/null || true
+        # Build the binary if cmd/forest exists, otherwise create source archive
+        if [ -d cmd/forest ]; then
+          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -ldflags="-s -w -X main.Version=${VERSION}" -o ${BINARY_NAME} ./cmd/forest
+          
+          # Create checksum
+          sha256sum ${BINARY_NAME} > ${BINARY_NAME}.sha256
+          
+          # Create tarball with binary
+          tar czf ${BINARY_NAME}.tar.gz ${BINARY_NAME}
+        else
+          # Library project - create source archive
+          ARCHIVE_NAME="nimsforest-${VERSION}-${{ matrix.goos }}-${{ matrix.goarch }}"
+          mkdir -p ${ARCHIVE_NAME}
+          cp -r internal ${ARCHIVE_NAME}/
+          cp go.mod go.sum README.md LICENSE* ${ARCHIVE_NAME}/ 2>/dev/null || true
+          tar czf ${BINARY_NAME}.tar.gz ${ARCHIVE_NAME}
+        fi
         
-        # Create tarball
-        tar czf ${ARCHIVE_NAME}.tar.gz ${ARCHIVE_NAME}
-        
-        echo "ASSET_PATH=${ARCHIVE_NAME}.tar.gz" >> $GITHUB_ENV
-        echo "ASSET_NAME=${ARCHIVE_NAME}.tar.gz" >> $GITHUB_ENV
-        echo "ASSET_TYPE=application/gzip" >> $GITHUB_ENV
-      env:
-        GOOS: linux
-        GOARCH: ${{ matrix.goarch }}
+        echo "ASSET_PATH=${BINARY_NAME}.tar.gz" >> $GITHUB_ENV
+        echo "ASSET_NAME=${BINARY_NAME}.tar.gz" >> $GITHUB_ENV
+        echo "BINARY_NAME=${BINARY_NAME}" >> $GITHUB_ENV
     
-    - name: Upload Release Asset
+    - name: Upload Release Asset (tarball)
       uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -93,4 +107,175 @@ jobs:
         upload_url: ${{ needs.create-release.outputs.upload_url }}
         asset_path: ${{ env.ASSET_PATH }}
         asset_name: ${{ env.ASSET_NAME }}
-        asset_content_type: ${{ env.ASSET_TYPE }}
+        asset_content_type: application/gzip
+    
+    - name: Upload Release Asset (checksum)
+      if: hashFiles(format('{0}.sha256', env.BINARY_NAME)) != ''
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ needs.create-release.outputs.upload_url }}
+        asset_path: ${{ env.BINARY_NAME }}.sha256
+        asset_name: ${{ env.BINARY_NAME }}.sha256
+        asset_content_type: text/plain
+    
+    - name: Save artifacts for storage box upload
+      uses: actions/upload-artifact@v4
+      with:
+        name: release-${{ matrix.goos }}-${{ matrix.goarch }}
+        path: |
+          ${{ env.ASSET_PATH }}
+          ${{ env.BINARY_NAME }}.sha256
+        retention-days: 1
+
+  publish-to-storage-box:
+    name: Publish to Hetzner Storage Box
+    needs: [create-release, build-and-upload]
+    runs-on: ubuntu-latest
+    if: ${{ vars.ENABLE_STORAGE_BOX_PUBLISH == 'true' }}
+    
+    steps:
+    - name: Check if storage box is configured
+      id: check-config
+      run: |
+        if [ -z "${{ secrets.STORAGEBOX_HOST }}" ] || [ -z "${{ secrets.STORAGEBOX_USER }}" ]; then
+          echo "configured=false" >> $GITHUB_OUTPUT
+          echo "⚠️  Storage box not configured - skipping upload"
+          echo "Required secrets: STORAGEBOX_HOST, STORAGEBOX_USER, STORAGEBOX_PASSWORD or STORAGEBOX_SSH_KEY"
+        else
+          echo "configured=true" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Download all artifacts
+      if: steps.check-config.outputs.configured == 'true'
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+        pattern: release-*
+        merge-multiple: true
+    
+    - name: Install SSH key
+      if: steps.check-config.outputs.configured == 'true' && secrets.STORAGEBOX_SSH_KEY != ''
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.STORAGEBOX_SSH_KEY }}" > ~/.ssh/storagebox_key
+        chmod 600 ~/.ssh/storagebox_key
+        echo "SSH_AUTH=-i ~/.ssh/storagebox_key" >> $GITHUB_ENV
+    
+    - name: Upload to Hetzner Storage Box
+      if: steps.check-config.outputs.configured == 'true'
+      env:
+        STORAGEBOX_HOST: ${{ secrets.STORAGEBOX_HOST }}
+        STORAGEBOX_USER: ${{ secrets.STORAGEBOX_USER }}
+        STORAGEBOX_PASSWORD: ${{ secrets.STORAGEBOX_PASSWORD }}
+        VERSION: ${{ needs.create-release.outputs.version }}
+      run: |
+        # Install sshpass if using password auth
+        if [ -n "$STORAGEBOX_PASSWORD" ] && [ -z "$SSH_AUTH" ]; then
+          sudo apt-get update && sudo apt-get install -y sshpass
+          export SSHPASS="$STORAGEBOX_PASSWORD"
+          SSH_CMD="sshpass -e sftp -oBatchMode=no -oStrictHostKeyChecking=accept-new"
+        else
+          SSH_CMD="sftp ${SSH_AUTH} -oStrictHostKeyChecking=accept-new"
+        fi
+        
+        # Create version directory and upload files
+        echo "📦 Uploading release v${VERSION} to storage box..."
+        
+        # Create SFTP batch commands
+        cat > sftp_commands.txt << EOF
+        -mkdir releases
+        cd releases
+        -mkdir v${VERSION}
+        cd v${VERSION}
+        put artifacts/*
+        cd ..
+        -rm latest
+        -rmdir latest
+        -mkdir latest
+        cd latest
+        put artifacts/*
+        bye
+        EOF
+        
+        # Execute SFTP upload
+        $SSH_CMD ${STORAGEBOX_USER}@${STORAGEBOX_HOST} < sftp_commands.txt
+        
+        echo "✅ Upload complete!"
+        echo ""
+        echo "📥 Download URLs (if WebDAV is enabled):"
+        echo "   https://${STORAGEBOX_USER}.your-storagebox.de/releases/v${VERSION}/"
+        echo "   https://${STORAGEBOX_USER}.your-storagebox.de/releases/latest/"
+    
+    - name: Create index.html for releases
+      if: steps.check-config.outputs.configured == 'true'
+      env:
+        STORAGEBOX_HOST: ${{ secrets.STORAGEBOX_HOST }}
+        STORAGEBOX_USER: ${{ secrets.STORAGEBOX_USER }}
+        STORAGEBOX_PASSWORD: ${{ secrets.STORAGEBOX_PASSWORD }}
+        VERSION: ${{ needs.create-release.outputs.version }}
+      run: |
+        # Create a simple index.html for the release
+        cat > index.html << 'EOF'
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>NimsForest Downloads</title>
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; }
+            h1 { color: #2d3748; }
+            .version { color: #718096; font-size: 0.9em; }
+            ul { list-style: none; padding: 0; }
+            li { padding: 10px 0; border-bottom: 1px solid #e2e8f0; }
+            a { color: #3182ce; text-decoration: none; }
+            a:hover { text-decoration: underline; }
+            .platform { color: #718096; font-size: 0.9em; }
+          </style>
+        </head>
+        <body>
+          <h1>🌲 NimsForest Downloads</h1>
+          <p class="version">Latest Version: vVERSION_PLACEHOLDER</p>
+          <h2>Download Links</h2>
+          <ul>
+            <li><a href="forest-linux-amd64.tar.gz">Linux (x86_64)</a> <span class="platform">- Most servers and desktops</span></li>
+            <li><a href="forest-linux-arm64.tar.gz">Linux (ARM64)</a> <span class="platform">- Raspberry Pi, ARM servers</span></li>
+            <li><a href="forest-darwin-amd64.tar.gz">macOS (Intel)</a> <span class="platform">- Intel Macs</span></li>
+            <li><a href="forest-darwin-arm64.tar.gz">macOS (Apple Silicon)</a> <span class="platform">- M1/M2/M3 Macs</span></li>
+          </ul>
+          <h2>Verify Downloads</h2>
+          <p>SHA256 checksums are available for each binary (append .sha256 to the filename).</p>
+          <h2>Installation</h2>
+          <pre>
+        # Download and extract
+        curl -LO https://YOUR_STORAGEBOX.your-storagebox.de/releases/latest/forest-linux-amd64.tar.gz
+        tar xzf forest-linux-amd64.tar.gz
+        chmod +x forest-linux-amd64
+        sudo mv forest-linux-amd64 /usr/local/bin/forest
+          </pre>
+        </body>
+        </html>
+        EOF
+        
+        # Replace version placeholder
+        sed -i "s/VERSION_PLACEHOLDER/${VERSION}/g" index.html
+        
+        # Upload index.html
+        if [ -n "$STORAGEBOX_PASSWORD" ]; then
+          export SSHPASS="$STORAGEBOX_PASSWORD"
+          SSH_CMD="sshpass -e sftp -oBatchMode=no -oStrictHostKeyChecking=accept-new"
+        else
+          SSH_CMD="sftp ${SSH_AUTH} -oStrictHostKeyChecking=accept-new"
+        fi
+        
+        cat > sftp_index.txt << EOF
+        cd releases/v${VERSION}
+        put index.html
+        cd ../latest
+        put index.html
+        bye
+        EOF
+        
+        $SSH_CMD ${STORAGEBOX_USER}@${STORAGEBOX_HOST} < sftp_index.txt
+        
+        echo "✅ Index pages created!"

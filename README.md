@@ -9,6 +9,43 @@ An event-driven organizational orchestration system built with Go, NATS, and Jet
 [![Go Report Card](https://goreportcard.com/badge/github.com/yourusername/nimsforest)](https://goreportcard.com/report/github.com/yourusername/nimsforest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
+## Downloads
+
+Pre-built binaries are available for multiple platforms:
+
+| Platform | Architecture | Download |
+|----------|--------------|----------|
+| Linux | x86_64 (amd64) | [forest-linux-amd64.tar.gz](https://github.com/yourusername/nimsforest/releases/latest/download/forest-linux-amd64.tar.gz) |
+| Linux | ARM64 | [forest-linux-arm64.tar.gz](https://github.com/yourusername/nimsforest/releases/latest/download/forest-linux-arm64.tar.gz) |
+| macOS | Intel | [forest-darwin-amd64.tar.gz](https://github.com/yourusername/nimsforest/releases/latest/download/forest-darwin-amd64.tar.gz) |
+| macOS | Apple Silicon | [forest-darwin-arm64.tar.gz](https://github.com/yourusername/nimsforest/releases/latest/download/forest-darwin-arm64.tar.gz) |
+
+### Quick Install
+
+```bash
+# Linux (x86_64)
+curl -LO https://github.com/yourusername/nimsforest/releases/latest/download/forest-linux-amd64.tar.gz
+tar xzf forest-linux-amd64.tar.gz
+sudo mv forest-linux-amd64 /usr/local/bin/forest
+
+# macOS (Apple Silicon)
+curl -LO https://github.com/yourusername/nimsforest/releases/latest/download/forest-darwin-arm64.tar.gz
+tar xzf forest-darwin-arm64.tar.gz
+sudo mv forest-darwin-arm64 /usr/local/bin/forest
+```
+
+### Verify Download (Optional)
+
+SHA256 checksums are provided for each binary:
+
+```bash
+# Download checksum
+curl -LO https://github.com/yourusername/nimsforest/releases/latest/download/forest-linux-amd64.sha256
+
+# Verify
+sha256sum -c forest-linux-amd64.sha256
+```
+
 ## Overview
 
 NimsForest is a production-ready implementation of a forest-inspired event orchestration architecture. It provides a clean separation between data ingestion (Trees), business logic (Nims), and state management, all connected through a flexible event-driven system.

@@ -7,7 +7,6 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"strconv"
 	"syscall"
 	"time"
 
@@ -165,7 +164,7 @@ func runForest() {
 		ClusterName: nodeInfo.ForestID,
 		DataDir:     getDataDir(),
 		Peers:       peers,
-		MonitorPort: getMonitorPort(),
+		MonitorPort: 8222, // HTTP monitoring enabled by default
 	}
 
 	ns, err := natsembed.New(cfg)
@@ -344,22 +343,6 @@ func getDataDir() string {
 		return dir
 	}
 	return "/var/lib/nimsforest/jetstream"
-}
-
-// getMonitorPort returns the NATS HTTP monitoring port from environment.
-// Returns 0 to use default (8222), or the specified port value.
-// Set NATS_MONITOR_PORT=-1 to disable monitoring.
-func getMonitorPort() int {
-	portStr := os.Getenv("NATS_MONITOR_PORT")
-	if portStr == "" {
-		return 0 // Use default (8222)
-	}
-	port, err := strconv.Atoi(portStr)
-	if err != nil {
-		log.Printf("Warning: invalid NATS_MONITOR_PORT value '%s', using default", portStr)
-		return 0
-	}
-	return port
 }
 
 func printBanner() {

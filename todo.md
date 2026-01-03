@@ -1,79 +1,89 @@
 # Embedded NATS Implementation
 
-## Note for Morpheus CLI
+## Design Note for Morpheus
 
-**nimsforest now embeds NATS** - no separate NATS installation needed.
+### Architecture Decision: Mounted StorageBox
 
-### What Morpheus should do:
+The StorageBox should be **mounted as a filesystem** on each machine rather than accessed via HTTP/WebDAV. This simplifies nimsforest significantly:
 
-1. **Mount StorageBox** on each machine at `/mnt/forest/` - nimsforest reads the registry as a local file
+- **No HTTP client code** in nimsforest
+- **No authentication handling** - mount handles it
+- **No retry logic** - just read a file
+- **No credentials in node-info.json** - cleaner separation
 
-2. **Write node-info.json** to `/etc/morpheus/node-info.json`:
+### Mount Setup (Morpheus responsibility)
+
+Mount the StorageBox on each machine:
+
+```bash
+# Example using CIFS/SMB
+mount -t cifs //uXXXXX.your-storagebox.de/backup /mnt/forest \
+  -o user=uXXXXX,pass=PASSWORD,uid=root,gid=root
+
+# Or add to /etc/fstab for persistence
+//uXXXXX.your-storagebox.de/backup /mnt/forest cifs user=uXXXXX,pass=PASSWORD,uid=root,gid=root 0 0
+```
+
+### File Locations
+
+| File | Path | Written by |
+|------|------|------------|
+| Node info | `/etc/morpheus/node-info.json` | Morpheus (per machine) |
+| Registry | `/mnt/forest/registry.json` | Morpheus (shared) |
+| nimsforest binary | `/opt/nimsforest/bin/forest` | Morpheus |
+| JetStream data | `/var/lib/nimsforest/jetstream/` | nimsforest |
+
+### What Morpheus Should Do
+
+1. **Mount StorageBox** at `/mnt/forest/` on each machine
+
+2. **Write `/etc/morpheus/node-info.json`** on each machine:
 ```json
 {
   "forest_id": "forest-123",
-  "node_id": "12345678",
-  "role": "edge",
-  "provisioner": "morpheus",
-  "provisioned_at": "2025-12-26T10:30:00Z"
+  "node_id": "12345678"
 }
 ```
-(No registry credentials needed - StorageBox is mounted)
 
-3. **Ensure registry.json exists** at `/mnt/forest/registry.json` with node IPs:
+3. **Write/update `/mnt/forest/registry.json`** (shared file):
 ```json
 {
   "nodes": {
     "forest-123": [
-      { "id": "node-1", "ip": "2a01:4f8:...", "forest_id": "forest-123" },
-      { "id": "node-2", "ip": "2a01:4f8:...", "forest_id": "forest-123" }
+      { "id": "12345678", "ip": "2a01:4f8:x:x::1", "forest_id": "forest-123" },
+      { "id": "12345679", "ip": "2a01:4f8:x:x::2", "forest_id": "forest-123" },
+      { "id": "12345680", "ip": "2a01:4f8:x:x::3", "forest_id": "forest-123" }
     ]
   }
 }
 ```
 
-4. **Deploy nimsforest binary** to `/opt/nimsforest/bin/forest`
+4. **Create directories**:
+   - `/var/lib/nimsforest/jetstream/`
 
-5. **Create data directory** `/var/lib/nimsforest/jetstream`
+5. **Deploy binary** to `/opt/nimsforest/bin/forest`
 
-6. **Start service**
+6. **Start service** via systemd
 
-### What nimsforest does on startup:
+### What nimsforest Does on Startup
 
 ```
 1. Read /etc/morpheus/node-info.json → get forest_id
-2. Read /mnt/forest/registry.json → find peer IPs in same forest
+2. Read /mnt/forest/registry.json → find peer IPs
 3. Start embedded NATS with routes to peers
-4. Cluster forms automatically
+4. NATS cluster forms via gossip
 5. Application starts
 ```
 
-### Ports needed (firewall):
+### Firewall Ports
 
-- `6222` - NATS cluster (peer communication) - **required**
-- `4222` - NATS client (optional, for nats cli debugging)
+- `6222` - NATS cluster communication (required)
+- `4222` - NATS client (optional, for debugging)
 - `8222` - NATS monitoring (optional)
 
 ---
 
-## Goal
-
-Embed NATS into nimsforest binary. On startup:
-1. Read `/etc/morpheus/node-info.json` for forest_id
-2. Read `/mnt/forest/registry.json` for peer IPs
-3. Start embedded NATS with peer routes
-4. Run application
-
-## Why
-
-- **Single binary** - no separate NATS download (solves IPv4-only GitHub API issue)
-- **Simpler deployment** - Morpheus just deploys one binary
-- **No HTTP client** - registry is a mounted file, just read it
-- **Auto-clustering** - NATS gossip handles peer discovery after initial connection
-
----
-
-## Tasks
+## Implementation Tasks
 
 ### 1. Embed NATS Server
 
@@ -124,8 +134,8 @@ import (
 )
 
 const (
-    NodeInfoPath  = "/etc/morpheus/node-info.json"
-    RegistryPath  = "/mnt/forest/registry.json"
+    NodeInfoPath = "/etc/morpheus/node-info.json"
+    RegistryPath = "/mnt/forest/registry.json"
 )
 
 type NodeInfo struct {
@@ -143,7 +153,6 @@ type Node struct {
     ForestID string `json:"forest_id"`
 }
 
-// Load reads node-info.json, returns nil if not found
 func Load() *NodeInfo {
     data, err := os.ReadFile(NodeInfoPath)
     if err != nil {
@@ -154,7 +163,6 @@ func Load() *NodeInfo {
     return &info
 }
 
-// GetPeers reads registry.json and returns peer IPs for this forest
 func GetPeers(forestID, selfIP string) []string {
     data, _ := os.ReadFile(RegistryPath)
     var reg Registry
@@ -178,10 +186,8 @@ func GetPeers(forestID, selfIP string) []string {
 
 ```go
 func runForest() {
-    // 1. Load morpheus config (nil = standalone)
     nodeInfo := morpheus.Load()
     
-    // 2. Determine peers
     var peers []string
     forestID := "standalone"
     if nodeInfo != nil {
@@ -189,7 +195,6 @@ func runForest() {
         peers = morpheus.GetPeers(forestID, getLocalIP())
     }
     
-    // 3. Start embedded NATS
     ns, _ := natsembed.New(natsembed.Config{
         NodeName:    hostname(),
         ClusterName: forestID,
@@ -199,14 +204,12 @@ func runForest() {
     ns.Start()
     defer ns.Shutdown()
     
-    // 4. Get connection (in-process)
     nc, _ := ns.ClientConn()
     js, _ := nc.JetStream()
     
-    // 5. Rest unchanged
     wind := core.NewWind(nc)
     river, _ := core.NewRiver(js)
-    // ...
+    // ... rest unchanged
 }
 ```
 

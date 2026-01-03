@@ -1,328 +1,409 @@
-# NATS Sidecar Pattern Implementation
+# Embedded NATS Implementation
 
 ## Overview
 
-Implement a sidecar pattern where each machine running nimsforest has a local NATS node that participates in a full mesh cluster. All nodes are identical with JetStream enabled.
+Embed NATS server directly into the nimsforest binary. Starting nimsforest automatically:
+1. Starts an embedded NATS server with JetStream
+2. Joins the cluster (if peers configured)
+3. Runs the nimsforest application
 
-**Key principle**: One node type, one configuration, simple operations.
+**Single binary, single process, single deployment artifact.**
+
+## Why Embedded?
+
+| Before (Separate) | After (Embedded) |
+|-------------------|------------------|
+| Download NATS separately | Single binary |
+| GitHub API IPv4 issues | No external downloads |
+| Two systemd services | One service |
+| Version mismatches possible | Always compatible |
+| Two things to monitor | One process |
+| Network connection to NATS | In-process (faster) |
 
 ## Architecture
 
 ```
-┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│   Machine A     │     │   Machine B     │     │   Machine C     │
-│  ┌───────────┐  │     │  ┌───────────┐  │     │  ┌───────────┐  │
-│  │nimsforest │  │     │  │nimsforest │  │     │  │nimsforest │  │
-│  └─────┬─────┘  │     │  └─────┬─────┘  │     │  └─────┬─────┘  │
-│   localhost     │     │   localhost     │     │   localhost     │
-│  ┌─────▼─────┐  │     │  ┌─────▼─────┐  │     │  ┌─────▼─────┐  │
-│  │   NATS    │◄─┼─────┼─►│   NATS    │◄─┼─────┼─►│   NATS    │  │
-│  │ JetStream │  │     │  │ JetStream │  │     │  │ JetStream │  │
-│  └───────────┘  │     │  └───────────┘  │     │  └───────────┘  │
-└─────────────────┘     └─────────────────┘     └─────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                      nimsforest binary                           │
+│                                                                  │
+│  ┌────────────────────────────────────────────────────────────┐ │
+│  │                  Embedded NATS Server                       │ │
+│  │  • JetStream enabled                                       │ │
+│  │  • Cluster port 6222 (peer communication)                  │ │
+│  │  • Client port 4222 (optional, for nats cli debugging)     │ │
+│  │  • Monitoring port 8222 (optional, for metrics)            │ │
+│  └────────────────────────────────────────────────────────────┘ │
+│                              ▲                                   │
+│                              │ in-process connection             │
+│                              ▼                                   │
+│  ┌────────────────────────────────────────────────────────────┐ │
+│  │                 nimsforest application                      │ │
+│  │  Wind ─► River ─► Trees ─► Leaves ─► Nims ─► Humus/Soil    │ │
+│  └────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                    Cluster port 6222
+                              │
+              ┌───────────────┴───────────────┐
+              ▼                               ▼
+   ┌─────────────────────┐         ┌─────────────────────┐
+   │ nimsforest (node 2) │ ◄─────► │ nimsforest (node 3) │
+   │  embedded NATS      │         │  embedded NATS      │
+   └─────────────────────┘         └─────────────────────┘
 
-         All nodes identical - full mesh cluster with JetStream
-              Streams replicated across nodes (R3 = 3 replicas)
+        JetStream streams replicated across all nodes
 ```
 
-### Why Full Mesh?
+## Deployment Model
 
-| Concern | Full Mesh Solution |
-|---------|-------------------|
-| Complexity | One node type, one config template |
-| Failover | Any node can serve any request |
-| Data safety | JetStream replicates across nodes |
-| Local latency | App connects to localhost |
-| Resource cost | ~50-100MB RAM per node (acceptable) |
+Morpheus provisions a machine and runs:
+```bash
+nimsforest --cluster-peers "192.168.1.11:6222,192.168.1.12:6222"
+```
 
-### Resource Requirements Per Node
-
-| Resource | Usage | Notes |
-|----------|-------|-------|
-| RAM | 50-100 MB | JetStream enabled |
-| CPU | < 1-5% | Mostly idle |
-| Disk | Configurable | Based on stream retention |
-| Network | Cluster gossip + replication | Lightweight |
+That's it. No NATS download, no separate service, no coordination.
 
 ---
 
 ## Tasks
 
-### Phase 1: Application Connection Resilience
+### Phase 1: Embed NATS Server
 
-#### 1.1 Add NATS connection options with retry logic
+#### 1.1 Add nats-server dependency
+- **File**: `go.mod`
+- **Changes**:
+  - [ ] Add `github.com/nats-io/nats-server/v2` dependency
+  - [ ] Run `go mod tidy`
+
+#### 1.2 Create embedded server wrapper
+- **File**: `internal/natsembed/server.go` (new file)
+- **Contents**:
+  ```go
+  package natsembed
+  
+  type Config struct {
+      NodeName     string   // Unique node identifier
+      ClusterPeers []string // Other nodes in cluster (host:port)
+      DataDir      string   // JetStream storage directory
+      ClientPort   int      // Client connections (default 4222)
+      ClusterPort  int      // Cluster communication (default 6222)
+      MonitorPort  int      // HTTP monitoring (default 8222, 0 to disable)
+  }
+  
+  type EmbeddedNATS struct {
+      server *server.Server
+      config Config
+  }
+  
+  func New(cfg Config) (*EmbeddedNATS, error)
+  func (e *EmbeddedNATS) Start() error
+  func (e *EmbeddedNATS) ClientURL() string      // For in-process connection
+  func (e *EmbeddedNATS) WaitForReady() error    // Block until server ready
+  func (e *EmbeddedNATS) WaitForCluster() error  // Block until cluster formed
+  func (e *EmbeddedNATS) Shutdown() error
+  ```
+- **Implementation**:
+  - [ ] Configure server options from Config
+  - [ ] Enable JetStream with configured storage
+  - [ ] Configure cluster routes from peers
+  - [ ] Handle graceful shutdown
+
+#### 1.3 Add cluster formation logic
+- **File**: `internal/natsembed/cluster.go` (new file)
+- **Contents**:
+  - [ ] Parse peer addresses from comma-separated string
+  - [ ] Convert to NATS route URLs (`nats-route://host:port`)
+  - [ ] Validate peer addresses
+  - [ ] Health check for cluster connectivity
+
+---
+
+### Phase 2: Update Main Application
+
+#### 2.1 Update main.go to start embedded NATS
 - **File**: `cmd/forest/main.go`
 - **Changes**:
-  - [ ] Add connection options: `MaxReconnects`, `ReconnectWait`, `DisconnectErrHandler`, `ReconnectHandler`
-  - [ ] Implement retry loop on initial connection failure (instead of immediate fatal exit)
-  - [ ] Add configurable retry attempts via `NATS_RETRY_ATTEMPTS` env var (default: 10)
-  - [ ] Add configurable retry interval via `NATS_RETRY_INTERVAL` env var (default: 5s)
-  - [ ] Log connection state changes (disconnected, reconnecting, reconnected)
+  - [ ] Add command-line flags for cluster configuration
+  - [ ] Start embedded NATS before application
+  - [ ] Connect to embedded server (in-process URL)
+  - [ ] Proper shutdown order (app first, then NATS)
+  - [ ] Remove external NATS connection code
 
-#### 1.2 Add connection health monitoring
-- **File**: `internal/core/connection.go` (new file)
-- **Changes**:
-  - [ ] Create `ConnectionManager` struct to wrap NATS connection with health state
-  - [ ] Implement `IsConnected()` method
-  - [ ] Implement `WaitForConnection(ctx, timeout)` method
-  - [ ] Add connection event callbacks for monitoring/alerting
+#### 2.2 Add configuration via environment variables
+- **File**: `cmd/forest/main.go`
+- **Environment variables**:
+  - [ ] `NATS_NODE_NAME` - node identifier (default: hostname)
+  - [ ] `NATS_CLUSTER_PEERS` - comma-separated peer list
+  - [ ] `NATS_DATA_DIR` - JetStream storage (default: `/var/lib/nimsforest/jetstream`)
+  - [ ] `NATS_CLIENT_PORT` - client port (default: 4222)
+  - [ ] `NATS_CLUSTER_PORT` - cluster port (default: 6222)
+  - [ ] `NATS_MONITOR_PORT` - monitoring port (default: 8222, 0 to disable)
 
-#### 1.3 Handle JetStream unavailability gracefully
+#### 2.3 Add command-line flags (alternative to env vars)
+- **File**: `cmd/forest/main.go`
+- **Flags**:
+  - [ ] `--node-name` 
+  - [ ] `--cluster-peers`
+  - [ ] `--data-dir`
+  - [ ] `--client-port`
+  - [ ] `--cluster-port`
+  - [ ] `--monitor-port`
+
+---
+
+### Phase 3: Startup Modes
+
+#### 3.1 Implement standalone mode (single node)
+- **Behavior**:
+  - [ ] No cluster peers configured
+  - [ ] JetStream with single replica (R1)
+  - [ ] Good for development and small deployments
+  - [ ] Default mode if no peers specified
+
+#### 3.2 Implement cluster mode
+- **Behavior**:
+  - [ ] Cluster peers configured
+  - [ ] Wait for minimum peers before marking ready
+  - [ ] JetStream with replication (R3 for 3+ nodes)
+  - [ ] Automatic stream configuration for replication
+
+#### 3.3 Update stream creation for replication
 - **Files**: `internal/core/river.go`, `internal/core/humus.go`, `internal/core/soil.go`
 - **Changes**:
-  - [ ] Add retry logic when creating streams/buckets
-  - [ ] Return meaningful errors when JetStream is unavailable
-  - [ ] Consider lazy initialization of JetStream resources
+  - [ ] Accept replication factor as parameter
+  - [ ] Configure streams with appropriate replicas
+  - [ ] Handle single-node vs cluster automatically
 
 ---
 
-### Phase 2: NATS Cluster Configuration
+### Phase 4: Systemd Integration
 
-#### 2.1 Create unified cluster node configuration template
-- **File**: `scripts/nats/nats-cluster.conf.template` (new file)
-- **Contents**:
-  ```
-  # Server identification
-  server_name: ${NODE_NAME}
-  
-  # Client connections (local only for sidecar)
-  port: 4222
-  
-  # Cluster configuration
-  cluster {
-    name: nimsforest
-    port: 6222
-    routes: [
-      ${CLUSTER_ROUTES}
-    ]
-  }
-  
-  # JetStream configuration
-  jetstream {
-    store_dir: /var/lib/nats/jetstream
-    max_mem: 256MB
-    max_file: 10GB
-  }
-  
-  # Monitoring
-  http_port: 8222
-  ```
-
-#### 2.2 Create configuration generator script
-- **File**: `scripts/generate-nats-config.sh` (new file)
-- **Features**:
-  - [ ] Accept node name and peer addresses as parameters
-  - [ ] Generate config from template with substitutions
-  - [ ] Validate generated configuration
-  - [ ] Support optional TLS configuration
-  - [ ] Support optional authentication
-
----
-
-### Phase 3: Systemd Integration
-
-#### 3.1 Create NATS cluster node systemd service
-- **File**: `scripts/systemd/nats.service` (update existing or new)
-- **Contents**:
-  - [ ] Service definition for NATS cluster node
-  - [ ] JetStream enabled
-  - [ ] Dependency on network
-  - [ ] Restart policy (always restart)
-  - [ ] Security hardening
-
-#### 3.2 Update nimsforest service for sidecar dependency
+#### 4.1 Update systemd service file
 - **File**: `scripts/systemd/nimsforest.service`
 - **Changes**:
-  - [ ] Change `Wants=nats.service` to `Requires=nats.service`
-  - [ ] Add `BindsTo=nats.service` for tight coupling
-  - [ ] Ensure proper startup ordering with `After=nats.service`
+  - [ ] Remove NATS service dependency (`Wants=`, `After=nats.service`)
+  - [ ] Add environment variables for cluster config
+  - [ ] Update `ExecStart` to include flags if needed
+  - [ ] Ensure proper data directory permissions
+
+#### 4.2 Create environment file template
+- **File**: `scripts/systemd/nimsforest.env.template` (new file)
+- **Contents**:
+  ```bash
+  # Node identification
+  NATS_NODE_NAME=nimsforest-1
+  
+  # Cluster peers (comma-separated, empty for standalone)
+  NATS_CLUSTER_PEERS=192.168.1.11:6222,192.168.1.12:6222
+  
+  # Storage
+  NATS_DATA_DIR=/var/lib/nimsforest/jetstream
+  
+  # Ports (defaults shown)
+  # NATS_CLIENT_PORT=4222
+  # NATS_CLUSTER_PORT=6222
+  # NATS_MONITOR_PORT=8222
+  ```
 
 ---
 
-### Phase 4: Setup Scripts
+### Phase 5: Setup Script Updates
 
-#### 4.1 Create cluster node setup script
-- **File**: `scripts/setup-nats-node.sh` (new file)
-- **Features**:
-  - [ ] Install NATS server binary (if not present)
-  - [ ] Accept node name as parameter
-  - [ ] Accept peer addresses as parameter (comma-separated)
-  - [ ] Generate configuration from template
-  - [ ] Install systemd service
-  - [ ] Start and enable service
-  - [ ] Verify cluster membership
-
-#### 4.2 Update main setup script
+#### 5.1 Simplify setup script
 - **File**: `scripts/setup-server.sh`
 - **Changes**:
-  - [ ] Add `--cluster-peers` parameter for peer addresses
-  - [ ] Add `--node-name` parameter (default: hostname)
-  - [ ] Update NATS setup to use cluster configuration
-  - [ ] Add cluster verification step
+  - [ ] Remove NATS server installation steps
+  - [ ] Remove NATS systemd service setup
+  - [ ] Keep nimsforest binary installation
+  - [ ] Add cluster peer configuration prompts
+  - [ ] Generate environment file from template
 
-#### 4.3 Create cluster status script
-- **File**: `scripts/cluster-status.sh` (new file)
+#### 5.2 Create Morpheus-friendly setup
+- **File**: `scripts/morpheus-setup.sh` (new file)
 - **Features**:
-  - [ ] Show all cluster members
-  - [ ] Show JetStream stream status and replication
-  - [ ] Show consumer status
-  - [ ] Health check for all nodes
+  - [ ] Accept parameters for automated setup
+  - [ ] `--node-name` (required)
+  - [ ] `--cluster-peers` (optional, standalone if empty)
+  - [ ] `--data-dir` (optional)
+  - [ ] Non-interactive mode for automation
+  - [ ] Verify setup and report status
 
 ---
 
-### Phase 5: Health & Observability
+### Phase 6: Health & Observability
 
-#### 5.1 Add health check endpoint
-- **File**: `cmd/forest/main.go` or `internal/httputil/health.go` (new)
-- **Features**:
-  - [ ] HTTP endpoint `/health` or `/healthz`
-  - [ ] Check NATS connection status
-  - [ ] Check JetStream availability
-  - [ ] Check cluster membership (connected peers)
-  - [ ] Return appropriate HTTP status codes
-  - [ ] Include details in response body
+#### 6.1 Add health endpoint
+- **File**: `internal/httputil/health.go` (new file)
+- **Endpoints**:
+  - [ ] `GET /health` - overall health
+  - [ ] `GET /health/nats` - NATS server status
+  - [ ] `GET /health/cluster` - cluster membership
+  - [ ] `GET /health/jetstream` - JetStream status
 
-#### 5.2 Add metrics for NATS connection (optional)
-- **File**: `internal/core/metrics.go` (new file)
-- **Metrics**:
-  - [ ] `nats_connection_status` (gauge: 0=disconnected, 1=connected)
-  - [ ] `nats_reconnect_total` (counter)
-  - [ ] `nats_cluster_peers` (gauge)
+#### 6.2 Expose NATS monitoring
+- **Built-in NATS endpoints** (on monitor port):
+  - `/varz` - server statistics
+  - `/jsz` - JetStream statistics  
+  - `/routez` - cluster route information
+  - `/healthz` - NATS health check
 
 ---
 
-### Phase 6: Documentation
+### Phase 7: Documentation
 
-#### 6.1 Create cluster deployment guide
+#### 7.1 Update README
+- **File**: `README.md`
+- **Changes**:
+  - [ ] Document embedded NATS architecture
+  - [ ] Update quick start (no separate NATS setup)
+  - [ ] Document cluster configuration
+  - [ ] Update environment variables list
+
+#### 7.2 Create cluster deployment guide
 - **File**: `docs/CLUSTER_DEPLOYMENT.md` (new file)
 - **Contents**:
-  - [ ] Architecture overview with diagrams
-  - [ ] Hardware/network requirements
-  - [ ] Step-by-step setup for 3-node cluster
-  - [ ] Adding/removing nodes
-  - [ ] Verification steps
-  - [ ] Troubleshooting guide
+  - [ ] Architecture overview
+  - [ ] Standalone vs cluster mode
+  - [ ] Step-by-step cluster setup
+  - [ ] Morpheus integration guide
+  - [ ] Troubleshooting
 
-#### 6.2 Update existing documentation
-- **Files**: `README.md`, `DEPLOYMENT.md`, `QUICK_START_GUIDE.md`
+#### 7.3 Update help output
+- **File**: `cmd/forest/main.go`
 - **Changes**:
-  - [ ] Document sidecar pattern as default deployment
-  - [ ] Update architecture diagrams
-  - [ ] Add cluster setup instructions
-  - [ ] Document environment variables
+  - [ ] Update `printHelp()` with new flags
+  - [ ] Document cluster configuration
+  - [ ] Show examples for standalone and cluster modes
 
 ---
 
-### Phase 7: Testing
+### Phase 8: Testing
 
-#### 7.1 Add connection resilience tests
-- **File**: `internal/core/connection_test.go` (new file)
+#### 8.1 Unit tests for embedded NATS
+- **File**: `internal/natsembed/server_test.go` (new file)
 - **Tests**:
-  - [ ] Test reconnection after disconnect
-  - [ ] Test initial connection retry
-  - [ ] Test connection event callbacks
+  - [ ] Test server startup and shutdown
+  - [ ] Test configuration parsing
+  - [ ] Test cluster route parsing
 
-#### 7.2 Add integration tests for cluster setup
-- **File**: `test/e2e/cluster_test.go` (new file)
+#### 8.2 Integration tests
+- **File**: `test/e2e/embedded_test.go` (new file)
 - **Tests**:
-  - [ ] Test cluster formation
-  - [ ] Test JetStream replication
-  - [ ] Test behavior during node failure
-  - [ ] Test message delivery across cluster
+  - [ ] Test standalone mode operation
+  - [ ] Test JetStream operations
+  - [ ] Test graceful shutdown
 
 ---
 
-## Environment Variables
+## Environment Variables (Final)
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `NATS_URL` | `nats://localhost:4222` | Local NATS sidecar URL |
-| `NATS_RETRY_ATTEMPTS` | `10` | Initial connection retry attempts |
-| `NATS_RETRY_INTERVAL` | `5s` | Interval between retry attempts |
-| `NATS_RECONNECT_WAIT` | `2s` | Wait time before reconnect |
-| `NATS_MAX_RECONNECTS` | `-1` (infinite) | Max reconnection attempts |
+| `NATS_NODE_NAME` | hostname | Unique node identifier |
+| `NATS_CLUSTER_PEERS` | (empty) | Comma-separated `host:port` list |
+| `NATS_DATA_DIR` | `/var/lib/nimsforest/jetstream` | JetStream storage |
+| `NATS_CLIENT_PORT` | `4222` | Client connection port |
+| `NATS_CLUSTER_PORT` | `6222` | Cluster communication port |
+| `NATS_MONITOR_PORT` | `8222` | HTTP monitoring (0 to disable) |
+
+## Command-Line Flags
+
+```
+nimsforest [flags] [command]
+
+Flags:
+  --node-name string       Node identifier (default: hostname)
+  --cluster-peers string   Comma-separated peer addresses (host:port)
+  --data-dir string        JetStream data directory
+  --client-port int        NATS client port (default 4222)
+  --cluster-port int       NATS cluster port (default 6222)
+  --monitor-port int       NATS monitor port (default 8222, 0 to disable)
+
+Commands:
+  run, start      Start nimsforest (default)
+  version         Show version
+  update          Update to latest version
+  help            Show help
+```
 
 ---
 
-## Cluster Configuration Variables
+## Deployment Examples
 
-These are used by `setup-nats-node.sh`:
+### Standalone (Development / Single Node)
 
-| Variable | Example | Description |
-|----------|---------|-------------|
-| `NODE_NAME` | `nats-node-1` | Unique name for this node |
-| `CLUSTER_PEERS` | `host2:6222,host3:6222` | Comma-separated peer addresses |
-| `JETSTREAM_MAX_MEM` | `256MB` | Max memory for JetStream |
-| `JETSTREAM_MAX_FILE` | `10GB` | Max disk for JetStream |
+```bash
+# Just run it - no configuration needed
+nimsforest
+
+# Or with custom data directory
+nimsforest --data-dir /data/nimsforest
+```
+
+### Cluster (Production)
+
+```bash
+# Node 1 (192.168.1.10)
+nimsforest --node-name node-1 --cluster-peers "192.168.1.11:6222,192.168.1.12:6222"
+
+# Node 2 (192.168.1.11)
+nimsforest --node-name node-2 --cluster-peers "192.168.1.10:6222,192.168.1.12:6222"
+
+# Node 3 (192.168.1.12)
+nimsforest --node-name node-3 --cluster-peers "192.168.1.10:6222,192.168.1.11:6222"
+```
+
+### Morpheus Provisioning
+
+```bash
+# Morpheus can run this on each provisioned machine
+nimsforest \
+  --node-name "${HOSTNAME}" \
+  --cluster-peers "${CLUSTER_PEER_LIST}" \
+  --data-dir /var/lib/nimsforest/jetstream
+```
 
 ---
 
 ## Implementation Priority
 
-1. **Phase 1** (Critical): Connection resilience - handle NATS restarts gracefully
-2. **Phase 2** (High): Cluster config - enables the sidecar pattern
-3. **Phase 3** (High): Systemd integration - production deployment
-4. **Phase 4** (High): Setup scripts - easy deployment
-5. **Phase 5** (Medium): Health checks - operational visibility
-6. **Phase 6** (Medium): Documentation - user guidance
-7. **Phase 7** (Low): Testing - validation
+| Phase | Priority | Effort | Description |
+|-------|----------|--------|-------------|
+| 1 | Critical | 3-4h | Embed NATS server |
+| 2 | Critical | 2-3h | Update main application |
+| 3 | High | 2h | Startup modes (standalone/cluster) |
+| 4 | High | 1h | Systemd updates |
+| 5 | Medium | 1-2h | Setup script simplification |
+| 6 | Medium | 2h | Health endpoints |
+| 7 | Medium | 2h | Documentation |
+| 8 | Low | 2h | Testing |
+
+**Total estimated effort**: 15-18 hours
 
 ---
 
-## Estimated Effort
+## Migration Path
 
-| Phase | Effort | Dependencies |
-|-------|--------|--------------|
-| Phase 1 | 2-3 hours | None |
-| Phase 2 | 1-2 hours | None |
-| Phase 3 | 1 hour | Phase 2 |
-| Phase 4 | 2-3 hours | Phase 2, 3 |
-| Phase 5 | 2 hours | Phase 1 |
-| Phase 6 | 2-3 hours | All above |
-| Phase 7 | 2-3 hours | Phase 1, 2 |
+For existing deployments with separate NATS:
 
-**Total estimated effort**: 12-17 hours
+1. Stop nimsforest service
+2. Stop NATS service
+3. Deploy new nimsforest binary
+4. Configure cluster peers (if clustered)
+5. Start nimsforest (embedded NATS starts automatically)
+6. Remove old NATS service (optional cleanup)
 
----
-
-## Deployment Example
-
-### Setting up a 3-node cluster
-
-```bash
-# On machine 1 (192.168.1.10)
-sudo ./scripts/setup-nats-node.sh \
-  --node-name nats-1 \
-  --cluster-peers "192.168.1.11:6222,192.168.1.12:6222"
-
-# On machine 2 (192.168.1.11)
-sudo ./scripts/setup-nats-node.sh \
-  --node-name nats-2 \
-  --cluster-peers "192.168.1.10:6222,192.168.1.12:6222"
-
-# On machine 3 (192.168.1.12)
-sudo ./scripts/setup-nats-node.sh \
-  --node-name nats-3 \
-  --cluster-peers "192.168.1.10:6222,192.168.1.11:6222"
-```
-
-### Verifying cluster
-
-```bash
-# Check cluster status
-nats server list
-
-# Check JetStream status
-nats stream list
-nats stream info RIVER
-```
+Data migration:
+- JetStream data can be preserved if using same data directory
+- Or start fresh (streams will be recreated automatically)
 
 ---
 
 ## Notes
 
-- All nodes are identical - same binary, same config structure
-- JetStream streams use R3 replication (data on 3 nodes) by default
-- For development, single-node mode still works (no peers configured)
-- App always connects to `localhost:4222` - simple and predictable
-- Consider TLS and authentication for production deployments
+- Binary size increases by ~15-20MB (NATS server code)
+- Single process simplifies monitoring and restarts
+- In-process connection is faster than network
+- External NATS CLI tools still work (connect to client port)
+- Cluster formation is automatic when peers are reachable
+- JetStream replication factor should match cluster size (R1 for standalone, R3 for 3+ nodes)

@@ -10,7 +10,7 @@ func TestCreateHTTPClient(t *testing.T) {
 	client := CreateHTTPClient(30 * time.Second)
 
 	if client == nil {
-		t.Error("CreateHTTPClient returned nil")
+		t.Fatal("CreateHTTPClient returned nil")
 	}
 
 	if client.Timeout != 30*time.Second {

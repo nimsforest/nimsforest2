@@ -13,7 +13,7 @@ import (
 
 const (
 	// DefaultNodeInfoPath is the default path to the local node configuration file.
-	DefaultNodeInfoPath = "/etc/morpheus/node-info.json"
+	DefaultNodeInfoPath = "/etc/nimsforest/node-info.json"
 
 	// DefaultRegistryPath is the default path to the shared cluster registry file.
 	DefaultRegistryPath = "/mnt/forest/registry.json"
@@ -23,18 +23,18 @@ const (
 )
 
 // NodeInfoPath returns the path to the node info file.
-// Can be overridden with MORPHEUS_NODE_INFO environment variable.
+// Can be overridden with NIMSFOREST_NODE_INFO environment variable.
 func NodeInfoPath() string {
-	if path := os.Getenv("MORPHEUS_NODE_INFO"); path != "" {
+	if path := os.Getenv("NIMSFOREST_NODE_INFO"); path != "" {
 		return path
 	}
 	return DefaultNodeInfoPath
 }
 
 // RegistryPath returns the path to the registry file.
-// Can be overridden with MORPHEUS_REGISTRY environment variable.
+// Can be overridden with NIMSFOREST_REGISTRY environment variable.
 func RegistryPath() string {
-	if path := os.Getenv("MORPHEUS_REGISTRY"); path != "" {
+	if path := os.Getenv("NIMSFOREST_REGISTRY"); path != "" {
 		return path
 	}
 	return DefaultRegistryPath

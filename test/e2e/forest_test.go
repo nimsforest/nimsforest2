@@ -77,7 +77,7 @@ func TestForestEndToEnd(t *testing.T) {
 		t.Skip("Skipping E2E test in short mode")
 	}
 
-	// Connect to NATS (uses embedded server or external if NATS_URL is set)
+	// Connect to embedded NATS
 	nc, js := getTestConnection(t)
 	defer nc.Close()
 
@@ -276,7 +276,7 @@ func TestForestComponents(t *testing.T) {
 		t.Skip("Skipping component test in short mode")
 	}
 
-	// Connect to NATS (uses embedded server or external if NATS_URL is set)
+	// Connect to embedded NATS
 	nc, js := getTestConnection(t)
 	defer nc.Close()
 
@@ -383,7 +383,7 @@ func TestForestScaling(t *testing.T) {
 		t.Skip("Skipping scaling test in short mode")
 	}
 
-	// Connect to NATS (uses embedded server or external if NATS_URL is set)
+	// Connect to embedded NATS
 	nc, js := getTestConnection(t)
 	defer nc.Close()
 

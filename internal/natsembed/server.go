@@ -1,5 +1,4 @@
 // Package natsembed provides an embedded NATS server for NimsForest.
-// This allows NimsForest to run without requiring an external NATS server.
 package natsembed
 
 import (

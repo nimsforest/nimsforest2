@@ -26,7 +26,7 @@ type Config struct {
 	Peers       []string // cluster peer addresses (e.g., ["[2a01::1]:6222", "[2a01::2]:6222"])
 	ClientPort  int      // client connection port (default: 4222)
 	ClusterPort int      // cluster port (default: 6222)
-	MonitorPort int      // HTTP monitoring port (default: 8222, 0 to disable)
+	MonitorPort int      // HTTP monitoring port (default: 8222, -1 to disable)
 }
 
 // New creates a new embedded NATS server with the given configuration.
@@ -53,6 +53,10 @@ func New(cfg Config) (*Server, error) {
 	// ClusterPort defaults
 	if cfg.ClusterPort == 0 {
 		cfg.ClusterPort = 6222
+	}
+	// MonitorPort defaults to 8222 for HTTP monitoring; use -1 to explicitly disable
+	if cfg.MonitorPort == 0 {
+		cfg.MonitorPort = 8222
 	}
 	if cfg.DataDir == "" {
 		cfg.DataDir = "/var/lib/nimsforest/jetstream"
@@ -130,8 +134,12 @@ func (s *Server) Start() error {
 		return fmt.Errorf("NATS server failed to start within timeout")
 	}
 
-	log.Printf("[NATSEmbed] Server started: client=%s:%d, jetstream=%s",
-		s.ns.ID(), s.config.ClientPort, s.config.DataDir)
+	monitorInfo := "disabled"
+	if s.config.MonitorPort > 0 {
+		monitorInfo = fmt.Sprintf("http://127.0.0.1:%d", s.config.MonitorPort)
+	}
+	log.Printf("[NATSEmbed] Server started: client=%s:%d, jetstream=%s, monitor=%s",
+		s.ns.ID(), s.config.ClientPort, s.config.DataDir, monitorInfo)
 
 	return nil
 }
@@ -213,6 +221,14 @@ func (s *Server) ClientURL() string {
 		return ""
 	}
 	return s.ns.ClientURL()
+}
+
+// MonitorURL returns the URL for HTTP monitoring, or empty string if disabled.
+func (s *Server) MonitorURL() string {
+	if s.ns == nil || s.config.MonitorPort <= 0 {
+		return ""
+	}
+	return fmt.Sprintf("http://127.0.0.1:%d", s.config.MonitorPort)
 }
 
 // getLocalIPv6 returns the non-loopback local IPv6 address of the host.

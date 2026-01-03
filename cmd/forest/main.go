@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -119,6 +120,7 @@ func printHelp() {
 	fmt.Println("  NATS_CLUSTER_NODE_INFO  Override node info path")
 	fmt.Println("  NATS_CLUSTER_REGISTRY   Override registry path")
 	fmt.Println("  JETSTREAM_DIR           JetStream data directory (default: /var/lib/nimsforest/jetstream)")
+	fmt.Println("  NATS_MONITOR_PORT       HTTP monitoring port (default: 8222, -1 to disable)")
 	fmt.Println("  DEMO                    Set to 'true' to run demo mode")
 	fmt.Println()
 	fmt.Println("Examples:")
@@ -163,6 +165,7 @@ func runForest() {
 		ClusterName: nodeInfo.ForestID,
 		DataDir:     getDataDir(),
 		Peers:       peers,
+		MonitorPort: getMonitorPort(),
 	}
 
 	ns, err := natsembed.New(cfg)
@@ -175,6 +178,9 @@ func runForest() {
 		log.Fatalf("❌ Failed to start embedded NATS server: %v\n", err)
 	}
 	fmt.Printf("✅ Embedded NATS server started at %s\n", ns.ClientURL())
+	if monitorURL := ns.MonitorURL(); monitorURL != "" {
+		fmt.Printf("📊 HTTP monitoring available at %s\n", monitorURL)
+	}
 
 	// Get client connection to embedded server
 	nc, err := ns.ClientConn()
@@ -338,6 +344,22 @@ func getDataDir() string {
 		return dir
 	}
 	return "/var/lib/nimsforest/jetstream"
+}
+
+// getMonitorPort returns the NATS HTTP monitoring port from environment.
+// Returns 0 to use default (8222), or the specified port value.
+// Set NATS_MONITOR_PORT=-1 to disable monitoring.
+func getMonitorPort() int {
+	portStr := os.Getenv("NATS_MONITOR_PORT")
+	if portStr == "" {
+		return 0 // Use default (8222)
+	}
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		log.Printf("Warning: invalid NATS_MONITOR_PORT value '%s', using default", portStr)
+		return 0
+	}
+	return port
 }
 
 func printBanner() {

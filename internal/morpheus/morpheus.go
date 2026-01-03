@@ -53,9 +53,24 @@ type Registry struct {
 
 // Node represents a single node in the cluster registry.
 type Node struct {
-	ID       string `json:"id"`        // Unique node identifier
-	IP       string `json:"ip"`        // Node's IP address (typically IPv6)
-	ForestID string `json:"forest_id"` // Cluster/forest identifier
+	ID       string `json:"id"`             // Unique node identifier
+	IP       string `json:"ip"`             // Primary IP (IPv6 preferred, IPv4 fallback)
+	IPv6     string `json:"ipv6,omitempty"` // IPv6 address (if available)
+	IPv4     string `json:"ipv4,omitempty"` // IPv4 address (if available)
+	ForestID string `json:"forest_id"`      // Cluster/forest identifier
+}
+
+// GetPreferredIP returns the best IP address to use based on available connectivity.
+// Prefers IPv6 if available and hasIPv6Connectivity is true, falls back to IPv4.
+func (n *Node) GetPreferredIP(hasIPv6Connectivity bool) string {
+	if hasIPv6Connectivity && n.IPv6 != "" {
+		return n.IPv6
+	}
+	if n.IPv4 != "" {
+		return n.IPv4
+	}
+	// Fallback to legacy IP field
+	return n.IP
 }
 
 // Load reads the local node configuration from the standard path.
@@ -112,13 +127,19 @@ func LoadRegistryFrom(path string) (*Registry, error) {
 }
 
 // GetPeers returns the cluster peer addresses for a given forest, excluding the current node.
-// Each peer address is formatted as "[IPv6]:port" for NATS cluster connection.
+// Each peer address is formatted as "[IPv6]:port" or "IPv4:port" for NATS cluster connection.
+// Defaults to preferring IPv6 connectivity.
 func GetPeers(forestID, selfIP string) []string {
-	return GetPeersFrom(RegistryPath(), forestID, selfIP, DefaultClusterPort)
+	return GetPeersFrom(RegistryPath(), forestID, selfIP, DefaultClusterPort, true)
+}
+
+// GetPeersWithConnectivity returns peers using the specified IP connectivity preference.
+func GetPeersWithConnectivity(forestID, selfIP string, hasIPv6Connectivity bool) []string {
+	return GetPeersFrom(RegistryPath(), forestID, selfIP, DefaultClusterPort, hasIPv6Connectivity)
 }
 
 // GetPeersFrom reads peers from a custom registry path.
-func GetPeersFrom(registryPath, forestID, selfIP string, clusterPort int) []string {
+func GetPeersFrom(registryPath, forestID, selfIP string, clusterPort int, hasIPv6Connectivity bool) []string {
 	reg, err := LoadRegistryFrom(registryPath)
 	if err != nil {
 		log.Printf("[Morpheus] Warning: failed to load registry: %v", err)
@@ -133,18 +154,37 @@ func GetPeersFrom(registryPath, forestID, selfIP string, clusterPort int) []stri
 
 	var peers []string
 	for _, node := range nodes {
-		// Skip self
-		if node.IP == selfIP {
+		// Get the preferred IP for this node
+		peerIP := node.GetPreferredIP(hasIPv6Connectivity)
+
+		// Skip self (check against all possible IPs)
+		if peerIP == selfIP || node.IP == selfIP || node.IPv4 == selfIP || node.IPv6 == selfIP {
 			continue
 		}
 
-		// Format as [IPv6]:port (IPv6 only)
-		addr := fmt.Sprintf("[%s]:%d", node.IP, clusterPort)
+		// Format address based on IP version
+		var addr string
+		if isIPv6(peerIP) {
+			addr = fmt.Sprintf("[%s]:%d", peerIP, clusterPort)
+		} else {
+			addr = fmt.Sprintf("%s:%d", peerIP, clusterPort)
+		}
 		peers = append(peers, addr)
 	}
 
-	log.Printf("[Morpheus] Found %d peers for forest %s", len(peers), forestID)
+	log.Printf("[Morpheus] Found %d peers for forest %s (IPv6 connectivity: %v)", len(peers), forestID, hasIPv6Connectivity)
 	return peers
+}
+
+// isIPv6 checks if an IP address is IPv6
+func isIPv6(ip string) bool {
+	// IPv6 addresses contain colons
+	for i := 0; i < len(ip); i++ {
+		if ip[i] == ':' {
+			return true
+		}
+	}
+	return false
 }
 
 // RegisterNode adds or updates a node in the registry.
@@ -195,7 +235,7 @@ func RegisterNodeTo(registryPath string, node Node) error {
 		return fmt.Errorf("failed to write registry: %w", err)
 	}
 
-	log.Printf("[Morpheus] Registered node: id=%s, forest=%s, ip=%s", node.ID, node.ForestID, node.IP)
+	log.Printf("[Morpheus] Registered node: id=%s, forest=%s, ip=%s, ipv4=%s, ipv6=%s", node.ID, node.ForestID, node.IP, node.IPv4, node.IPv6)
 	return nil
 }
 

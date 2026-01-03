@@ -90,6 +90,36 @@ DONE: 3-node NATS cluster, fully meshed, JetStream enabled
 
 ---
 
+## Adding Nodes Later
+
+When adding node-4 to an existing cluster:
+
+```
+MORPHEUS:
+  ├─► Create new server (node-4: 2a01:4f8:x:x::4)
+  ├─► Mount StorageBox at /mnt/forest/
+  ├─► Add node-4 to registry.json
+  ├─► Write node-info.json on node-4
+  ├─► Deploy binary
+  └─► Start service
+
+NODE-4 STARTS:
+  → Reads registry.json → sees all 4 nodes
+  → Filters out self → peers: node-1, node-2, node-3
+  → Connects to existing cluster ✓
+
+EXISTING NODES (node-1, node-2, node-3):
+  → They read registry only at startup
+  → They don't re-read registry
+  → But NATS GOSSIP propagates node-4's info automatically!
+  → All nodes learn about node-4 through NATS
+  → Cluster is now 4 nodes
+```
+
+**Key point:** Registry is only read at startup. NATS gossip handles dynamic membership.
+
+---
+
 ## File Formats
 
 ### /etc/morpheus/node-info.json (per machine)

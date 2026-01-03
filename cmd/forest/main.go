@@ -163,6 +163,7 @@ func runForest() {
 		ClusterName: nodeInfo.ForestID,
 		DataDir:     getDataDir(),
 		Peers:       peers,
+		// MonitorPort defaults to 8222 for HTTP monitoring
 	}
 
 	ns, err := natsembed.New(cfg)
@@ -175,6 +176,9 @@ func runForest() {
 		log.Fatalf("❌ Failed to start embedded NATS server: %v\n", err)
 	}
 	fmt.Printf("✅ Embedded NATS server started at %s\n", ns.ClientURL())
+	if monitorURL := ns.MonitorURL(); monitorURL != "" {
+		fmt.Printf("📊 HTTP monitoring available at %s\n", monitorURL)
+	}
 
 	// Get client connection to embedded server
 	nc, err := ns.ClientConn()

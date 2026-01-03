@@ -4,25 +4,77 @@
 
 ### Architecture Decision: Mounted StorageBox
 
-The StorageBox should be **mounted as a filesystem** on each machine rather than accessed via HTTP/WebDAV. This simplifies nimsforest significantly:
+The StorageBox is **mounted as a filesystem** on each machine. nimsforest reads it as a local file - no HTTP client needed.
 
-- **No HTTP client code** in nimsforest
-- **No authentication handling** - mount handles it
-- **No retry logic** - just read a file
-- **No credentials in node-info.json** - cleaner separation
+### Deployment Flow
 
-### Mount Setup (Morpheus responsibility)
+When user runs `morpheus plant cloud medium` (3 nodes):
 
-Mount the StorageBox on each machine:
-
-```bash
-# Example using CIFS/SMB
-mount -t cifs //uXXXXX.your-storagebox.de/backup /mnt/forest \
-  -o user=uXXXXX,pass=PASSWORD,uid=root,gid=root
-
-# Or add to /etc/fstab for persistence
-//uXXXXX.your-storagebox.de/backup /mnt/forest cifs user=uXXXXX,pass=PASSWORD,uid=root,gid=root 0 0
 ```
+PHASE 1: Provision Infrastructure
+──────────────────────────────────
+Morpheus:
+  ├─► Create 3 Hetzner servers
+  │   • node-1: 2a01:4f8:x:x::1
+  │   • node-2: 2a01:4f8:x:x::2  
+  │   • node-3: 2a01:4f8:x:x::3
+  │
+  ├─► Mount StorageBox on each server at /mnt/forest/
+  │
+  └─► Register ALL nodes in registry FIRST (before starting any service)
+      Write to /mnt/forest/registry.json:
+      {
+        "nodes": {
+          "forest-123": [
+            { "id": "node-1", "ip": "2a01:4f8:x:x::1" },
+            { "id": "node-2", "ip": "2a01:4f8:x:x::2" },
+            { "id": "node-3", "ip": "2a01:4f8:x:x::3" }
+          ]
+        }
+      }
+
+PHASE 2: Configure Each Node
+────────────────────────────
+On each server:
+  ├─► Write /etc/morpheus/node-info.json
+  │   { "forest_id": "forest-123", "node_id": "node-1" }
+  │
+  ├─► Create /var/lib/nimsforest/jetstream/
+  │
+  └─► Deploy /opt/nimsforest/bin/forest
+
+PHASE 3: Start Services
+───────────────────────
+Start nimsforest service on all nodes (order doesn't matter)
+
+PHASE 4: Cluster Forms Automatically  
+────────────────────────────────────
+node-1 starts:
+  → Reads registry, sees node-2, node-3
+  → Starts NATS, tries to connect to peers
+  → Peers not up yet, connections fail (OK - NATS retries)
+  → Runs as cluster of 1
+
+node-2 starts:
+  → Reads registry, sees node-1, node-3
+  → Starts NATS, connects to node-1 ✓
+  → NATS gossip: both nodes now know each other
+  → Cluster is 2 nodes
+
+node-3 starts:
+  → Reads registry, sees node-1, node-2
+  → Starts NATS, connects to both ✓
+  → Full mesh formed
+  → Cluster is 3 nodes
+
+RESULT: 3-node NATS cluster with JetStream, fully meshed
+```
+
+### Important: Registry Before Service
+
+**Register ALL nodes in registry.json BEFORE starting nimsforest on ANY node.**
+
+This ensures every node knows about all peers from startup. NATS handles connection retries automatically.
 
 ### File Locations
 
@@ -30,14 +82,18 @@ mount -t cifs //uXXXXX.your-storagebox.de/backup /mnt/forest \
 |------|------|------------|
 | Node info | `/etc/morpheus/node-info.json` | Morpheus (per machine) |
 | Registry | `/mnt/forest/registry.json` | Morpheus (shared) |
-| nimsforest binary | `/opt/nimsforest/bin/forest` | Morpheus |
+| Binary | `/opt/nimsforest/bin/forest` | Morpheus |
 | JetStream data | `/var/lib/nimsforest/jetstream/` | nimsforest |
 
-### What Morpheus Should Do
+### Mount Setup
 
-1. **Mount StorageBox** at `/mnt/forest/` on each machine
+```bash
+# Mount StorageBox (add to cloud-init or /etc/fstab)
+//uXXXXX.your-storagebox.de/backup /mnt/forest cifs user=uXXXXX,pass=PASSWORD,uid=root,gid=root 0 0
+```
 
-2. **Write `/etc/morpheus/node-info.json`** on each machine:
+### node-info.json Format
+
 ```json
 {
   "forest_id": "forest-123",
@@ -45,45 +101,29 @@ mount -t cifs //uXXXXX.your-storagebox.de/backup /mnt/forest \
 }
 ```
 
-3. **Write/update `/mnt/forest/registry.json`** (shared file):
+### registry.json Format
+
 ```json
 {
   "nodes": {
     "forest-123": [
-      { "id": "12345678", "ip": "2a01:4f8:x:x::1", "forest_id": "forest-123" },
-      { "id": "12345679", "ip": "2a01:4f8:x:x::2", "forest_id": "forest-123" },
-      { "id": "12345680", "ip": "2a01:4f8:x:x::3", "forest_id": "forest-123" }
+      { "id": "node-1", "ip": "2a01:4f8:x:x::1", "forest_id": "forest-123" },
+      { "id": "node-2", "ip": "2a01:4f8:x:x::2", "forest_id": "forest-123" },
+      { "id": "node-3", "ip": "2a01:4f8:x:x::3", "forest_id": "forest-123" }
     ]
   }
 }
 ```
 
-4. **Create directories**:
-   - `/var/lib/nimsforest/jetstream/`
-
-5. **Deploy binary** to `/opt/nimsforest/bin/forest`
-
-6. **Start service** via systemd
-
-### What nimsforest Does on Startup
-
-```
-1. Read /etc/morpheus/node-info.json → get forest_id
-2. Read /mnt/forest/registry.json → find peer IPs
-3. Start embedded NATS with routes to peers
-4. NATS cluster forms via gossip
-5. Application starts
-```
-
 ### Firewall Ports
 
-- `6222` - NATS cluster communication (required)
-- `4222` - NATS client (optional, for debugging)
+- `6222` - NATS cluster (required)
+- `4222` - NATS client (optional)
 - `8222` - NATS monitoring (optional)
 
 ---
 
-## Implementation Tasks
+## nimsforest Implementation Tasks
 
 ### 1. Embed NATS Server
 

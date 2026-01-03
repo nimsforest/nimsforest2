@@ -249,3 +249,84 @@ WantedBy=multi-user.target
 | Read config files | 1h |
 | Wire up main.go | 1h |
 | **Total** | **5-6h** |
+
+---
+
+## Archive: Humus → Soil → SQLite
+
+### Overview
+
+State flows through three layers:
+
+```
+Humus (events) → Decomposer → Soil (active state) → Archive (SQLite)
+                                                         ↓
+                                              Network drive for
+                                              offline access
+```
+
+- **Soil**: Active state, requires runtime
+- **Archive**: Inactive/historical data, always accessible (SQLite on network drive)
+
+### ✅ Completed
+
+- [x] `internal/core/archive.go` - SQLite archive component
+- [x] `Archive.Store(key, data, archivedBy)` - Store entity
+- [x] `Archive.Get(key)` - Retrieve entity
+- [x] `Archive.List()` - List all keys
+- [x] `Archive.Delete(key)` - Remove entity
+- [x] `ArchiveFromSoil(soil, archive, key, node, delete)` - Move from Soil to Archive
+- [x] Tests for archive functionality
+
+### 🔲 TODO: Archival Policy
+
+**Problem**: When should data be moved from Soil to Archive?
+
+Options to implement:
+
+1. **Manual archival** - Nim explicitly archives when task/entity is "done"
+   ```go
+   // In a nim handler
+   if task.Status == "completed" && task.CompletedAt.Before(thirtyDaysAgo) {
+       core.ArchiveFromSoil(soil, archive, taskKey, nodeName, true)
+   }
+   ```
+
+2. **Time-based archival** - Background worker archives old data
+   ```go
+   // Archiver checks entities older than X days
+   type Archiver struct {
+       soil       *Soil
+       archive    *Archive
+       maxAge     time.Duration  // e.g., 30 days
+       checkEvery time.Duration  // e.g., 1 hour
+   }
+   ```
+
+3. **Entity-type rules** - Different retention per entity type
+   ```go
+   // Config-driven
+   archivalRules:
+     tasks/*: 30d
+     orders/*: 90d
+     customers/*: never  # always active
+   ```
+
+4. **Capacity-based** - Archive when Soil reaches size limit
+
+### 🔲 TODO: Implementation Tasks
+
+| Task | Priority | Notes |
+|------|----------|-------|
+| Define archival trigger (manual vs automatic) | High | Architectural decision |
+| Add `archived_at` / `status` field to entities | High | Need to know what's archivable |
+| Create `Archiver` worker (if automatic) | Medium | Runs periodically |
+| Add archival rules config | Medium | Per entity-type retention |
+| Expose archive via API for offline queries | Low | REST/CLI to query SQLite |
+
+### Questions to Answer
+
+1. **Who decides when to archive?** The nim (business logic) or a system worker?
+2. **What makes an entity "inactive"?** Status field? Last modified time? Both?
+3. **Should archived data be queryable from nims?** Or only offline via SQLite tools?
+4. **Retention period?** How long before completed tasks move to archive?

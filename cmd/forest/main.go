@@ -119,7 +119,6 @@ func printHelp() {
 	fmt.Println("  NATS_CLUSTER_NODE_INFO  Override node info path")
 	fmt.Println("  NATS_CLUSTER_REGISTRY   Override registry path")
 	fmt.Println("  JETSTREAM_DIR           JetStream data directory (default: /var/lib/nimsforest/jetstream)")
-	fmt.Println("  NATS_MONITOR_PORT       HTTP monitoring port (default: 8222, -1 to disable)")
 	fmt.Println("  DEMO                    Set to 'true' to run demo mode")
 	fmt.Println()
 	fmt.Println("Examples:")
@@ -164,7 +163,7 @@ func runForest() {
 		ClusterName: nodeInfo.ForestID,
 		DataDir:     getDataDir(),
 		Peers:       peers,
-		MonitorPort: 8222, // HTTP monitoring enabled by default
+		// MonitorPort defaults to 8222 for HTTP monitoring
 	}
 
 	ns, err := natsembed.New(cfg)

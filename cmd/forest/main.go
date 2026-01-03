@@ -14,9 +14,118 @@ import (
 	"github.com/yourusername/nimsforest/internal/core"
 	"github.com/yourusername/nimsforest/internal/nims"
 	"github.com/yourusername/nimsforest/internal/trees"
+	"github.com/yourusername/nimsforest/internal/updater"
 )
 
+// version is set at build time via -ldflags
+var version = "dev"
+
 func main() {
+	// Handle command-line arguments
+	if len(os.Args) > 1 {
+		command := os.Args[1]
+		switch command {
+		case "version", "--version", "-v":
+			fmt.Printf("forest version %s\n", version)
+			return
+		case "update":
+			handleUpdate()
+			return
+		case "check-update":
+			handleCheckUpdate()
+			return
+		case "help", "--help", "-h":
+			printHelp()
+			return
+		case "run", "start":
+			// Continue to run the forest
+		default:
+			fmt.Fprintf(os.Stderr, "Unknown command: %s\n\n", command)
+			printHelp()
+			os.Exit(1)
+		}
+	}
+
+	// Run the forest
+	runForest()
+}
+
+func handleUpdate() {
+	fmt.Println("🔄 Checking for updates...")
+
+	u := updater.NewUpdater(version)
+
+	info, err := u.CheckForUpdate()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "❌ Failed to check for updates: %v\n", err)
+		os.Exit(1)
+	}
+
+	if !info.Available {
+		fmt.Printf("✅ You're already running the latest version (%s)\n", version)
+		return
+	}
+
+	fmt.Printf("\n🆕 New version available: %s → %s\n", info.CurrentVersion, info.LatestVersion)
+	fmt.Printf("   Release URL: %s\n\n", info.UpdateURL)
+
+	if info.ReleaseNotes != "" {
+		fmt.Println("📝 Release Notes:")
+		fmt.Println(info.ReleaseNotes)
+		fmt.Println()
+	}
+
+	fmt.Println("📦 Starting update...")
+	if err := u.PerformUpdate(); err != nil {
+		fmt.Fprintf(os.Stderr, "❌ Update failed: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+func handleCheckUpdate() {
+	fmt.Println("🔍 Checking for updates...")
+
+	u := updater.NewUpdater(version)
+
+	info, err := u.CheckForUpdate()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "❌ Failed to check for updates: %v\n", err)
+		os.Exit(1)
+	}
+
+	updater.PrintUpdateInfo(info)
+}
+
+func printHelp() {
+	fmt.Println("🌲 NimsForest - Event-Driven Organizational Orchestration")
+	fmt.Println()
+	fmt.Println("Usage:")
+	fmt.Println("  forest [command]")
+	fmt.Println()
+	fmt.Println("Commands:")
+	fmt.Println("  (no command)    Start the NimsForest event processor")
+	fmt.Println("  run, start      Start the NimsForest event processor")
+	fmt.Println("  version         Show version information")
+	fmt.Println("  update          Check for updates and install if available")
+	fmt.Println("  check-update    Check for updates without installing")
+	fmt.Println("  help            Show this help message")
+	fmt.Println()
+	fmt.Println("Environment Variables:")
+	fmt.Println("  NATS_URL        NATS server URL (default: nats://localhost:4222)")
+	fmt.Println("  DEMO            Set to 'true' to run demo mode")
+	fmt.Println()
+	fmt.Println("Examples:")
+	fmt.Println("  forest                          # Start the forest")
+	fmt.Println("  forest version                  # Show version")
+	fmt.Println("  forest check-update             # Check for new versions")
+	fmt.Println("  forest update                   # Update to latest version")
+	fmt.Println("  DEMO=true forest                # Start with demo mode")
+	fmt.Println("  NATS_URL=nats://server:4222 forest")
+	fmt.Println()
+	fmt.Println("More info: https://github.com/yourusername/nimsforest")
+}
+
+func runForest() {
 	printBanner()
 
 	// Get NATS URL from environment or use default
@@ -122,6 +231,7 @@ func main() {
 	time.Sleep(500 * time.Millisecond)
 
 	fmt.Println("\n🌲 NimsForest is fully operational!")
+	fmt.Printf("   Version: %s\n", version)
 	fmt.Println()
 
 	// Check if demo mode is enabled

@@ -9,54 +9,13 @@ permissions:
   contents: write
 
 jobs:
-  create-release:
+  release:
     name: Create Release
     runs-on: ubuntu-latest
-    outputs:
-      upload_url: ${{ steps.create_release.outputs.upload_url }}
-      version: ${{ steps.get_version.outputs.version }}
-    
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+    - uses: actions/checkout@v4
       with:
-        fetch-depth: 0
-    
-    - name: Get version from tag
-      id: get_version
-      run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-    
-    - name: Generate changelog
-      id: changelog
-      run: |
-        echo "## What's Changed" > CHANGELOG.md
-        git log $(git describe --tags --abbrev=0 HEAD^)..HEAD --pretty=format:"- %s (%h)" >> CHANGELOG.md
-        cat CHANGELOG.md
-    
-    - name: Create Release
-      id: create_release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: ${{ github.ref }}
-        release_name: Release ${{ github.ref_name }}
-        body_path: CHANGELOG.md
-        draft: false
-        prerelease: false
-
-  build-and-upload:
-    name: Build and Upload Assets
-    needs: create-release
-    runs-on: ubuntu-latest
-    
-    strategy:
-      matrix:
-        goarch: [amd64, arm64]
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+        fetch-depth: 0  # Fetch all tags for version detection
     
     - name: Set up Go
       uses: actions/setup-go@v5
@@ -64,33 +23,105 @@ jobs:
         go-version: '1.24.x'
         cache: true
     
-    - name: Create source archive for Linux/Debian
+    - name: Get version from tag
+      id: get_version
       run: |
-        # This is a library project - create source archive
-        VERSION="${{ needs.create-release.outputs.version }}"
-        ARCHIVE_NAME="nimsforest-${VERSION}-linux-${{ matrix.goarch }}"
-        
-        # Create a directory with the source
-        mkdir -p ${ARCHIVE_NAME}
-        cp -r internal ${ARCHIVE_NAME}/
-        cp go.mod go.sum README.md LICENSE* ${ARCHIVE_NAME}/ 2>/dev/null || true
-        
-        # Create tarball
-        tar czf ${ARCHIVE_NAME}.tar.gz ${ARCHIVE_NAME}
-        
-        echo "ASSET_PATH=${ARCHIVE_NAME}.tar.gz" >> $GITHUB_ENV
-        echo "ASSET_NAME=${ARCHIVE_NAME}.tar.gz" >> $GITHUB_ENV
-        echo "ASSET_TYPE=application/gzip" >> $GITHUB_ENV
-      env:
-        GOOS: linux
-        GOARCH: ${{ matrix.goarch }}
+        VERSION=${GITHUB_REF#refs/tags/}
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "version_number=${VERSION#v}" >> $GITHUB_OUTPUT
     
-    - name: Upload Release Asset
-      uses: actions/upload-release-asset@v1
+    - name: Generate changelog
+      id: changelog
+      run: |
+        VERSION="${{ steps.get_version.outputs.version }}"
+        
+        # Try to get previous tag for changelog
+        PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+        
+        echo "## What's Changed" > /tmp/release_notes.txt
+        echo "" >> /tmp/release_notes.txt
+        
+        if [ -n "$PREV_TAG" ]; then
+          git log ${PREV_TAG}..HEAD --pretty=format:"- %s (%h)" >> /tmp/release_notes.txt
+        else
+          git log --pretty=format:"- %s (%h)" -10 >> /tmp/release_notes.txt
+        fi
+        
+        echo "" >> /tmp/release_notes.txt
+        echo "" >> /tmp/release_notes.txt
+        echo "## Installation" >> /tmp/release_notes.txt
+        echo "" >> /tmp/release_notes.txt
+        echo "Download the binary for your platform below, or update an existing installation:" >> /tmp/release_notes.txt
+        echo "" >> /tmp/release_notes.txt
+        echo "\`\`\`bash" >> /tmp/release_notes.txt
+        echo "forest update" >> /tmp/release_notes.txt
+        echo "\`\`\`" >> /tmp/release_notes.txt
+        
+        cat /tmp/release_notes.txt
+    
+    - name: Build binaries
+      run: |
+        VERSION=${{ steps.get_version.outputs.version }}
+        
+        # Create dist directory
+        mkdir -p dist
+        
+        # Build for multiple platforms
+        # Linux AMD64
+        echo "Building for linux/amd64..."
+        GOOS=linux GOARCH=amd64 go build -ldflags "-s -w -X main.version=$VERSION" -o dist/forest-linux-amd64 ./cmd/forest
+        
+        # Linux ARM64 (for ARM servers)
+        echo "Building for linux/arm64..."
+        GOOS=linux GOARCH=arm64 go build -ldflags "-s -w -X main.version=$VERSION" -o dist/forest-linux-arm64 ./cmd/forest
+        
+        # Linux ARM (for Termux on 32-bit Android)
+        echo "Building for linux/arm..."
+        GOOS=linux GOARCH=arm GOARM=7 go build -ldflags "-s -w -X main.version=$VERSION" -o dist/forest-linux-arm ./cmd/forest
+        
+        # macOS AMD64
+        echo "Building for darwin/amd64..."
+        GOOS=darwin GOARCH=amd64 go build -ldflags "-s -w -X main.version=$VERSION" -o dist/forest-darwin-amd64 ./cmd/forest
+        
+        # macOS ARM64 (Apple Silicon)
+        echo "Building for darwin/arm64..."
+        GOOS=darwin GOARCH=arm64 go build -ldflags "-s -w -X main.version=$VERSION" -o dist/forest-darwin-arm64 ./cmd/forest
+        
+        # Create checksums
+        cd dist
+        sha256sum * > SHA256SUMS
+        
+        echo "Build complete!"
+        ls -la
+    
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        name: ${{ steps.get_version.outputs.version }}
+        body_path: /tmp/release_notes.txt
+        draft: false
+        prerelease: false
+        files: |
+          dist/forest-linux-amd64
+          dist/forest-linux-arm64
+          dist/forest-linux-arm
+          dist/forest-darwin-amd64
+          dist/forest-darwin-arm64
+          dist/SHA256SUMS
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ needs.create-release.outputs.upload_url }}
-        asset_path: ${{ env.ASSET_PATH }}
-        asset_name: ${{ env.ASSET_NAME }}
-        asset_content_type: ${{ env.ASSET_TYPE }}
+    
+    - name: Summary
+      run: |
+        echo "✅ Release ${{ steps.get_version.outputs.version }} created successfully!"
+        echo ""
+        echo "📦 Binaries available for:"
+        echo "  - Linux AMD64 (standard Linux servers)"
+        echo "  - Linux ARM64 (ARM servers, 64-bit Android/Termux)"
+        echo "  - Linux ARM (32-bit Android/Termux)"
+        echo "  - macOS AMD64 (Intel Macs)"
+        echo "  - macOS ARM64 (Apple Silicon Macs)"
+        echo ""
+        echo "🔗 Release URL: https://github.com/${{ github.repository }}/releases/tag/${{ steps.get_version.outputs.version }}"
+        echo ""
+        echo "Users can now run: forest update"

@@ -1,6 +1,6 @@
-// Package morpheus provides configuration loading for NimsForest cluster deployments.
-// It reads node information and cluster registry from well-known paths.
-package morpheus
+// Package natsclusterconfig provides configuration loading for NimsForest NATS cluster.
+// It reads node information and cluster registry from well-known paths written by Morpheus.
+package natsclusterconfig
 
 import (
 	"encoding/json"
@@ -13,7 +13,7 @@ import (
 
 const (
 	// DefaultNodeInfoPath is the default path to the local node configuration file.
-	DefaultNodeInfoPath = "/etc/morpheus/node-info.json"
+	DefaultNodeInfoPath = "/etc/nimsforest/node-info.json"
 
 	// DefaultRegistryPath is the default path to the shared cluster registry file.
 	DefaultRegistryPath = "/mnt/forest/registry.json"
@@ -23,18 +23,18 @@ const (
 )
 
 // NodeInfoPath returns the path to the node info file.
-// Can be overridden with MORPHEUS_NODE_INFO environment variable.
+// Can be overridden with NATS_CLUSTER_NODE_INFO environment variable.
 func NodeInfoPath() string {
-	if path := os.Getenv("MORPHEUS_NODE_INFO"); path != "" {
+	if path := os.Getenv("NATS_CLUSTER_NODE_INFO"); path != "" {
 		return path
 	}
 	return DefaultNodeInfoPath
 }
 
 // RegistryPath returns the path to the registry file.
-// Can be overridden with MORPHEUS_REGISTRY environment variable.
+// Can be overridden with NATS_CLUSTER_REGISTRY environment variable.
 func RegistryPath() string {
-	if path := os.Getenv("MORPHEUS_REGISTRY"); path != "" {
+	if path := os.Getenv("NATS_CLUSTER_REGISTRY"); path != "" {
 		return path
 	}
 	return DefaultRegistryPath
@@ -53,9 +53,24 @@ type Registry struct {
 
 // Node represents a single node in the cluster registry.
 type Node struct {
-	ID       string `json:"id"`        // Unique node identifier
-	IP       string `json:"ip"`        // Node's IP address (typically IPv6)
-	ForestID string `json:"forest_id"` // Cluster/forest identifier
+	ID       string `json:"id"`             // Unique node identifier
+	IP       string `json:"ip"`             // Primary IP (IPv6 preferred, IPv4 fallback)
+	IPv6     string `json:"ipv6,omitempty"` // IPv6 address (if available)
+	IPv4     string `json:"ipv4,omitempty"` // IPv4 address (if available)
+	ForestID string `json:"forest_id"`      // Cluster/forest identifier
+}
+
+// GetPreferredIP returns the best IP address to use based on available connectivity.
+// Prefers IPv6 if available and hasIPv6Connectivity is true, falls back to IPv4.
+func (n *Node) GetPreferredIP(hasIPv6Connectivity bool) string {
+	if hasIPv6Connectivity && n.IPv6 != "" {
+		return n.IPv6
+	}
+	if n.IPv4 != "" {
+		return n.IPv4
+	}
+	// Fallback to legacy IP field
+	return n.IP
 }
 
 // Load reads the local node configuration from the standard path.
@@ -69,18 +84,18 @@ func LoadFrom(path string) *NodeInfo {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if !os.IsNotExist(err) {
-			log.Printf("[Morpheus] Warning: failed to read node info from %s: %v", path, err)
+			log.Printf("[NATSClusterConfig] Warning: failed to read node info from %s: %v", path, err)
 		}
 		return nil
 	}
 
 	var info NodeInfo
 	if err := json.Unmarshal(data, &info); err != nil {
-		log.Printf("[Morpheus] Warning: failed to parse node info from %s: %v", path, err)
+		log.Printf("[NATSClusterConfig] Warning: failed to parse node info from %s: %v", path, err)
 		return nil
 	}
 
-	log.Printf("[Morpheus] Loaded node info: forest_id=%s, node_id=%s", info.ForestID, info.NodeID)
+	log.Printf("[NATSClusterConfig] Loaded node info: forest_id=%s, node_id=%s", info.ForestID, info.NodeID)
 	return &info
 }
 
@@ -112,39 +127,64 @@ func LoadRegistryFrom(path string) (*Registry, error) {
 }
 
 // GetPeers returns the cluster peer addresses for a given forest, excluding the current node.
-// Each peer address is formatted as "[IPv6]:port" for NATS cluster connection.
+// Each peer address is formatted as "[IPv6]:port" or "IPv4:port" for NATS cluster connection.
+// Defaults to preferring IPv6 connectivity.
 func GetPeers(forestID, selfIP string) []string {
-	return GetPeersFrom(RegistryPath(), forestID, selfIP, DefaultClusterPort)
+	return GetPeersFrom(RegistryPath(), forestID, selfIP, DefaultClusterPort, true)
+}
+
+// GetPeersWithConnectivity returns peers using the specified IP connectivity preference.
+func GetPeersWithConnectivity(forestID, selfIP string, hasIPv6Connectivity bool) []string {
+	return GetPeersFrom(RegistryPath(), forestID, selfIP, DefaultClusterPort, hasIPv6Connectivity)
 }
 
 // GetPeersFrom reads peers from a custom registry path.
-func GetPeersFrom(registryPath, forestID, selfIP string, clusterPort int) []string {
+func GetPeersFrom(registryPath, forestID, selfIP string, clusterPort int, hasIPv6Connectivity bool) []string {
 	reg, err := LoadRegistryFrom(registryPath)
 	if err != nil {
-		log.Printf("[Morpheus] Warning: failed to load registry: %v", err)
+		log.Printf("[NATSClusterConfig] Warning: failed to load registry: %v", err)
 		return nil
 	}
 
 	nodes, ok := reg.Nodes[forestID]
 	if !ok {
-		log.Printf("[Morpheus] No nodes found for forest: %s", forestID)
+		log.Printf("[NATSClusterConfig] No nodes found for forest: %s", forestID)
 		return nil
 	}
 
 	var peers []string
 	for _, node := range nodes {
-		// Skip self
-		if node.IP == selfIP {
+		// Get the preferred IP for this node
+		peerIP := node.GetPreferredIP(hasIPv6Connectivity)
+
+		// Skip self (check against all possible IPs)
+		if peerIP == selfIP || node.IP == selfIP || node.IPv4 == selfIP || node.IPv6 == selfIP {
 			continue
 		}
 
-		// Format as [IPv6]:port (IPv6 only)
-		addr := fmt.Sprintf("[%s]:%d", node.IP, clusterPort)
+		// Format address based on IP version
+		var addr string
+		if isIPv6(peerIP) {
+			addr = fmt.Sprintf("[%s]:%d", peerIP, clusterPort)
+		} else {
+			addr = fmt.Sprintf("%s:%d", peerIP, clusterPort)
+		}
 		peers = append(peers, addr)
 	}
 
-	log.Printf("[Morpheus] Found %d peers for forest %s", len(peers), forestID)
+	log.Printf("[NATSClusterConfig] Found %d peers for forest %s (IPv6 connectivity: %v)", len(peers), forestID, hasIPv6Connectivity)
 	return peers
+}
+
+// isIPv6 checks if an IP address is IPv6
+func isIPv6(ip string) bool {
+	// IPv6 addresses contain colons
+	for i := 0; i < len(ip); i++ {
+		if ip[i] == ':' {
+			return true
+		}
+	}
+	return false
 }
 
 // RegisterNode adds or updates a node in the registry.
@@ -195,7 +235,7 @@ func RegisterNodeTo(registryPath string, node Node) error {
 		return fmt.Errorf("failed to write registry: %w", err)
 	}
 
-	log.Printf("[Morpheus] Registered node: id=%s, forest=%s, ip=%s", node.ID, node.ForestID, node.IP)
+	log.Printf("[NATSClusterConfig] Registered node: id=%s, forest=%s, ip=%s, ipv4=%s, ipv6=%s", node.ID, node.ForestID, node.IP, node.IPv4, node.IPv6)
 	return nil
 }
 
@@ -236,7 +276,7 @@ func UnregisterNodeFrom(registryPath, forestID, nodeID string) error {
 		return fmt.Errorf("failed to write registry: %w", err)
 	}
 
-	log.Printf("[Morpheus] Unregistered node: id=%s, forest=%s", nodeID, forestID)
+	log.Printf("[NATSClusterConfig] Unregistered node: id=%s, forest=%s", nodeID, forestID)
 	return nil
 }
 
@@ -280,7 +320,7 @@ func (l *fileLock) Unlock() {
 }
 
 // MustLoad reads the local node configuration and panics if it's missing.
-// Use this when Morpheus configuration is required.
+// Use this when cluster configuration is required.
 func MustLoad() *NodeInfo {
 	return MustLoadFrom(NodeInfoPath())
 }
@@ -289,13 +329,13 @@ func MustLoad() *NodeInfo {
 func MustLoadFrom(path string) *NodeInfo {
 	info := LoadFrom(path)
 	if info == nil {
-		log.Fatalf("[Morpheus] FATAL: Node configuration required at %s", path)
+		log.Fatalf("[NATSClusterConfig] FATAL: Node configuration required at %s", path)
 	}
 	if info.ForestID == "" {
-		log.Fatalf("[Morpheus] FATAL: forest_id is required in %s", path)
+		log.Fatalf("[NATSClusterConfig] FATAL: forest_id is required in %s", path)
 	}
 	if info.NodeID == "" {
-		log.Fatalf("[Morpheus] FATAL: node_id is required in %s", path)
+		log.Fatalf("[NATSClusterConfig] FATAL: node_id is required in %s", path)
 	}
 	return info
 }

@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/yourusername/nimsforest/internal/core"
-	"github.com/yourusername/nimsforest/internal/morpheus"
+	"github.com/yourusername/nimsforest/internal/natsclusterconfig"
 	"github.com/yourusername/nimsforest/internal/natsembed"
 	"github.com/yourusername/nimsforest/internal/nims"
 	"github.com/yourusername/nimsforest/internal/trees"
@@ -112,12 +112,14 @@ func printHelp() {
 	fmt.Println("  help            Show this help message")
 	fmt.Println()
 	fmt.Println("Required Configuration:")
-	fmt.Println("  /etc/morpheus/node-info.json    Node identity (forest_id, node_id)")
+	fmt.Println("  /etc/nimsforest/node-info.json  Node identity (forest_id, node_id)")
 	fmt.Println("  /mnt/forest/registry.json       Cluster registry (shared storage)")
 	fmt.Println()
 	fmt.Println("Environment Variables:")
-	fmt.Println("  JETSTREAM_DIR   JetStream data directory (default: /var/lib/nimsforest/jetstream)")
-	fmt.Println("  DEMO            Set to 'true' to run demo mode")
+	fmt.Println("  NATS_CLUSTER_NODE_INFO  Override node info path")
+	fmt.Println("  NATS_CLUSTER_REGISTRY   Override registry path")
+	fmt.Println("  JETSTREAM_DIR           JetStream data directory (default: /var/lib/nimsforest/jetstream)")
+	fmt.Println("  DEMO                    Set to 'true' to run demo mode")
 	fmt.Println()
 	fmt.Println("Examples:")
 	fmt.Println("  forest                          # Start the forest")
@@ -134,9 +136,9 @@ func runForest() {
 
 	fmt.Printf("🌲 Starting NimsForest...\n")
 
-	// Load Morpheus configuration (required)
-	fmt.Println("Loading Morpheus configuration...")
-	nodeInfo := morpheus.MustLoad()
+	// Load cluster configuration (required)
+	fmt.Println("Loading cluster configuration...")
+	nodeInfo := natsclusterconfig.MustLoad()
 	fmt.Printf("  forest_id: %s\n", nodeInfo.ForestID)
 	fmt.Printf("  node_id: %s\n", nodeInfo.NodeID)
 
@@ -147,7 +149,7 @@ func runForest() {
 	}
 	fmt.Printf("  local_ip: %s\n", localIP)
 
-	peers := morpheus.GetPeers(nodeInfo.ForestID, localIP)
+	peers := natsclusterconfig.GetPeers(nodeInfo.ForestID, localIP)
 	if len(peers) > 0 {
 		fmt.Printf("  peers: %v\n", peers)
 	} else {

@@ -3,120 +3,48 @@
 ## Quick Summary for Morpheus
 
 ```
-morpheus plant cloud medium
-         │
-         ▼
-┌─────────────────────────────────────────────────────────┐
-│ 1. Create servers (Hetzner API)                         │
-│ 2. Mount StorageBox at /mnt/forest/ on each             │
-│ 3. Write ALL nodes to /mnt/forest/registry.json         │  ◄── BEFORE starting services
-│ 4. Write /etc/morpheus/node-info.json on each           │
-│ 5. Create /var/lib/nimsforest/jetstream/ on each        │
-│ 6. Deploy binary to /opt/nimsforest/bin/forest          │
-│ 7. Start nimsforest service on all nodes                │
-└─────────────────────────────────────────────────────────┘
-         │
-         ▼
-   Cluster forms automatically (NATS handles it)
+For each node:
+  1. Create server
+  2. Mount StorageBox at /mnt/forest/
+  3. Add node to /mnt/forest/registry.json
+  4. Write /etc/morpheus/node-info.json
+  5. Create /var/lib/nimsforest/jetstream/
+  6. Deploy binary to /opt/nimsforest/bin/forest
+  7. Start nimsforest service
+
+NATS gossip handles cluster formation automatically.
 ```
 
 ---
 
-## Detailed Flow
+## How Clustering Works
 
-When user runs `morpheus plant cloud medium` (3 nodes):
+**Registry is just for initial peer discovery.** NATS gossip handles everything else.
 
 ```
-PHASE 1: Provision Infrastructure
-──────────────────────────────────
-Morpheus:
-  ├─► Create 3 Hetzner servers
-  │   • node-1: 2a01:4f8:x:x::1
-  │   • node-2: 2a01:4f8:x:x::2  
-  │   • node-3: 2a01:4f8:x:x::3
-  │
-  └─► Mount StorageBox on each server at /mnt/forest/
+Node-1 starts:
+  → Reads registry → no other nodes yet
+  → Starts as cluster of 1
 
-PHASE 2: Register All Nodes (BEFORE starting services)
-──────────────────────────────────────────────────────
-Write to /mnt/forest/registry.json:
-{
-  "nodes": {
-    "forest-123": [
-      { "id": "node-1", "ip": "2a01:4f8:x:x::1" },
-      { "id": "node-2", "ip": "2a01:4f8:x:x::2" },
-      { "id": "node-3", "ip": "2a01:4f8:x:x::3" }
-    ]
-  }
-}
-
-PHASE 3: Configure Each Node
-────────────────────────────
-On each server:
-  ├─► Write /etc/morpheus/node-info.json
-  │   { "forest_id": "forest-123", "node_id": "node-1" }
-  │
-  ├─► Create /var/lib/nimsforest/jetstream/
-  │
-  └─► Deploy /opt/nimsforest/bin/forest
-
-PHASE 4: Start Services
-───────────────────────
-Start nimsforest service on all nodes (order doesn't matter)
-
-PHASE 5: Cluster Forms Automatically  
-────────────────────────────────────
-node-1 starts:
-  → Reads node-info.json → forest_id: "forest-123"
-  → Reads registry.json → peers: node-2, node-3
-  → Starts NATS with routes to [2a01:4f8:x:x::2]:6222, [2a01:4f8:x:x::3]:6222
-  → Peers not up yet → connections fail (OK, NATS keeps retrying)
-  → Runs as cluster of 1
-
-node-2 starts:
-  → Reads registry.json → peers: node-1, node-3
-  → Starts NATS, connects to node-1 ✓
-  → NATS gossip: nodes share peer info
+Node-2 starts:
+  → Reads registry → sees node-1
+  → Connects to node-1
   → Cluster is now 2 nodes
 
-node-3 starts:
-  → Reads registry.json → peers: node-1, node-2
-  → Connects to both ✓
-  → Full mesh formed
+Node-3 starts:
+  → Reads registry → sees node-1, node-2 (or just one of them)
+  → Connects to at least one peer
+  → NATS gossip propagates info to all
   → Cluster is now 3 nodes
 
-DONE: 3-node NATS cluster, fully meshed, JetStream enabled
-```
-
----
-
-## Adding Nodes Later
-
-When adding node-4 to an existing cluster:
-
-```
-MORPHEUS:
-  ├─► Create new server (node-4: 2a01:4f8:x:x::4)
-  ├─► Mount StorageBox at /mnt/forest/
-  ├─► Add node-4 to registry.json
-  ├─► Write node-info.json on node-4
-  ├─► Deploy binary
-  └─► Start service
-
-NODE-4 STARTS:
-  → Reads registry.json → sees all 4 nodes
-  → Filters out self → peers: node-1, node-2, node-3
-  → Connects to existing cluster ✓
-
-EXISTING NODES (node-1, node-2, node-3):
-  → They read registry only at startup
-  → They don't re-read registry
-  → But NATS GOSSIP propagates node-4's info automatically!
-  → All nodes learn about node-4 through NATS
+Node-4 added later:
+  → Reads registry → sees existing nodes
+  → Connects to any one of them
+  → NATS gossip tells everyone about node-4
   → Cluster is now 4 nodes
 ```
 
-**Key point:** Registry is only read at startup. NATS gossip handles dynamic membership.
+**Key point:** A new node only needs to find ONE existing peer. NATS gossip spreads the rest.
 
 ---
 
@@ -161,7 +89,7 @@ EXISTING NODES (node-1, node-2, node-3):
 | Port | Purpose | Required |
 |------|---------|----------|
 | 6222 | NATS cluster | Yes |
-| 4222 | NATS client | Optional (debugging) |
+| 4222 | NATS client | Optional |
 | 8222 | NATS monitoring | Optional |
 
 ---
@@ -252,7 +180,7 @@ func GetPeers(forestID, selfIP string) []string {
     var peers []string
     for _, node := range reg.Nodes[forestID] {
         if node.IP != selfIP {
-            peers = append(peers, "["+node.IP+"]:6222")  // IPv6 brackets
+            peers = append(peers, "["+node.IP+"]:6222")
         }
     }
     return peers

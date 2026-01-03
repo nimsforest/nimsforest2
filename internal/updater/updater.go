@@ -18,9 +18,9 @@ import (
 
 const (
 	// GitHubOwner is the GitHub organization/user that owns the repo
-	GitHubOwner = "yourusername"
+	GitHubOwner = "nimsforest"
 	// GitHubRepo is the repository name
-	GitHubRepo = "nimsforest"
+	GitHubRepo = "nimsforest2"
 	// BinaryName is the name of the binary
 	BinaryName = "forest"
 )

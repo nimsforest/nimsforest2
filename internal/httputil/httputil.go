@@ -4,8 +4,8 @@ import (
 	"crypto/tls"
 	"net/http"
 	"os"
-	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 )
 
@@ -41,7 +41,7 @@ func IsRestrictedEnvironment() bool {
 	// Check if home directory is in Termux path
 	home := os.Getenv("HOME")
 	if home != "" && (home == "/data/data/com.termux/files/home" ||
-		filepath.HasPrefix(home, "/data/data/com.termux")) {
+		strings.HasPrefix(home, "/data/data/com.termux")) {
 		return true
 	}
 	return false

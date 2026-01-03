@@ -8,7 +8,7 @@ func TestNewUpdater(t *testing.T) {
 	u := NewUpdater("1.0.0")
 
 	if u == nil {
-		t.Error("NewUpdater returned nil")
+		t.Fatal("NewUpdater returned nil")
 	}
 
 	if u.currentVersion != "1.0.0" {
@@ -20,7 +20,7 @@ func TestNewUpdater_DevVersion(t *testing.T) {
 	u := NewUpdater("dev")
 
 	if u == nil {
-		t.Error("NewUpdater returned nil")
+		t.Fatal("NewUpdater returned nil")
 	}
 
 	if u.currentVersion != "dev" {
@@ -32,7 +32,7 @@ func TestNewUpdater_WithVPrefix(t *testing.T) {
 	u := NewUpdater("v1.2.3")
 
 	if u == nil {
-		t.Error("NewUpdater returned nil")
+		t.Fatal("NewUpdater returned nil")
 	}
 
 	if u.currentVersion != "v1.2.3" {

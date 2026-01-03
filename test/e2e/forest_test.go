@@ -4,15 +4,88 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/nats-io/nats.go"
 	"github.com/yourusername/nimsforest/internal/core"
 	"github.com/yourusername/nimsforest/internal/leaves"
+	"github.com/yourusername/nimsforest/internal/natsembed"
 	"github.com/yourusername/nimsforest/internal/nims"
 	"github.com/yourusername/nimsforest/internal/trees"
 )
+
+// testServer holds the embedded NATS server for tests
+var testServer *natsembed.Server
+
+// getTestConnection returns a NATS connection for testing.
+// It uses an embedded NATS server unless NATS_URL is set.
+func getTestConnection(t *testing.T) (*nats.Conn, nats.JetStreamContext) {
+	// Check if we should use external NATS
+	natsURL := os.Getenv("NATS_URL")
+	if natsURL != "" {
+		nc, err := nats.Connect(natsURL)
+		if err != nil {
+			t.Fatalf("Failed to connect to NATS at %s: %v", natsURL, err)
+		}
+		js, err := nc.JetStream()
+		if err != nil {
+			nc.Close()
+			t.Fatalf("Failed to get JetStream: %v", err)
+		}
+		return nc, js
+	}
+
+	// Create embedded server if not already running
+	if testServer == nil || !testServer.IsRunning() {
+		// Create temp directory for JetStream data
+		tmpDir, err := os.MkdirTemp("", "nimsforest-test-*")
+		if err != nil {
+			t.Fatalf("Failed to create temp dir: %v", err)
+		}
+
+		cfg := natsembed.Config{
+			NodeName:    "test-node",
+			ClusterName: "test-cluster",
+			DataDir:     filepath.Join(tmpDir, "jetstream"),
+			ClientPort:  0, // Use random port
+			MonitorPort: 0, // Disable monitoring
+		}
+
+		testServer, err = natsembed.New(cfg)
+		if err != nil {
+			t.Fatalf("Failed to create embedded NATS server: %v", err)
+		}
+
+		if err := testServer.Start(); err != nil {
+			t.Fatalf("Failed to start embedded NATS server: %v", err)
+		}
+
+		// Cleanup on test completion
+		t.Cleanup(func() {
+			if testServer != nil {
+				testServer.Shutdown()
+				testServer = nil
+			}
+			os.RemoveAll(tmpDir)
+		})
+	}
+
+	nc, err := testServer.ClientConn()
+	if err != nil {
+		t.Fatalf("Failed to connect to embedded NATS: %v", err)
+	}
+
+	js, err := nc.JetStream()
+	if err != nil {
+		nc.Close()
+		t.Fatalf("Failed to get JetStream: %v", err)
+	}
+
+	return nc, js
+}
 
 // TestForestEndToEnd tests the complete flow from river to soil
 func TestForestEndToEnd(t *testing.T) {
@@ -20,17 +93,9 @@ func TestForestEndToEnd(t *testing.T) {
 		t.Skip("Skipping E2E test in short mode")
 	}
 
-	// Connect to NATS
-	nc, err := nats.Connect(nats.DefaultURL)
-	if err != nil {
-		t.Fatalf("Failed to connect to NATS: %v", err)
-	}
+	// Connect to NATS (uses embedded server or external if NATS_URL is set)
+	nc, js := getTestConnection(t)
 	defer nc.Close()
-
-	js, err := nc.JetStream()
-	if err != nil {
-		t.Fatalf("Failed to get JetStream: %v", err)
-	}
 
 	// Initialize core components
 	wind := core.NewWind(nc)
@@ -227,16 +292,9 @@ func TestForestComponents(t *testing.T) {
 		t.Skip("Skipping component test in short mode")
 	}
 
-	nc, err := nats.Connect(nats.DefaultURL)
-	if err != nil {
-		t.Fatalf("Failed to connect to NATS: %v", err)
-	}
+	// Connect to NATS (uses embedded server or external if NATS_URL is set)
+	nc, js := getTestConnection(t)
 	defer nc.Close()
-
-	js, err := nc.JetStream()
-	if err != nil {
-		t.Fatalf("Failed to get JetStream: %v", err)
-	}
 
 	t.Run("WindAndRiver", func(t *testing.T) {
 		wind := core.NewWind(nc)
@@ -341,16 +399,9 @@ func TestForestScaling(t *testing.T) {
 		t.Skip("Skipping scaling test in short mode")
 	}
 
-	nc, err := nats.Connect(nats.DefaultURL)
-	if err != nil {
-		t.Fatalf("Failed to connect to NATS: %v", err)
-	}
+	// Connect to NATS (uses embedded server or external if NATS_URL is set)
+	nc, js := getTestConnection(t)
 	defer nc.Close()
-
-	js, err := nc.JetStream()
-	if err != nil {
-		t.Fatalf("Failed to get JetStream: %v", err)
-	}
 
 	// Create multiple decomposers
 	humus, _ := core.NewHumus(js)

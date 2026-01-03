@@ -1,7 +1,7 @@
 [Unit]
 Description=NimsForest Event Orchestration System
-After=network.target nats.service
-Wants=nats.service
+After=network-online.target mnt-forest.mount
+Wants=network-online.target
 Documentation=https://github.com/yourusername/nimsforest
 
 [Service]
@@ -11,16 +11,20 @@ Group=forest
 WorkingDirectory=/var/lib/nimsforest
 
 # Environment configuration
-Environment="NATS_URL=nats://localhost:4222"
+# Embedded NATS is used by default (no NATS_URL needed)
+# Set NATS_URL to use external NATS server instead
+# Environment="NATS_URL=nats://localhost:4222"
+# Environment="NATS_EMBEDDED=false"
+# Environment="JETSTREAM_DIR=/var/lib/nimsforest/jetstream"
 # Environment="DEMO=false"
 
 # Service execution
-ExecStart=/usr/local/bin/forest
+ExecStart=/opt/nimsforest/bin/forest
 ExecReload=/bin/kill -HUP $MAINPID
 
 # Restart policy
-Restart=on-failure
-RestartSec=10
+Restart=always
+RestartSec=5
 KillMode=mixed
 KillSignal=SIGTERM
 TimeoutStopSec=30
@@ -35,7 +39,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/var/lib/nimsforest /var/log/nimsforest
+ReadWritePaths=/var/lib/nimsforest /var/log/nimsforest /mnt/forest
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true

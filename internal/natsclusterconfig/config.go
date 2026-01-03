@@ -23,18 +23,18 @@ const (
 )
 
 // NodeInfoPath returns the path to the node info file.
-// Can be overridden with NIMSFOREST_NODE_INFO environment variable.
+// Can be overridden with NATS_CLUSTER_NODE_INFO environment variable.
 func NodeInfoPath() string {
-	if path := os.Getenv("NIMSFOREST_NODE_INFO"); path != "" {
+	if path := os.Getenv("NATS_CLUSTER_NODE_INFO"); path != "" {
 		return path
 	}
 	return DefaultNodeInfoPath
 }
 
 // RegistryPath returns the path to the registry file.
-// Can be overridden with NIMSFOREST_REGISTRY environment variable.
+// Can be overridden with NATS_CLUSTER_REGISTRY environment variable.
 func RegistryPath() string {
-	if path := os.Getenv("NIMSFOREST_REGISTRY"); path != "" {
+	if path := os.Getenv("NATS_CLUSTER_REGISTRY"); path != "" {
 		return path
 	}
 	return DefaultRegistryPath

@@ -4,13 +4,15 @@ on:
   push:
     tags:
       - 'v*'
+  release:
+    types: [created]
 
 permissions:
   contents: write
 
 jobs:
   release:
-    name: Create Release
+    name: Build and Attach Release Binaries
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
@@ -20,15 +22,21 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.24.x'
+        go-version: '1.24'
         cache: true
     
     - name: Get version from tag
       id: get_version
       run: |
-        VERSION=${GITHUB_REF#refs/tags/}
+        # Handle both tag push and release events
+        if [ "${{ github.event_name }}" = "release" ]; then
+          VERSION=${{ github.event.release.tag_name }}
+        else
+          VERSION=${GITHUB_REF#refs/tags/}
+        fi
         echo "version=$VERSION" >> $GITHUB_OUTPUT
         echo "version_number=${VERSION#v}" >> $GITHUB_OUTPUT
+        echo "Building version: $VERSION"
     
     - name: Generate changelog
       id: changelog
@@ -87,6 +95,14 @@ jobs:
         echo "Building for darwin/arm64..."
         GOOS=darwin GOARCH=arm64 go build -ldflags "-s -w -X main.version=$VERSION" -o dist/forest-darwin-arm64 ./cmd/forest
         
+        # Windows AMD64
+        echo "Building for windows/amd64..."
+        GOOS=windows GOARCH=amd64 go build -ldflags "-s -w -X main.version=$VERSION" -o dist/forest-windows-amd64.exe ./cmd/forest
+        
+        # Windows ARM64
+        echo "Building for windows/arm64..."
+        GOOS=windows GOARCH=arm64 go build -ldflags "-s -w -X main.version=$VERSION" -o dist/forest-windows-arm64.exe ./cmd/forest
+        
         # Create checksums
         cd dist
         sha256sum * > SHA256SUMS
@@ -94,19 +110,23 @@ jobs:
         echo "Build complete!"
         ls -la
     
-    - name: Create GitHub Release
-      uses: softprops/action-gh-release@v1
+    - name: Upload Release Binaries
+      uses: softprops/action-gh-release@v2
       with:
+        tag_name: ${{ steps.get_version.outputs.version }}
         name: ${{ steps.get_version.outputs.version }}
         body_path: /tmp/release_notes.txt
         draft: false
         prerelease: false
+        fail_on_unmatched_files: true
         files: |
           dist/forest-linux-amd64
           dist/forest-linux-arm64
           dist/forest-linux-arm
           dist/forest-darwin-amd64
           dist/forest-darwin-arm64
+          dist/forest-windows-amd64.exe
+          dist/forest-windows-arm64.exe
           dist/SHA256SUMS
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -115,12 +135,15 @@ jobs:
       run: |
         echo "✅ Release ${{ steps.get_version.outputs.version }} created successfully!"
         echo ""
-        echo "📦 Binaries available for:"
-        echo "  - Linux AMD64 (standard Linux servers)"
-        echo "  - Linux ARM64 (ARM servers, 64-bit Android/Termux)"
-        echo "  - Linux ARM (32-bit Android/Termux)"
-        echo "  - macOS AMD64 (Intel Macs)"
-        echo "  - macOS ARM64 (Apple Silicon Macs)"
+        echo "📦 Binaries attached to release:"
+        echo "  - forest-linux-amd64 (standard Linux servers)"
+        echo "  - forest-linux-arm64 (ARM servers, 64-bit Android/Termux)"
+        echo "  - forest-linux-arm (32-bit Android/Termux)"
+        echo "  - forest-darwin-amd64 (Intel Macs)"
+        echo "  - forest-darwin-arm64 (Apple Silicon Macs)"
+        echo "  - forest-windows-amd64.exe (Windows x64)"
+        echo "  - forest-windows-arm64.exe (Windows ARM64)"
+        echo "  - SHA256SUMS (checksums)"
         echo ""
         echo "🔗 Release URL: https://github.com/${{ github.repository }}/releases/tag/${{ steps.get_version.outputs.version }}"
         echo ""

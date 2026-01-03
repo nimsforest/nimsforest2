@@ -2,66 +2,60 @@
 
 ## Overview
 
-Embed NATS server directly into the nimsforest binary. Starting nimsforest automatically:
+Embed NATS server directly into the nimsforest binary. Every nimsforest instance:
 1. Starts an embedded NATS server with JetStream
-2. Joins the cluster (if peers configured)
-3. Runs the nimsforest application
+2. Registers itself in the Morpheus registry
+3. Discovers and connects to other peers from the registry
+4. Runs the nimsforest application
 
-**Single binary, single process, single deployment artifact.**
-
-## Why Embedded?
-
-| Before (Separate) | After (Embedded) |
-|-------------------|------------------|
-| Download NATS separately | Single binary |
-| GitHub API IPv4 issues | No external downloads |
-| Two systemd services | One service |
-| Version mismatches possible | Always compatible |
-| Two things to monitor | One process |
-| Network connection to NATS | In-process (faster) |
+**Always cluster mode** - a single node is simply a cluster of one, ready for peers to join.
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                      nimsforest binary                           │
-│                                                                  │
-│  ┌────────────────────────────────────────────────────────────┐ │
-│  │                  Embedded NATS Server                       │ │
-│  │  • JetStream enabled                                       │ │
-│  │  • Cluster port 6222 (peer communication)                  │ │
-│  │  • Client port 4222 (optional, for nats cli debugging)     │ │
-│  │  • Monitoring port 8222 (optional, for metrics)            │ │
-│  └────────────────────────────────────────────────────────────┘ │
-│                              ▲                                   │
-│                              │ in-process connection             │
-│                              ▼                                   │
-│  ┌────────────────────────────────────────────────────────────┐ │
-│  │                 nimsforest application                      │ │
-│  │  Wind ─► River ─► Trees ─► Leaves ─► Nims ─► Humus/Soil    │ │
-│  └────────────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                    Cluster port 6222
-                              │
-              ┌───────────────┴───────────────┐
-              ▼                               ▼
-   ┌─────────────────────┐         ┌─────────────────────┐
-   │ nimsforest (node 2) │ ◄─────► │ nimsforest (node 3) │
-   │  embedded NATS      │         │  embedded NATS      │
-   └─────────────────────┘         └─────────────────────┘
+                         Morpheus Registry
+                    ┌─────────────────────────┐
+                    │  nimsforest-1: host1:6222│
+                    │  nimsforest-2: host2:6222│
+                    │  nimsforest-3: host3:6222│
+                    └────────────┬────────────┘
+                          register│& discover
+              ┌──────────────────┼──────────────────┐
+              │                  │                  │
+              ▼                  ▼                  ▼
+┌─────────────────────┐ ┌─────────────────────┐ ┌─────────────────────┐
+│   nimsforest (1)    │ │   nimsforest (2)    │ │   nimsforest (3)    │
+│  ┌───────────────┐  │ │  ┌───────────────┐  │ │  ┌───────────────┐  │
+│  │ Embedded NATS │◄─┼─┼─►│ Embedded NATS │◄─┼─┼─►│ Embedded NATS │  │
+│  │  JetStream    │  │ │  │  JetStream    │  │ │  │  JetStream    │  │
+│  └───────────────┘  │ │  └───────────────┘  │ │  └───────────────┘  │
+│  ┌───────────────┐  │ │  ┌───────────────┐  │ │  ┌───────────────┐  │
+│  │  Application  │  │ │  │  Application  │  │ │  │  Application  │  │
+│  └───────────────┘  │ │  └───────────────┘  │ │  └───────────────┘  │
+└─────────────────────┘ └─────────────────────┘ └─────────────────────┘
 
-        JetStream streams replicated across all nodes
+        First node starts as cluster of 1, others join via registry
 ```
 
-## Deployment Model
+## Startup Flow
 
-Morpheus provisions a machine and runs:
-```bash
-nimsforest --cluster-peers "192.168.1.11:6222,192.168.1.12:6222"
 ```
+┌─────────────────────────────────────────────────────────────────────┐
+│                        nimsforest startup                            │
+├─────────────────────────────────────────────────────────────────────┤
+│  1. Start embedded NATS server (cluster mode)                        │
+│  2. Register self in Morpheus registry                               │
+│  3. Query registry for existing peers                                │
+│  4. Connect to discovered peers (if any)                             │
+│  5. Wait for NATS cluster to stabilize                               │
+│  6. Initialize JetStream streams (with appropriate replication)      │
+│  7. Start nimsforest application (Trees, Nims, etc.)                 │
+│  8. Ready to serve                                                   │
+└─────────────────────────────────────────────────────────────────────┘
 
-That's it. No NATS download, no separate service, no coordination.
+First node: Steps 3-4 find no peers → cluster of 1 → R1 replication
+Later nodes: Steps 3-4 find peers → join cluster → R{n} replication
+```
 
 ---
 
@@ -80,172 +74,258 @@ That's it. No NATS download, no separate service, no coordination.
 - **Contents**:
   ```go
   package natsembed
-  
+
   type Config struct {
-      NodeName     string   // Unique node identifier
-      ClusterPeers []string // Other nodes in cluster (host:port)
-      DataDir      string   // JetStream storage directory
-      ClientPort   int      // Client connections (default 4222)
-      ClusterPort  int      // Cluster communication (default 6222)
-      MonitorPort  int      // HTTP monitoring (default 8222, 0 to disable)
+      NodeName    string   // Unique node identifier
+      ClusterName string   // Cluster name (default: "nimsforest")
+      DataDir     string   // JetStream storage directory
+      ClientPort  int      // Client connections (default 4222)
+      ClusterPort int      // Cluster communication (default 6222)
+      MonitorPort int      // HTTP monitoring (default 8222, 0 to disable)
+      Peers       []string // Initial peers (can be empty for first node)
   }
-  
-  type EmbeddedNATS struct {
-      server *server.Server
-      config Config
-  }
-  
+
+  type EmbeddedNATS struct { ... }
+
   func New(cfg Config) (*EmbeddedNATS, error)
   func (e *EmbeddedNATS) Start() error
-  func (e *EmbeddedNATS) ClientURL() string      // For in-process connection
-  func (e *EmbeddedNATS) WaitForReady() error    // Block until server ready
-  func (e *EmbeddedNATS) WaitForCluster() error  // Block until cluster formed
+  func (e *EmbeddedNATS) ClientConn() (*nats.Conn, error)  // In-process connection
+  func (e *EmbeddedNATS) AddRoute(peer string) error       // Dynamic peer addition
+  func (e *EmbeddedNATS) ClusterSize() int                 // Current cluster size
   func (e *EmbeddedNATS) Shutdown() error
   ```
 - **Implementation**:
-  - [ ] Configure server options from Config
-  - [ ] Enable JetStream with configured storage
-  - [ ] Configure cluster routes from peers
-  - [ ] Handle graceful shutdown
+  - [ ] Always configure as cluster mode (even with 0 peers)
+  - [ ] Enable JetStream
+  - [ ] Support dynamic route addition (for registry-discovered peers)
 
-#### 1.3 Add cluster formation logic
-- **File**: `internal/natsembed/cluster.go` (new file)
-- **Contents**:
-  - [ ] Parse peer addresses from comma-separated string
-  - [ ] Convert to NATS route URLs (`nats-route://host:port`)
-  - [ ] Validate peer addresses
-  - [ ] Health check for cluster connectivity
+#### 1.3 Dynamic peer management
+- **File**: `internal/natsembed/peers.go` (new file)
+- **Features**:
+  - [ ] Add peer route at runtime
+  - [ ] Handle peer connection/disconnection events
+  - [ ] Report cluster membership changes
 
 ---
 
-### Phase 2: Update Main Application
+### Phase 2: Registry Integration
 
-#### 2.1 Update main.go to start embedded NATS
-- **File**: `cmd/forest/main.go`
-- **Changes**:
-  - [ ] Add command-line flags for cluster configuration
-  - [ ] Start embedded NATS before application
-  - [ ] Connect to embedded server (in-process URL)
-  - [ ] Proper shutdown order (app first, then NATS)
-  - [ ] Remove external NATS connection code
+#### 2.1 Define registry interface
+- **File**: `internal/registry/registry.go` (new file)
+- **Interface**:
+  ```go
+  package registry
 
-#### 2.2 Add configuration via environment variables
-- **File**: `cmd/forest/main.go`
+  type NodeInfo struct {
+      Name        string    // Node identifier
+      ClusterAddr string    // host:port for cluster communication
+      RegisteredAt time.Time
+  }
+
+  type Registry interface {
+      // Register this node in the registry
+      Register(ctx context.Context, info NodeInfo) error
+      
+      // Deregister this node (on shutdown)
+      Deregister(ctx context.Context) error
+      
+      // Get all registered peers (excludes self)
+      GetPeers(ctx context.Context) ([]NodeInfo, error)
+      
+      // Watch for peer changes (new nodes joining/leaving)
+      WatchPeers(ctx context.Context) (<-chan PeerEvent, error)
+  }
+
+  type PeerEvent struct {
+      Type string   // "added" or "removed"
+      Node NodeInfo
+  }
+  ```
+
+#### 2.2 Implement Morpheus registry client
+- **File**: `internal/registry/morpheus.go` (new file)
+- **Implementation**:
+  - [ ] Connect to Morpheus registry API
+  - [ ] Register node on startup
+  - [ ] Deregister on shutdown
+  - [ ] Query existing peers
+  - [ ] Watch for peer changes
+  - [ ] Handle registry connection failures gracefully
+
+#### 2.3 Add registry configuration
 - **Environment variables**:
-  - [ ] `NATS_NODE_NAME` - node identifier (default: hostname)
-  - [ ] `NATS_CLUSTER_PEERS` - comma-separated peer list
-  - [ ] `NATS_DATA_DIR` - JetStream storage (default: `/var/lib/nimsforest/jetstream`)
-  - [ ] `NATS_CLIENT_PORT` - client port (default: 4222)
-  - [ ] `NATS_CLUSTER_PORT` - cluster port (default: 6222)
-  - [ ] `NATS_MONITOR_PORT` - monitoring port (default: 8222, 0 to disable)
-
-#### 2.3 Add command-line flags (alternative to env vars)
-- **File**: `cmd/forest/main.go`
-- **Flags**:
-  - [ ] `--node-name` 
-  - [ ] `--cluster-peers`
-  - [ ] `--data-dir`
-  - [ ] `--client-port`
-  - [ ] `--cluster-port`
-  - [ ] `--monitor-port`
+  - [ ] `REGISTRY_URL` - Morpheus registry endpoint
+  - [ ] `REGISTRY_SERVICE_NAME` - Service name to register under (default: "nimsforest")
+  - [ ] `REGISTRY_HEARTBEAT_INTERVAL` - Keep-alive interval (default: 10s)
 
 ---
 
-### Phase 3: Startup Modes
+### Phase 3: Cluster Coordination
 
-#### 3.1 Implement standalone mode (single node)
+#### 3.1 Create cluster manager
+- **File**: `internal/cluster/manager.go` (new file)
+- **Responsibilities**:
+  ```go
+  package cluster
+
+  type Manager struct { ... }
+
+  func NewManager(nats *natsembed.EmbeddedNATS, reg registry.Registry) *Manager
+  
+  // Start the cluster manager
+  func (m *Manager) Start(ctx context.Context) error
+  
+  // Called when registry reports new peer
+  func (m *Manager) OnPeerDiscovered(peer registry.NodeInfo)
+  
+  // Called when registry reports peer gone
+  func (m *Manager) OnPeerLost(peer registry.NodeInfo)
+  
+  // Get current cluster size
+  func (m *Manager) ClusterSize() int
+  
+  // Get recommended replication factor
+  func (m *Manager) ReplicationFactor() int  // min(clusterSize, 3)
+  ```
+
+#### 3.2 Implement peer discovery loop
+- **File**: `internal/cluster/discovery.go` (new file)
 - **Behavior**:
-  - [ ] No cluster peers configured
-  - [ ] JetStream with single replica (R1)
-  - [ ] Good for development and small deployments
-  - [ ] Default mode if no peers specified
+  - [ ] On startup: query registry, connect to all existing peers
+  - [ ] Watch registry for changes
+  - [ ] Add routes when new peers join
+  - [ ] Handle peer departures gracefully
+  - [ ] Log cluster membership changes
 
-#### 3.2 Implement cluster mode
-- **Behavior**:
-  - [ ] Cluster peers configured
-  - [ ] Wait for minimum peers before marking ready
-  - [ ] JetStream with replication (R3 for 3+ nodes)
-  - [ ] Automatic stream configuration for replication
-
-#### 3.3 Update stream creation for replication
+#### 3.3 Dynamic replication adjustment
 - **Files**: `internal/core/river.go`, `internal/core/humus.go`, `internal/core/soil.go`
 - **Changes**:
-  - [ ] Accept replication factor as parameter
-  - [ ] Configure streams with appropriate replicas
-  - [ ] Handle single-node vs cluster automatically
+  - [ ] Accept cluster manager as dependency
+  - [ ] Query cluster size when creating streams
+  - [ ] Set replication factor: `min(clusterSize, 3)`
+  - [ ] Single node = R1, two nodes = R2, three+ = R3
 
 ---
 
-### Phase 4: Systemd Integration
+### Phase 4: Update Main Application
 
-#### 4.1 Update systemd service file
+#### 4.1 Integrate all components in main.go
+- **File**: `cmd/forest/main.go`
+- **Startup sequence**:
+  ```go
+  func runForest() {
+      // 1. Parse configuration
+      cfg := loadConfig()
+      
+      // 2. Start embedded NATS (cluster mode, even if first node)
+      nats := natsembed.New(cfg.NATS)
+      nats.Start()
+      
+      // 3. Connect to registry
+      reg := registry.NewMorpheus(cfg.Registry)
+      
+      // 4. Start cluster manager (handles peer discovery)
+      cluster := cluster.NewManager(nats, reg)
+      cluster.Start(ctx)
+      
+      // 5. Register self in registry
+      reg.Register(ctx, nodeInfo)
+      
+      // 6. Initialize core components with cluster-aware replication
+      river := core.NewRiver(nats.JetStream(), cluster.ReplicationFactor())
+      // ... etc
+      
+      // 7. Start application
+      // ... trees, nims, etc
+      
+      // 8. Wait for shutdown
+      <-sigChan
+      
+      // 9. Cleanup
+      reg.Deregister(ctx)
+      nats.Shutdown()
+  }
+  ```
+
+#### 4.2 Update configuration loading
+- **File**: `cmd/forest/config.go` (new file)
+- **Sources** (in priority order):
+  - [ ] Command-line flags
+  - [ ] Environment variables
+  - [ ] Config file (optional)
+  - [ ] Defaults
+
+---
+
+### Phase 5: Systemd Integration
+
+#### 5.1 Update systemd service file
 - **File**: `scripts/systemd/nimsforest.service`
 - **Changes**:
-  - [ ] Remove NATS service dependency (`Wants=`, `After=nats.service`)
-  - [ ] Add environment variables for cluster config
-  - [ ] Update `ExecStart` to include flags if needed
-  - [ ] Ensure proper data directory permissions
+  - [ ] Remove NATS service dependencies
+  - [ ] Add registry configuration
+  - [ ] Ensure proper shutdown for deregistration
 
-#### 4.2 Create environment file template
-- **File**: `scripts/systemd/nimsforest.env.template` (new file)
+#### 5.2 Create environment file template
+- **File**: `scripts/systemd/nimsforest.env.template`
 - **Contents**:
   ```bash
-  # Node identification
-  NATS_NODE_NAME=nimsforest-1
+  # Registry (Morpheus)
+  REGISTRY_URL=http://morpheus-registry:8500
+  REGISTRY_SERVICE_NAME=nimsforest
   
-  # Cluster peers (comma-separated, empty for standalone)
-  NATS_CLUSTER_PEERS=192.168.1.11:6222,192.168.1.12:6222
+  # Node identification (typically set by Morpheus)
+  NATS_NODE_NAME=${HOSTNAME}
   
   # Storage
   NATS_DATA_DIR=/var/lib/nimsforest/jetstream
   
-  # Ports (defaults shown)
-  # NATS_CLIENT_PORT=4222
-  # NATS_CLUSTER_PORT=6222
-  # NATS_MONITOR_PORT=8222
+  # Ports
+  NATS_CLIENT_PORT=4222
+  NATS_CLUSTER_PORT=6222
+  NATS_MONITOR_PORT=8222
   ```
-
----
-
-### Phase 5: Setup Script Updates
-
-#### 5.1 Simplify setup script
-- **File**: `scripts/setup-server.sh`
-- **Changes**:
-  - [ ] Remove NATS server installation steps
-  - [ ] Remove NATS systemd service setup
-  - [ ] Keep nimsforest binary installation
-  - [ ] Add cluster peer configuration prompts
-  - [ ] Generate environment file from template
-
-#### 5.2 Create Morpheus-friendly setup
-- **File**: `scripts/morpheus-setup.sh` (new file)
-- **Features**:
-  - [ ] Accept parameters for automated setup
-  - [ ] `--node-name` (required)
-  - [ ] `--cluster-peers` (optional, standalone if empty)
-  - [ ] `--data-dir` (optional)
-  - [ ] Non-interactive mode for automation
-  - [ ] Verify setup and report status
 
 ---
 
 ### Phase 6: Health & Observability
 
-#### 6.1 Add health endpoint
+#### 6.1 Add health endpoints
 - **File**: `internal/httputil/health.go` (new file)
 - **Endpoints**:
   - [ ] `GET /health` - overall health
-  - [ ] `GET /health/nats` - NATS server status
-  - [ ] `GET /health/cluster` - cluster membership
-  - [ ] `GET /health/jetstream` - JetStream status
+  - [ ] `GET /health/cluster` - cluster status with peer list
+  - [ ] `GET /health/registry` - registry connection status
+  
+- **Response example**:
+  ```json
+  {
+    "status": "healthy",
+    "node": "nimsforest-1",
+    "cluster": {
+      "size": 3,
+      "peers": ["nimsforest-2", "nimsforest-3"],
+      "replication_factor": 3
+    },
+    "registry": {
+      "connected": true,
+      "url": "http://morpheus-registry:8500"
+    },
+    "jetstream": {
+      "streams": ["RIVER", "HUMUS"],
+      "kv_buckets": ["SOIL"]
+    }
+  }
+  ```
 
-#### 6.2 Expose NATS monitoring
-- **Built-in NATS endpoints** (on monitor port):
-  - `/varz` - server statistics
-  - `/jsz` - JetStream statistics  
-  - `/routez` - cluster route information
-  - `/healthz` - NATS health check
+#### 6.2 Logging for cluster events
+- **Log events**:
+  - [ ] "Starting as cluster node {name}"
+  - [ ] "Registered in registry at {url}"
+  - [ ] "Discovered peer {name} at {addr}"
+  - [ ] "Peer {name} joined cluster (size now {n})"
+  - [ ] "Peer {name} left cluster (size now {n})"
+  - [ ] "Replication factor adjusted to {n}"
 
 ---
 
@@ -254,113 +334,135 @@ That's it. No NATS download, no separate service, no coordination.
 #### 7.1 Update README
 - **File**: `README.md`
 - **Changes**:
-  - [ ] Document embedded NATS architecture
-  - [ ] Update quick start (no separate NATS setup)
-  - [ ] Document cluster configuration
-  - [ ] Update environment variables list
+  - [ ] Document embedded architecture
+  - [ ] Document registry integration
+  - [ ] Explain cluster formation
+  - [ ] Update configuration reference
 
-#### 7.2 Create cluster deployment guide
-- **File**: `docs/CLUSTER_DEPLOYMENT.md` (new file)
+#### 7.2 Create deployment guide
+- **File**: `docs/DEPLOYMENT.md` (new file)
 - **Contents**:
-  - [ ] Architecture overview
-  - [ ] Standalone vs cluster mode
-  - [ ] Step-by-step cluster setup
-  - [ ] Morpheus integration guide
+  - [ ] Morpheus integration overview
+  - [ ] Registry requirements
+  - [ ] Single node deployment (cluster of 1)
+  - [ ] Multi-node cluster deployment
+  - [ ] Scaling up (adding nodes)
+  - [ ] Scaling down (removing nodes)
   - [ ] Troubleshooting
-
-#### 7.3 Update help output
-- **File**: `cmd/forest/main.go`
-- **Changes**:
-  - [ ] Update `printHelp()` with new flags
-  - [ ] Document cluster configuration
-  - [ ] Show examples for standalone and cluster modes
 
 ---
 
 ### Phase 8: Testing
 
-#### 8.1 Unit tests for embedded NATS
-- **File**: `internal/natsembed/server_test.go` (new file)
+#### 8.1 Unit tests
+- **Files**: `internal/natsembed/*_test.go`, `internal/cluster/*_test.go`
 - **Tests**:
-  - [ ] Test server startup and shutdown
-  - [ ] Test configuration parsing
-  - [ ] Test cluster route parsing
+  - [ ] Embedded NATS startup/shutdown
+  - [ ] Peer addition/removal
+  - [ ] Replication factor calculation
 
 #### 8.2 Integration tests
-- **File**: `test/e2e/embedded_test.go` (new file)
+- **File**: `test/e2e/cluster_test.go`
 - **Tests**:
-  - [ ] Test standalone mode operation
-  - [ ] Test JetStream operations
-  - [ ] Test graceful shutdown
+  - [ ] Single node operation
+  - [ ] Two nodes joining
+  - [ ] Three nodes with R3 replication
+  - [ ] Node departure handling
+
+#### 8.3 Mock registry for testing
+- **File**: `internal/registry/mock.go`
+- **Features**:
+  - [ ] In-memory registry for tests
+  - [ ] Simulate peer events
 
 ---
 
-## Environment Variables (Final)
+## Configuration Reference
+
+### Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
+| `REGISTRY_URL` | (required) | Morpheus registry endpoint |
+| `REGISTRY_SERVICE_NAME` | `nimsforest` | Service name in registry |
+| `REGISTRY_HEARTBEAT_INTERVAL` | `10s` | Registry heartbeat interval |
 | `NATS_NODE_NAME` | hostname | Unique node identifier |
-| `NATS_CLUSTER_PEERS` | (empty) | Comma-separated `host:port` list |
 | `NATS_DATA_DIR` | `/var/lib/nimsforest/jetstream` | JetStream storage |
-| `NATS_CLIENT_PORT` | `4222` | Client connection port |
-| `NATS_CLUSTER_PORT` | `6222` | Cluster communication port |
-| `NATS_MONITOR_PORT` | `8222` | HTTP monitoring (0 to disable) |
+| `NATS_CLIENT_PORT` | `4222` | NATS client port |
+| `NATS_CLUSTER_PORT` | `6222` | NATS cluster port |
+| `NATS_MONITOR_PORT` | `8222` | NATS monitoring port |
 
-## Command-Line Flags
+### Command-Line Flags
 
 ```
-nimsforest [flags] [command]
+nimsforest [flags]
 
-Flags:
-  --node-name string       Node identifier (default: hostname)
-  --cluster-peers string   Comma-separated peer addresses (host:port)
-  --data-dir string        JetStream data directory
-  --client-port int        NATS client port (default 4222)
-  --cluster-port int       NATS cluster port (default 6222)
-  --monitor-port int       NATS monitor port (default 8222, 0 to disable)
+Registry:
+  --registry-url string       Morpheus registry URL (required)
+  --registry-service string   Service name (default "nimsforest")
 
-Commands:
-  run, start      Start nimsforest (default)
-  version         Show version
-  update          Update to latest version
-  help            Show help
+Node:
+  --node-name string          Node identifier (default: hostname)
+  --data-dir string           JetStream data directory
+  --client-port int           NATS client port (default 4222)
+  --cluster-port int          NATS cluster port (default 6222)
+  --monitor-port int          NATS monitor port (default 8222)
 ```
 
 ---
 
 ## Deployment Examples
 
-### Standalone (Development / Single Node)
+### First Node (Cluster of 1)
 
 ```bash
-# Just run it - no configuration needed
-nimsforest
+# Morpheus provisions first machine and runs:
+nimsforest --registry-url http://morpheus-registry:8500
 
-# Or with custom data directory
-nimsforest --data-dir /data/nimsforest
+# Output:
+# Starting nimsforest...
+# Starting embedded NATS cluster node: nimsforest-1
+# Registered in registry at http://morpheus-registry:8500
+# No existing peers found - starting as cluster of 1
+# JetStream initialized with replication factor 1
+# nimsforest is ready
 ```
 
-### Cluster (Production)
+### Second Node Joins
 
 ```bash
-# Node 1 (192.168.1.10)
-nimsforest --node-name node-1 --cluster-peers "192.168.1.11:6222,192.168.1.12:6222"
+# Morpheus provisions second machine and runs:
+nimsforest --registry-url http://morpheus-registry:8500
 
-# Node 2 (192.168.1.11)
-nimsforest --node-name node-2 --cluster-peers "192.168.1.10:6222,192.168.1.12:6222"
+# Output:
+# Starting nimsforest...
+# Starting embedded NATS cluster node: nimsforest-2
+# Registered in registry at http://morpheus-registry:8500
+# Discovered peer: nimsforest-1 at 192.168.1.10:6222
+# Connected to peer nimsforest-1
+# Cluster size: 2, replication factor: 2
+# nimsforest is ready
 
-# Node 3 (192.168.1.12)
-nimsforest --node-name node-3 --cluster-peers "192.168.1.10:6222,192.168.1.11:6222"
+# Meanwhile, on node 1:
+# Peer nimsforest-2 joined cluster (size now 2)
+# Replication factor adjusted to 2
 ```
 
-### Morpheus Provisioning
+### Third Node Joins
 
 ```bash
-# Morpheus can run this on each provisioned machine
-nimsforest \
-  --node-name "${HOSTNAME}" \
-  --cluster-peers "${CLUSTER_PEER_LIST}" \
-  --data-dir /var/lib/nimsforest/jetstream
+# Morpheus provisions third machine and runs:
+nimsforest --registry-url http://morpheus-registry:8500
+
+# Output:
+# Starting nimsforest...
+# Discovered peers: nimsforest-1, nimsforest-2
+# Connected to 2 peers
+# Cluster size: 3, replication factor: 3
+# nimsforest is ready
+
+# On all nodes:
+# Cluster size: 3, replication factor: 3
 ```
 
 ---
@@ -370,40 +472,47 @@ nimsforest \
 | Phase | Priority | Effort | Description |
 |-------|----------|--------|-------------|
 | 1 | Critical | 3-4h | Embed NATS server |
-| 2 | Critical | 2-3h | Update main application |
-| 3 | High | 2h | Startup modes (standalone/cluster) |
-| 4 | High | 1h | Systemd updates |
-| 5 | Medium | 1-2h | Setup script simplification |
+| 2 | Critical | 3-4h | Registry integration |
+| 3 | Critical | 2-3h | Cluster coordination |
+| 4 | High | 2h | Main application integration |
+| 5 | High | 1h | Systemd updates |
 | 6 | Medium | 2h | Health endpoints |
 | 7 | Medium | 2h | Documentation |
-| 8 | Low | 2h | Testing |
+| 8 | Low | 2-3h | Testing |
 
-**Total estimated effort**: 15-18 hours
+**Total estimated effort**: 17-21 hours
 
 ---
 
-## Migration Path
+## Registry API Requirements
 
-For existing deployments with separate NATS:
+nimsforest needs the Morpheus registry to support:
 
-1. Stop nimsforest service
-2. Stop NATS service
-3. Deploy new nimsforest binary
-4. Configure cluster peers (if clustered)
-5. Start nimsforest (embedded NATS starts automatically)
-6. Remove old NATS service (optional cleanup)
+1. **Service Registration**
+   - Register: `POST /v1/services/{service_name}/nodes`
+   - Body: `{"name": "node-1", "address": "192.168.1.10", "port": 6222}`
 
-Data migration:
-- JetStream data can be preserved if using same data directory
-- Or start fresh (streams will be recreated automatically)
+2. **Service Discovery**
+   - List: `GET /v1/services/{service_name}/nodes`
+   - Returns: `[{"name": "node-1", "address": "...", "port": ...}, ...]`
+
+3. **Health/Heartbeat**
+   - Heartbeat: `PUT /v1/services/{service_name}/nodes/{node_name}/heartbeat`
+   - TTL-based expiry if heartbeat stops
+
+4. **Watch (optional, for efficiency)**
+   - Watch: `GET /v1/services/{service_name}/nodes?watch=true`
+   - Long-poll or SSE for change notifications
+
+If Morpheus uses a different API, the `registry.Morpheus` implementation will adapt to it.
 
 ---
 
 ## Notes
 
-- Binary size increases by ~15-20MB (NATS server code)
-- Single process simplifies monitoring and restarts
-- In-process connection is faster than network
-- External NATS CLI tools still work (connect to client port)
-- Cluster formation is automatic when peers are reachable
-- JetStream replication factor should match cluster size (R1 for standalone, R3 for 3+ nodes)
+- **Always cluster mode**: Removes conditional logic, simpler code
+- **First node is not special**: It just happens to have no peers initially
+- **Dynamic scaling**: Nodes join/leave via registry, NATS handles the rest
+- **Replication scales with cluster**: R1 → R2 → R3 as nodes join
+- **Graceful degradation**: If registry is temporarily unavailable, existing cluster continues working
+- **No manual peer configuration**: Registry is the source of truth

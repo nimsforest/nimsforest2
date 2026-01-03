@@ -10,8 +10,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/nats-io/nats.go"
 	"github.com/yourusername/nimsforest/internal/core"
+	"github.com/yourusername/nimsforest/internal/morpheus"
+	"github.com/yourusername/nimsforest/internal/natsembed"
 	"github.com/yourusername/nimsforest/internal/nims"
 	"github.com/yourusername/nimsforest/internal/trees"
 	"github.com/yourusername/nimsforest/internal/updater"
@@ -110,8 +111,12 @@ func printHelp() {
 	fmt.Println("  check-update    Check for updates without installing")
 	fmt.Println("  help            Show this help message")
 	fmt.Println()
+	fmt.Println("Required Configuration:")
+	fmt.Println("  /etc/morpheus/node-info.json    Node identity (forest_id, node_id)")
+	fmt.Println("  /mnt/forest/registry.json       Cluster registry (shared storage)")
+	fmt.Println()
 	fmt.Println("Environment Variables:")
-	fmt.Println("  NATS_URL        NATS server URL (default: nats://localhost:4222)")
+	fmt.Println("  JETSTREAM_DIR   JetStream data directory (default: /var/lib/nimsforest/jetstream)")
 	fmt.Println("  DEMO            Set to 'true' to run demo mode")
 	fmt.Println()
 	fmt.Println("Examples:")
@@ -120,7 +125,6 @@ func printHelp() {
 	fmt.Println("  forest check-update             # Check for new versions")
 	fmt.Println("  forest update                   # Update to latest version")
 	fmt.Println("  DEMO=true forest                # Start with demo mode")
-	fmt.Println("  NATS_URL=nats://server:4222 forest")
 	fmt.Println()
 	fmt.Println("More info: https://github.com/yourusername/nimsforest")
 }
@@ -128,22 +132,54 @@ func printHelp() {
 func runForest() {
 	printBanner()
 
-	// Get NATS URL from environment or use default
-	natsURL := os.Getenv("NATS_URL")
-	if natsURL == "" {
-		natsURL = nats.DefaultURL
-	}
-
 	fmt.Printf("🌲 Starting NimsForest...\n")
-	fmt.Printf("Connecting to NATS at %s...\n", natsURL)
 
-	// Connect to NATS
-	nc, err := nats.Connect(natsURL)
-	if err != nil {
-		log.Fatalf("❌ Failed to connect to NATS: %v\n", err)
+	// Load Morpheus configuration (required)
+	fmt.Println("Loading Morpheus configuration...")
+	nodeInfo := morpheus.MustLoad()
+	fmt.Printf("  forest_id: %s\n", nodeInfo.ForestID)
+	fmt.Printf("  node_id: %s\n", nodeInfo.NodeID)
+
+	// Get local IPv6 and cluster peers
+	localIP := natsembed.GetLocalIPv6()
+	if localIP == "" {
+		log.Fatalf("❌ No IPv6 address found. NimsForest requires IPv6.\n")
 	}
-	defer nc.Close()
-	fmt.Println("✅ Connected to NATS")
+	fmt.Printf("  local_ip: %s\n", localIP)
+
+	peers := morpheus.GetPeers(nodeInfo.ForestID, localIP)
+	if len(peers) > 0 {
+		fmt.Printf("  peers: %v\n", peers)
+	} else {
+		fmt.Println("  peers: none (first node in cluster)")
+	}
+
+	// Create embedded NATS server
+	fmt.Println("Starting embedded NATS server...")
+	cfg := natsembed.Config{
+		NodeName:    nodeInfo.NodeID,
+		ClusterName: nodeInfo.ForestID,
+		DataDir:     getDataDir(),
+		Peers:       peers,
+	}
+
+	ns, err := natsembed.New(cfg)
+	if err != nil {
+		log.Fatalf("❌ Failed to create embedded NATS server: %v\n", err)
+	}
+
+	// Start the embedded server
+	if err := ns.Start(); err != nil {
+		log.Fatalf("❌ Failed to start embedded NATS server: %v\n", err)
+	}
+	fmt.Printf("✅ Embedded NATS server started at %s\n", ns.ClientURL())
+
+	// Get client connection to embedded server
+	nc, err := ns.ClientConn()
+	if err != nil {
+		log.Fatalf("❌ Failed to connect to embedded NATS: %v\n", err)
+	}
+	fmt.Println("✅ Connected to embedded NATS")
 
 	// Get JetStream context
 	js, err := nc.JetStream()
@@ -151,6 +187,11 @@ func runForest() {
 		log.Fatalf("❌ Failed to get JetStream context: %v\n", err)
 	}
 	fmt.Println("✅ JetStream context created")
+
+	defer func() {
+		nc.Close()
+		ns.Shutdown()
+	}()
 
 	// Initialize core components
 	fmt.Println("Initializing core components...")
@@ -286,6 +327,24 @@ func runForest() {
 	cancel()
 	time.Sleep(500 * time.Millisecond)
 	fmt.Println("✅ Shutdown complete")
+}
+
+// hostname returns the system hostname or a default value.
+func hostname() string {
+	h, err := os.Hostname()
+	if err != nil {
+		return "nimsforest"
+	}
+	return h
+}
+
+// getDataDir returns the JetStream data directory.
+func getDataDir() string {
+	dir := os.Getenv("JETSTREAM_DIR")
+	if dir != "" {
+		return dir
+	}
+	return "/var/lib/nimsforest/jetstream"
 }
 
 func printBanner() {

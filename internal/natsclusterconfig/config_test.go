@@ -1,4 +1,4 @@
-package morpheus
+package natsclusterconfig
 
 import (
 	"encoding/json"
@@ -9,7 +9,7 @@ import (
 
 func TestLoadFrom(t *testing.T) {
 	// Create temp file with node info
-	tmpDir, err := os.MkdirTemp("", "morpheus-test-*")
+	tmpDir, err := os.MkdirTemp("", "natsclusterconfig-test-*")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
@@ -52,7 +52,7 @@ func TestLoadFromMissingFile(t *testing.T) {
 }
 
 func TestLoadFromInvalidJSON(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "morpheus-test-*")
+	tmpDir, err := os.MkdirTemp("", "natsclusterconfig-test-*")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
@@ -70,7 +70,7 @@ func TestLoadFromInvalidJSON(t *testing.T) {
 }
 
 func TestLoadRegistryFrom(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "morpheus-test-*")
+	tmpDir, err := os.MkdirTemp("", "natsclusterconfig-test-*")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
@@ -133,7 +133,7 @@ func TestLoadRegistryFromMissingFile(t *testing.T) {
 }
 
 func TestGetPeersFrom(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "morpheus-test-*")
+	tmpDir, err := os.MkdirTemp("", "natsclusterconfig-test-*")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
@@ -189,7 +189,7 @@ func TestGetPeersFrom(t *testing.T) {
 }
 
 func TestGetPeersFromWithIPv4IPv6(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "morpheus-test-*")
+	tmpDir, err := os.MkdirTemp("", "natsclusterconfig-test-*")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
@@ -236,40 +236,40 @@ func TestGetPeersFromWithIPv4IPv6(t *testing.T) {
 
 func TestNodeGetPreferredIP(t *testing.T) {
 	tests := []struct {
-		name               string
-		node               Node
+		name                string
+		node                Node
 		hasIPv6Connectivity bool
-		expected           string
+		expected            string
 	}{
 		{
-			name:               "IPv6 preferred when available and has connectivity",
-			node:               Node{IP: "2a01:4f8:1:1::1", IPv6: "2a01:4f8:1:1::1", IPv4: "192.168.1.1"},
+			name:                "IPv6 preferred when available and has connectivity",
+			node:                Node{IP: "2a01:4f8:1:1::1", IPv6: "2a01:4f8:1:1::1", IPv4: "192.168.1.1"},
 			hasIPv6Connectivity: true,
-			expected:           "2a01:4f8:1:1::1",
+			expected:            "2a01:4f8:1:1::1",
 		},
 		{
-			name:               "IPv4 used when no IPv6 connectivity",
-			node:               Node{IP: "2a01:4f8:1:1::1", IPv6: "2a01:4f8:1:1::1", IPv4: "192.168.1.1"},
+			name:                "IPv4 used when no IPv6 connectivity",
+			node:                Node{IP: "2a01:4f8:1:1::1", IPv6: "2a01:4f8:1:1::1", IPv4: "192.168.1.1"},
 			hasIPv6Connectivity: false,
-			expected:           "192.168.1.1",
+			expected:            "192.168.1.1",
 		},
 		{
-			name:               "IPv4 used when no IPv6 address available",
-			node:               Node{IP: "192.168.1.1", IPv4: "192.168.1.1"},
+			name:                "IPv4 used when no IPv6 address available",
+			node:                Node{IP: "192.168.1.1", IPv4: "192.168.1.1"},
 			hasIPv6Connectivity: true,
-			expected:           "192.168.1.1",
+			expected:            "192.168.1.1",
 		},
 		{
-			name:               "Legacy IP used when no IPv4 or IPv6 set",
-			node:               Node{IP: "10.0.0.1"},
+			name:                "Legacy IP used when no IPv4 or IPv6 set",
+			node:                Node{IP: "10.0.0.1"},
 			hasIPv6Connectivity: false,
-			expected:           "10.0.0.1",
+			expected:            "10.0.0.1",
 		},
 		{
-			name:               "Legacy IPv6 IP used when no separate fields",
-			node:               Node{IP: "2a01:4f8:1:1::1"},
+			name:                "Legacy IPv6 IP used when no separate fields",
+			node:                Node{IP: "2a01:4f8:1:1::1"},
 			hasIPv6Connectivity: true,
-			expected:           "2a01:4f8:1:1::1",
+			expected:            "2a01:4f8:1:1::1",
 		},
 	}
 
@@ -284,7 +284,7 @@ func TestNodeGetPreferredIP(t *testing.T) {
 }
 
 func TestRegisterAndUnregisterNode(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "morpheus-test-*")
+	tmpDir, err := os.MkdirTemp("", "natsclusterconfig-test-*")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
@@ -383,7 +383,7 @@ func TestRegisterAndUnregisterNode(t *testing.T) {
 }
 
 func TestMustLoadFrom(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "morpheus-test-*")
+	tmpDir, err := os.MkdirTemp("", "natsclusterconfig-test-*")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}

@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/yourusername/nimsforest/internal/core"
-	"github.com/yourusername/nimsforest/internal/morpheus"
+	"github.com/yourusername/nimsforest/internal/natsclusterconfig"
 	"github.com/yourusername/nimsforest/internal/natsembed"
 	"github.com/yourusername/nimsforest/internal/nims"
 	"github.com/yourusername/nimsforest/internal/trees"
@@ -134,9 +134,9 @@ func runForest() {
 
 	fmt.Printf("🌲 Starting NimsForest...\n")
 
-	// Load Morpheus configuration (required)
-	fmt.Println("Loading Morpheus configuration...")
-	nodeInfo := morpheus.MustLoad()
+	// Load cluster configuration (required)
+	fmt.Println("Loading cluster configuration...")
+	nodeInfo := natsclusterconfig.MustLoad()
 	fmt.Printf("  forest_id: %s\n", nodeInfo.ForestID)
 	fmt.Printf("  node_id: %s\n", nodeInfo.NodeID)
 
@@ -147,7 +147,7 @@ func runForest() {
 	}
 	fmt.Printf("  local_ip: %s\n", localIP)
 
-	peers := morpheus.GetPeers(nodeInfo.ForestID, localIP)
+	peers := natsclusterconfig.GetPeers(nodeInfo.ForestID, localIP)
 	if len(peers) > 0 {
 		fmt.Printf("  peers: %v\n", peers)
 	} else {

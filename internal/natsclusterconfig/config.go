@@ -1,6 +1,6 @@
-// Package morpheus provides configuration loading for NimsForest cluster deployments.
-// It reads node information and cluster registry from well-known paths.
-package morpheus
+// Package natsclusterconfig provides configuration loading for NimsForest NATS cluster.
+// It reads node information and cluster registry from well-known paths written by Morpheus.
+package natsclusterconfig
 
 import (
 	"encoding/json"
@@ -84,18 +84,18 @@ func LoadFrom(path string) *NodeInfo {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if !os.IsNotExist(err) {
-			log.Printf("[Morpheus] Warning: failed to read node info from %s: %v", path, err)
+			log.Printf("[NATSClusterConfig] Warning: failed to read node info from %s: %v", path, err)
 		}
 		return nil
 	}
 
 	var info NodeInfo
 	if err := json.Unmarshal(data, &info); err != nil {
-		log.Printf("[Morpheus] Warning: failed to parse node info from %s: %v", path, err)
+		log.Printf("[NATSClusterConfig] Warning: failed to parse node info from %s: %v", path, err)
 		return nil
 	}
 
-	log.Printf("[Morpheus] Loaded node info: forest_id=%s, node_id=%s", info.ForestID, info.NodeID)
+	log.Printf("[NATSClusterConfig] Loaded node info: forest_id=%s, node_id=%s", info.ForestID, info.NodeID)
 	return &info
 }
 
@@ -142,13 +142,13 @@ func GetPeersWithConnectivity(forestID, selfIP string, hasIPv6Connectivity bool)
 func GetPeersFrom(registryPath, forestID, selfIP string, clusterPort int, hasIPv6Connectivity bool) []string {
 	reg, err := LoadRegistryFrom(registryPath)
 	if err != nil {
-		log.Printf("[Morpheus] Warning: failed to load registry: %v", err)
+		log.Printf("[NATSClusterConfig] Warning: failed to load registry: %v", err)
 		return nil
 	}
 
 	nodes, ok := reg.Nodes[forestID]
 	if !ok {
-		log.Printf("[Morpheus] No nodes found for forest: %s", forestID)
+		log.Printf("[NATSClusterConfig] No nodes found for forest: %s", forestID)
 		return nil
 	}
 
@@ -172,7 +172,7 @@ func GetPeersFrom(registryPath, forestID, selfIP string, clusterPort int, hasIPv
 		peers = append(peers, addr)
 	}
 
-	log.Printf("[Morpheus] Found %d peers for forest %s (IPv6 connectivity: %v)", len(peers), forestID, hasIPv6Connectivity)
+	log.Printf("[NATSClusterConfig] Found %d peers for forest %s (IPv6 connectivity: %v)", len(peers), forestID, hasIPv6Connectivity)
 	return peers
 }
 
@@ -235,7 +235,7 @@ func RegisterNodeTo(registryPath string, node Node) error {
 		return fmt.Errorf("failed to write registry: %w", err)
 	}
 
-	log.Printf("[Morpheus] Registered node: id=%s, forest=%s, ip=%s, ipv4=%s, ipv6=%s", node.ID, node.ForestID, node.IP, node.IPv4, node.IPv6)
+	log.Printf("[NATSClusterConfig] Registered node: id=%s, forest=%s, ip=%s, ipv4=%s, ipv6=%s", node.ID, node.ForestID, node.IP, node.IPv4, node.IPv6)
 	return nil
 }
 
@@ -276,7 +276,7 @@ func UnregisterNodeFrom(registryPath, forestID, nodeID string) error {
 		return fmt.Errorf("failed to write registry: %w", err)
 	}
 
-	log.Printf("[Morpheus] Unregistered node: id=%s, forest=%s", nodeID, forestID)
+	log.Printf("[NATSClusterConfig] Unregistered node: id=%s, forest=%s", nodeID, forestID)
 	return nil
 }
 
@@ -320,7 +320,7 @@ func (l *fileLock) Unlock() {
 }
 
 // MustLoad reads the local node configuration and panics if it's missing.
-// Use this when Morpheus configuration is required.
+// Use this when cluster configuration is required.
 func MustLoad() *NodeInfo {
 	return MustLoadFrom(NodeInfoPath())
 }
@@ -329,13 +329,13 @@ func MustLoad() *NodeInfo {
 func MustLoadFrom(path string) *NodeInfo {
 	info := LoadFrom(path)
 	if info == nil {
-		log.Fatalf("[Morpheus] FATAL: Node configuration required at %s", path)
+		log.Fatalf("[NATSClusterConfig] FATAL: Node configuration required at %s", path)
 	}
 	if info.ForestID == "" {
-		log.Fatalf("[Morpheus] FATAL: forest_id is required in %s", path)
+		log.Fatalf("[NATSClusterConfig] FATAL: forest_id is required in %s", path)
 	}
 	if info.NodeID == "" {
-		log.Fatalf("[Morpheus] FATAL: node_id is required in %s", path)
+		log.Fatalf("[NATSClusterConfig] FATAL: node_id is required in %s", path)
 	}
 	return info
 }

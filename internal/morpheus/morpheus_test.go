@@ -137,7 +137,7 @@ func TestGetPeersFrom(t *testing.T) {
 			"test-forest": {
 				{ID: "node-1", IP: "2a01:4f8:1:1::1", ForestID: "test-forest"},
 				{ID: "node-2", IP: "2a01:4f8:1:1::2", ForestID: "test-forest"},
-				{ID: "node-3", IP: "192.168.1.100", ForestID: "test-forest"},
+				{ID: "node-3", IP: "2a01:4f8:1:1::3", ForestID: "test-forest"},
 			},
 		},
 	}
@@ -153,30 +153,30 @@ func TestGetPeersFrom(t *testing.T) {
 		t.Errorf("Expected 2 peers, got %d", len(peers))
 	}
 
-	// Verify IPv6 format
-	expectedIPv6 := "[2a01:4f8:1:1::2]:6222"
+	// Verify IPv6 format for node-2
+	expected1 := "[2a01:4f8:1:1::2]:6222"
 	found := false
 	for _, peer := range peers {
-		if peer == expectedIPv6 {
+		if peer == expected1 {
 			found = true
 			break
 		}
 	}
 	if !found {
-		t.Errorf("Expected peer '%s' not found in %v", expectedIPv6, peers)
+		t.Errorf("Expected peer '%s' not found in %v", expected1, peers)
 	}
 
-	// Verify IPv4 format
-	expectedIPv4 := "192.168.1.100:6222"
+	// Verify IPv6 format for node-3
+	expected2 := "[2a01:4f8:1:1::3]:6222"
 	found = false
 	for _, peer := range peers {
-		if peer == expectedIPv4 {
+		if peer == expected2 {
 			found = true
 			break
 		}
 	}
 	if !found {
-		t.Errorf("Expected peer '%s' not found in %v", expectedIPv4, peers)
+		t.Errorf("Expected peer '%s' not found in %v", expected2, peers)
 	}
 }
 
@@ -256,31 +256,28 @@ func TestRegisterAndUnregisterNode(t *testing.T) {
 	}
 }
 
-func TestIsIPv6(t *testing.T) {
-	tests := []struct {
-		ip       string
-		expected bool
-	}{
-		{"2a01:4f8:1:1::1", true},
-		{"::1", true},
-		{"fe80::1", true},
-		{"192.168.1.1", false},
-		{"10.0.0.1", false},
-		{"127.0.0.1", false},
+func TestMustLoadFrom(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "morpheus-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	nodeInfoPath := filepath.Join(tmpDir, "node-info.json")
+	nodeInfo := NodeInfo{
+		ForestID: "test-forest",
+		NodeID:   "test-node-1",
 	}
 
-	for _, tt := range tests {
-		result := isIPv6(tt.ip)
-		if result != tt.expected {
-			t.Errorf("isIPv6(%s) = %v, expected %v", tt.ip, result, tt.expected)
-		}
-	}
-}
+	data, _ := json.MarshalIndent(nodeInfo, "", "  ")
+	os.WriteFile(nodeInfoPath, data, 0644)
 
-func TestGetForestID(t *testing.T) {
-	// Without config, should return "standalone"
-	id := GetForestID()
-	if id != "standalone" {
-		t.Errorf("Expected 'standalone' without config, got '%s'", id)
+	// Should succeed with valid config
+	loaded := MustLoadFrom(nodeInfoPath)
+	if loaded.ForestID != "test-forest" {
+		t.Errorf("Expected ForestID 'test-forest', got '%s'", loaded.ForestID)
+	}
+	if loaded.NodeID != "test-node-1" {
+		t.Errorf("Expected NodeID 'test-node-1', got '%s'", loaded.NodeID)
 	}
 }

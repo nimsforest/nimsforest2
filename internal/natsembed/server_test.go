@@ -33,6 +33,28 @@ func TestNewServer(t *testing.T) {
 	}
 }
 
+func TestNewServerRequiresNodeName(t *testing.T) {
+	cfg := Config{
+		ClusterName: "test-cluster",
+	}
+
+	_, err := New(cfg)
+	if err == nil {
+		t.Error("Expected error when NodeName is missing")
+	}
+}
+
+func TestNewServerRequiresClusterName(t *testing.T) {
+	cfg := Config{
+		NodeName: "test-node",
+	}
+
+	_, err := New(cfg)
+	if err == nil {
+		t.Error("Expected error when ClusterName is missing")
+	}
+}
+
 func TestServerStartAndShutdown(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "natsembed-test-*")
 	if err != nil {
@@ -155,31 +177,8 @@ func TestJetStreamContext(t *testing.T) {
 	}
 }
 
-func TestDefaultConfig(t *testing.T) {
-	cfg := DefaultConfig()
-
-	if cfg.NodeName != "standalone" {
-		t.Errorf("Expected NodeName 'standalone', got '%s'", cfg.NodeName)
-	}
-	if cfg.ClusterName != "nimsforest" {
-		t.Errorf("Expected ClusterName 'nimsforest', got '%s'", cfg.ClusterName)
-	}
-	if cfg.DataDir != "/var/lib/nimsforest/jetstream" {
-		t.Errorf("Expected DataDir '/var/lib/nimsforest/jetstream', got '%s'", cfg.DataDir)
-	}
-	if cfg.ClientPort != 4222 {
-		t.Errorf("Expected ClientPort 4222, got %d", cfg.ClientPort)
-	}
-	if cfg.ClusterPort != 6222 {
-		t.Errorf("Expected ClusterPort 6222, got %d", cfg.ClusterPort)
-	}
-	if cfg.MonitorPort != 8222 {
-		t.Errorf("Expected MonitorPort 8222, got %d", cfg.MonitorPort)
-	}
-}
-
-func TestGetLocalIP(t *testing.T) {
-	ip := GetLocalIP()
-	// IP might be empty in some test environments, so just verify it doesn't panic
-	t.Logf("Local IP: %s", ip)
+func TestGetLocalIPv6(t *testing.T) {
+	ip := GetLocalIPv6()
+	// IP might be empty in some test environments (no IPv6), so just verify it doesn't panic
+	t.Logf("Local IPv6: %s", ip)
 }

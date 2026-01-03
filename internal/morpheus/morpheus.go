@@ -94,7 +94,7 @@ func LoadRegistryFrom(path string) (*Registry, error) {
 }
 
 // GetPeers returns the cluster peer addresses for a given forest, excluding the current node.
-// Each peer address is formatted as "[IP]:port" for NATS cluster connection.
+// Each peer address is formatted as "[IPv6]:port" for NATS cluster connection.
 func GetPeers(forestID, selfIP string) []string {
 	return GetPeersFrom(RegistryPath, forestID, selfIP, DefaultClusterPort)
 }
@@ -120,28 +120,13 @@ func GetPeersFrom(registryPath, forestID, selfIP string, clusterPort int) []stri
 			continue
 		}
 
-		// Format as [IPv6]:port or IPv4:port
-		var addr string
-		if isIPv6(node.IP) {
-			addr = fmt.Sprintf("[%s]:%d", node.IP, clusterPort)
-		} else {
-			addr = fmt.Sprintf("%s:%d", node.IP, clusterPort)
-		}
+		// Format as [IPv6]:port (IPv6 only)
+		addr := fmt.Sprintf("[%s]:%d", node.IP, clusterPort)
 		peers = append(peers, addr)
 	}
 
 	log.Printf("[Morpheus] Found %d peers for forest %s", len(peers), forestID)
 	return peers
-}
-
-// isIPv6 checks if the given IP string is an IPv6 address.
-func isIPv6(ip string) bool {
-	for _, c := range ip {
-		if c == ':' {
-			return true
-		}
-	}
-	return false
 }
 
 // RegisterNode adds or updates a node in the registry.
@@ -276,17 +261,23 @@ func (l *fileLock) Unlock() {
 	l.mu.Unlock()
 }
 
-// IsClusterMode returns true if the node is configured for cluster mode.
-func IsClusterMode() bool {
-	info := Load()
-	return info != nil && info.ForestID != ""
+// MustLoad reads the local node configuration and panics if it's missing.
+// Use this when Morpheus configuration is required.
+func MustLoad() *NodeInfo {
+	return MustLoadFrom(NodeInfoPath)
 }
 
-// GetForestID returns the forest ID if in cluster mode, or "standalone" otherwise.
-func GetForestID() string {
-	info := Load()
-	if info != nil && info.ForestID != "" {
-		return info.ForestID
+// MustLoadFrom reads node configuration from a custom path and panics if missing.
+func MustLoadFrom(path string) *NodeInfo {
+	info := LoadFrom(path)
+	if info == nil {
+		log.Fatalf("[Morpheus] FATAL: Node configuration required at %s", path)
 	}
-	return "standalone"
+	if info.ForestID == "" {
+		log.Fatalf("[Morpheus] FATAL: forest_id is required in %s", path)
+	}
+	if info.NodeID == "" {
+		log.Fatalf("[Morpheus] FATAL: node_id is required in %s", path)
+	}
+	return info
 }

@@ -20,24 +20,8 @@ import (
 // testServer holds the embedded NATS server for tests
 var testServer *natsembed.Server
 
-// getTestConnection returns a NATS connection for testing.
-// It uses an embedded NATS server unless NATS_URL is set.
+// getTestConnection returns a NATS connection for testing using an embedded NATS server.
 func getTestConnection(t *testing.T) (*nats.Conn, nats.JetStreamContext) {
-	// Check if we should use external NATS
-	natsURL := os.Getenv("NATS_URL")
-	if natsURL != "" {
-		nc, err := nats.Connect(natsURL)
-		if err != nil {
-			t.Fatalf("Failed to connect to NATS at %s: %v", natsURL, err)
-		}
-		js, err := nc.JetStream()
-		if err != nil {
-			nc.Close()
-			t.Fatalf("Failed to get JetStream: %v", err)
-		}
-		return nc, js
-	}
-
 	// Create embedded server if not already running
 	if testServer == nil || !testServer.IsRunning() {
 		// Create temp directory for JetStream data

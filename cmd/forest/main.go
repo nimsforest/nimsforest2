@@ -10,7 +10,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/nats-io/nats.go"
 	"github.com/yourusername/nimsforest/internal/core"
 	"github.com/yourusername/nimsforest/internal/morpheus"
 	"github.com/yourusername/nimsforest/internal/natsembed"
@@ -112,8 +111,12 @@ func printHelp() {
 	fmt.Println("  check-update    Check for updates without installing")
 	fmt.Println("  help            Show this help message")
 	fmt.Println()
+	fmt.Println("Required Configuration:")
+	fmt.Println("  /etc/morpheus/node-info.json    Node identity (forest_id, node_id)")
+	fmt.Println("  /mnt/forest/registry.json       Cluster registry (shared storage)")
+	fmt.Println()
 	fmt.Println("Environment Variables:")
-	fmt.Println("  NATS_URL        NATS server URL (default: nats://localhost:4222)")
+	fmt.Println("  JETSTREAM_DIR   JetStream data directory (default: /var/lib/nimsforest/jetstream)")
 	fmt.Println("  DEMO            Set to 'true' to run demo mode")
 	fmt.Println()
 	fmt.Println("Examples:")
@@ -122,7 +125,6 @@ func printHelp() {
 	fmt.Println("  forest check-update             # Check for new versions")
 	fmt.Println("  forest update                   # Update to latest version")
 	fmt.Println("  DEMO=true forest                # Start with demo mode")
-	fmt.Println("  NATS_URL=nats://server:4222 forest")
 	fmt.Println()
 	fmt.Println("More info: https://github.com/yourusername/nimsforest")
 }
@@ -132,98 +134,63 @@ func runForest() {
 
 	fmt.Printf("🌲 Starting NimsForest...\n")
 
-	var nc *nats.Conn
-	var js nats.JetStreamContext
-	var ns *natsembed.Server
+	// Load Morpheus configuration (required)
+	fmt.Println("Loading Morpheus configuration...")
+	nodeInfo := morpheus.MustLoad()
+	fmt.Printf("  forest_id: %s\n", nodeInfo.ForestID)
+	fmt.Printf("  node_id: %s\n", nodeInfo.NodeID)
 
-	// Check if we should use embedded NATS or external NATS
-	natsURL := os.Getenv("NATS_URL")
-	useEmbedded := os.Getenv("NATS_EMBEDDED") != "false" && natsURL == ""
-
-	if useEmbedded {
-		// Use embedded NATS server
-		fmt.Println("Starting embedded NATS server...")
-
-		// Load Morpheus configuration for clustering
-		nodeInfo := morpheus.Load()
-
-		var peers []string
-		forestID := "standalone"
-		nodeName := hostname()
-
-		if nodeInfo != nil {
-			forestID = nodeInfo.ForestID
-			nodeName = nodeInfo.NodeID
-			localIP := natsembed.GetLocalIP()
-			peers = morpheus.GetPeers(forestID, localIP)
-			fmt.Printf("  Cluster mode: forest_id=%s, node_id=%s\n", forestID, nodeName)
-			if len(peers) > 0 {
-				fmt.Printf("  Cluster peers: %v\n", peers)
-			}
-		} else {
-			fmt.Println("  Standalone mode (no Morpheus configuration found)")
-		}
-
-		// Create embedded NATS server
-		cfg := natsembed.Config{
-			NodeName:    nodeName,
-			ClusterName: forestID,
-			DataDir:     getDataDir(),
-			Peers:       peers,
-		}
-
-		var err error
-		ns, err = natsembed.New(cfg)
-		if err != nil {
-			log.Fatalf("❌ Failed to create embedded NATS server: %v\n", err)
-		}
-
-		// Start the embedded server
-		if err := ns.Start(); err != nil {
-			log.Fatalf("❌ Failed to start embedded NATS server: %v\n", err)
-		}
-		fmt.Printf("✅ Embedded NATS server started at %s\n", ns.ClientURL())
-
-		// Get client connection to embedded server
-		nc, err = ns.ClientConn()
-		if err != nil {
-			log.Fatalf("❌ Failed to connect to embedded NATS: %v\n", err)
-		}
-		fmt.Println("✅ Connected to embedded NATS")
-
-		// Get JetStream context
-		js, err = nc.JetStream()
-		if err != nil {
-			log.Fatalf("❌ Failed to get JetStream context: %v\n", err)
-		}
-		fmt.Println("✅ JetStream context created")
-	} else {
-		// Use external NATS server
-		if natsURL == "" {
-			natsURL = nats.DefaultURL
-		}
-		fmt.Printf("Connecting to external NATS at %s...\n", natsURL)
-
-		var err error
-		nc, err = nats.Connect(natsURL)
-		if err != nil {
-			log.Fatalf("❌ Failed to connect to NATS: %v\n", err)
-		}
-		fmt.Println("✅ Connected to NATS")
-
-		// Get JetStream context
-		js, err = nc.JetStream()
-		if err != nil {
-			log.Fatalf("❌ Failed to get JetStream context: %v\n", err)
-		}
-		fmt.Println("✅ JetStream context created")
+	// Get local IPv6 and cluster peers
+	localIP := natsembed.GetLocalIPv6()
+	if localIP == "" {
+		log.Fatalf("❌ No IPv6 address found. NimsForest requires IPv6.\n")
 	}
+	fmt.Printf("  local_ip: %s\n", localIP)
+
+	peers := morpheus.GetPeers(nodeInfo.ForestID, localIP)
+	if len(peers) > 0 {
+		fmt.Printf("  peers: %v\n", peers)
+	} else {
+		fmt.Println("  peers: none (first node in cluster)")
+	}
+
+	// Create embedded NATS server
+	fmt.Println("Starting embedded NATS server...")
+	cfg := natsembed.Config{
+		NodeName:    nodeInfo.NodeID,
+		ClusterName: nodeInfo.ForestID,
+		DataDir:     getDataDir(),
+		Peers:       peers,
+	}
+
+	ns, err := natsembed.New(cfg)
+	if err != nil {
+		log.Fatalf("❌ Failed to create embedded NATS server: %v\n", err)
+	}
+
+	// Start the embedded server
+	if err := ns.Start(); err != nil {
+		log.Fatalf("❌ Failed to start embedded NATS server: %v\n", err)
+	}
+	fmt.Printf("✅ Embedded NATS server started at %s\n", ns.ClientURL())
+
+	// Get client connection to embedded server
+	nc, err := ns.ClientConn()
+	if err != nil {
+		log.Fatalf("❌ Failed to connect to embedded NATS: %v\n", err)
+	}
+	fmt.Println("✅ Connected to embedded NATS")
+
+	// Get JetStream context
+	js, err := nc.JetStream()
+	if err != nil {
+		log.Fatalf("❌ Failed to get JetStream context: %v\n", err)
+	}
+	fmt.Println("✅ JetStream context created")
 
 	defer func() {
 		nc.Close()
-		if ns != nil {
-			ns.Shutdown()
-		}
+		ns.Shutdown()
 	}()
 
 	// Initialize core components

@@ -30,21 +30,19 @@ type Config struct {
 	MonitorPort int      // HTTP monitoring port (default: 8222, 0 to disable)
 }
 
-// DefaultConfig returns a default configuration suitable for standalone mode.
-func DefaultConfig() Config {
-	return Config{
-		NodeName:    "standalone",
-		ClusterName: "nimsforest",
-		DataDir:     "/var/lib/nimsforest/jetstream",
-		ClientPort:  4222,
-		ClusterPort: 6222,
-		MonitorPort: 8222,
-	}
-}
 
 // New creates a new embedded NATS server with the given configuration.
+// NodeName and ClusterName are required.
 func New(cfg Config) (*Server, error) {
-	// Apply defaults
+	// Validate required fields
+	if cfg.NodeName == "" {
+		return nil, fmt.Errorf("NodeName is required")
+	}
+	if cfg.ClusterName == "" {
+		return nil, fmt.Errorf("ClusterName is required")
+	}
+
+	// Apply defaults for ports
 	if cfg.ClientPort == 0 {
 		cfg.ClientPort = 4222
 	}
@@ -53,12 +51,6 @@ func New(cfg Config) (*Server, error) {
 	}
 	if cfg.DataDir == "" {
 		cfg.DataDir = "/var/lib/nimsforest/jetstream"
-	}
-	if cfg.ClusterName == "" {
-		cfg.ClusterName = "nimsforest"
-	}
-	if cfg.NodeName == "" {
-		cfg.NodeName = "standalone"
 	}
 
 	// Build NATS server options
@@ -74,19 +66,20 @@ func New(cfg Config) (*Server, error) {
 		opts.HTTPPort = cfg.MonitorPort
 	}
 
-	// Configure clustering if peers are provided
+	// Configure clustering only if there are peers
+	// NATS JetStream requires actual routes when clustering is enabled
 	if len(cfg.Peers) > 0 {
-		// Get local IP for cluster advertising
-		localIP := getLocalIP()
+		// Get local IPv6 for cluster advertising
+		localIP := getLocalIPv6()
 
 		opts.Cluster = server.ClusterOpts{
 			Name: cfg.ClusterName,
 			Port: cfg.ClusterPort,
 		}
 
-		// Advertise our cluster address
+		// Advertise our cluster address (IPv6)
 		if localIP != "" {
-			opts.Cluster.Advertise = fmt.Sprintf("%s:%d", localIP, cfg.ClusterPort)
+			opts.Cluster.Advertise = fmt.Sprintf("[%s]:%d", localIP, cfg.ClusterPort)
 		}
 
 		// Build routes to peers as URLs
@@ -103,6 +96,8 @@ func New(cfg Config) (*Server, error) {
 
 		log.Printf("[NATSEmbed] Clustering enabled: name=%s, port=%d, peers=%v",
 			cfg.ClusterName, cfg.ClusterPort, cfg.Peers)
+	} else {
+		log.Printf("[NATSEmbed] Starting as first node in cluster: %s", cfg.ClusterName)
 	}
 
 	// Create the server
@@ -215,8 +210,8 @@ func (s *Server) ClientURL() string {
 	return s.ns.ClientURL()
 }
 
-// getLocalIP returns the non-loopback local IP of the host.
-func getLocalIP() string {
+// getLocalIPv6 returns the non-loopback local IPv6 address of the host.
+func getLocalIPv6() string {
 	addrs, err := net.InterfaceAddrs()
 	if err != nil {
 		return ""
@@ -224,17 +219,8 @@ func getLocalIP() string {
 
 	for _, addr := range addrs {
 		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
-			// Prefer IPv6 addresses for modern deployments
+			// Only return IPv6 addresses (not IPv4-mapped)
 			if ipnet.IP.To16() != nil && ipnet.IP.To4() == nil {
-				return ipnet.IP.String()
-			}
-		}
-	}
-
-	// Fall back to IPv4 if no IPv6 found
-	for _, addr := range addrs {
-		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
-			if ipnet.IP.To4() != nil {
 				return ipnet.IP.String()
 			}
 		}
@@ -243,7 +229,7 @@ func getLocalIP() string {
 	return ""
 }
 
-// GetLocalIP is exported for use by other packages.
-func GetLocalIP() string {
-	return getLocalIP()
+// GetLocalIPv6 is exported for use by other packages.
+func GetLocalIPv6() string {
+	return getLocalIPv6()
 }

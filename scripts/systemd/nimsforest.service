@@ -11,10 +11,6 @@ Group=forest
 WorkingDirectory=/var/lib/nimsforest
 
 # Environment configuration
-# Embedded NATS is used by default (no NATS_URL needed)
-# Set NATS_URL to use external NATS server instead
-# Environment="NATS_URL=nats://localhost:4222"
-# Environment="NATS_EMBEDDED=false"
 # Environment="JETSTREAM_DIR=/var/lib/nimsforest/jetstream"
 # Environment="DEMO=false"
 

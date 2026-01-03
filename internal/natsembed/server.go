@@ -29,7 +29,6 @@ type Config struct {
 	MonitorPort int      // HTTP monitoring port (default: 8222, 0 to disable)
 }
 
-
 // New creates a new embedded NATS server with the given configuration.
 // NodeName and ClusterName are required.
 func New(cfg Config) (*Server, error) {
@@ -42,9 +41,16 @@ func New(cfg Config) (*Server, error) {
 	}
 
 	// Apply defaults for ports
-	if cfg.ClientPort == 0 {
-		cfg.ClientPort = 4222
+	// ClientPort of 0 means use a random available port (useful for tests)
+	// ClientPort of -1 or unset defaults to the standard NATS port (4222)
+	clientPort := cfg.ClientPort
+	if clientPort == 0 {
+		clientPort = server.RANDOM_PORT // -1, tells NATS to pick a free port
+	} else if clientPort < 0 {
+		clientPort = 4222 // Default NATS port
 	}
+
+	// ClusterPort defaults
 	if cfg.ClusterPort == 0 {
 		cfg.ClusterPort = 6222
 	}
@@ -55,7 +61,7 @@ func New(cfg Config) (*Server, error) {
 	// Build NATS server options
 	opts := &server.Options{
 		ServerName: cfg.NodeName,
-		Port:       cfg.ClientPort,
+		Port:       clientPort,
 		JetStream:  true,
 		StoreDir:   cfg.DataDir,
 	}

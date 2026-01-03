@@ -42,14 +42,34 @@ jobs:
         go mod download
         go mod verify
     
-    - name: Run validation script
+    - name: Run quick validation
       run: |
-        chmod +x validate-cicd.sh
-        ./validate-cicd.sh quick
+        echo "Running quick validation..."
+        # Check formatting
+        if [ -n "$(gofmt -s -l .)" ]; then
+          echo "Go code is not formatted:"
+          gofmt -s -d .
+          exit 1
+        fi
+        echo "✓ Code formatting OK"
+        
+        # Run go vet
+        go vet ./...
+        echo "✓ Go vet OK"
+        
+        # Build all packages
+        go build ./...
+        echo "✓ Build OK"
+        
+        # Run unit tests
+        go test -race ./... -short
+        echo "✓ Tests OK"
     
     - name: Full validation (if selected)
       if: inputs.test_mode == 'full'
-      run: ./validate-cicd.sh all
+      run: |
+        echo "Running full validation..."
+        go test -race -v ./...
     
     - name: Test NATS integration
       if: inputs.test_mode == 'full'

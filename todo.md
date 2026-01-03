@@ -1,12 +1,28 @@
 # Embedded NATS Implementation
 
-## Design Note for Morpheus
+## Quick Summary for Morpheus
 
-### Architecture Decision: Mounted StorageBox
+```
+morpheus plant cloud medium
+         │
+         ▼
+┌─────────────────────────────────────────────────────────┐
+│ 1. Create servers (Hetzner API)                         │
+│ 2. Mount StorageBox at /mnt/forest/ on each             │
+│ 3. Write ALL nodes to /mnt/forest/registry.json         │  ◄── BEFORE starting services
+│ 4. Write /etc/morpheus/node-info.json on each           │
+│ 5. Create /var/lib/nimsforest/jetstream/ on each        │
+│ 6. Deploy binary to /opt/nimsforest/bin/forest          │
+│ 7. Start nimsforest service on all nodes                │
+└─────────────────────────────────────────────────────────┘
+         │
+         ▼
+   Cluster forms automatically (NATS handles it)
+```
 
-The StorageBox is **mounted as a filesystem** on each machine. nimsforest reads it as a local file - no HTTP client needed.
+---
 
-### Deployment Flow
+## Detailed Flow
 
 When user runs `morpheus plant cloud medium` (3 nodes):
 
@@ -19,21 +35,22 @@ Morpheus:
   │   • node-2: 2a01:4f8:x:x::2  
   │   • node-3: 2a01:4f8:x:x::3
   │
-  ├─► Mount StorageBox on each server at /mnt/forest/
-  │
-  └─► Register ALL nodes in registry FIRST (before starting any service)
-      Write to /mnt/forest/registry.json:
-      {
-        "nodes": {
-          "forest-123": [
-            { "id": "node-1", "ip": "2a01:4f8:x:x::1" },
-            { "id": "node-2", "ip": "2a01:4f8:x:x::2" },
-            { "id": "node-3", "ip": "2a01:4f8:x:x::3" }
-          ]
-        }
-      }
+  └─► Mount StorageBox on each server at /mnt/forest/
 
-PHASE 2: Configure Each Node
+PHASE 2: Register All Nodes (BEFORE starting services)
+──────────────────────────────────────────────────────
+Write to /mnt/forest/registry.json:
+{
+  "nodes": {
+    "forest-123": [
+      { "id": "node-1", "ip": "2a01:4f8:x:x::1" },
+      { "id": "node-2", "ip": "2a01:4f8:x:x::2" },
+      { "id": "node-3", "ip": "2a01:4f8:x:x::3" }
+    ]
+  }
+}
+
+PHASE 3: Configure Each Node
 ────────────────────────────
 On each server:
   ├─► Write /etc/morpheus/node-info.json
@@ -43,65 +60,48 @@ On each server:
   │
   └─► Deploy /opt/nimsforest/bin/forest
 
-PHASE 3: Start Services
+PHASE 4: Start Services
 ───────────────────────
 Start nimsforest service on all nodes (order doesn't matter)
 
-PHASE 4: Cluster Forms Automatically  
+PHASE 5: Cluster Forms Automatically  
 ────────────────────────────────────
 node-1 starts:
-  → Reads registry, sees node-2, node-3
-  → Starts NATS, tries to connect to peers
-  → Peers not up yet, connections fail (OK - NATS retries)
+  → Reads node-info.json → forest_id: "forest-123"
+  → Reads registry.json → peers: node-2, node-3
+  → Starts NATS with routes to [2a01:4f8:x:x::2]:6222, [2a01:4f8:x:x::3]:6222
+  → Peers not up yet → connections fail (OK, NATS keeps retrying)
   → Runs as cluster of 1
 
 node-2 starts:
-  → Reads registry, sees node-1, node-3
+  → Reads registry.json → peers: node-1, node-3
   → Starts NATS, connects to node-1 ✓
-  → NATS gossip: both nodes now know each other
-  → Cluster is 2 nodes
+  → NATS gossip: nodes share peer info
+  → Cluster is now 2 nodes
 
 node-3 starts:
-  → Reads registry, sees node-1, node-2
-  → Starts NATS, connects to both ✓
+  → Reads registry.json → peers: node-1, node-2
+  → Connects to both ✓
   → Full mesh formed
-  → Cluster is 3 nodes
+  → Cluster is now 3 nodes
 
-RESULT: 3-node NATS cluster with JetStream, fully meshed
+DONE: 3-node NATS cluster, fully meshed, JetStream enabled
 ```
 
-### Important: Registry Before Service
+---
 
-**Register ALL nodes in registry.json BEFORE starting nimsforest on ANY node.**
+## File Formats
 
-This ensures every node knows about all peers from startup. NATS handles connection retries automatically.
-
-### File Locations
-
-| File | Path | Written by |
-|------|------|------------|
-| Node info | `/etc/morpheus/node-info.json` | Morpheus (per machine) |
-| Registry | `/mnt/forest/registry.json` | Morpheus (shared) |
-| Binary | `/opt/nimsforest/bin/forest` | Morpheus |
-| JetStream data | `/var/lib/nimsforest/jetstream/` | nimsforest |
-
-### Mount Setup
-
-```bash
-# Mount StorageBox (add to cloud-init or /etc/fstab)
-//uXXXXX.your-storagebox.de/backup /mnt/forest cifs user=uXXXXX,pass=PASSWORD,uid=root,gid=root 0 0
-```
-
-### node-info.json Format
+### /etc/morpheus/node-info.json (per machine)
 
 ```json
 {
   "forest_id": "forest-123",
-  "node_id": "12345678"
+  "node_id": "node-1"
 }
 ```
 
-### registry.json Format
+### /mnt/forest/registry.json (shared)
 
 ```json
 {
@@ -115,11 +115,24 @@ This ensures every node knows about all peers from startup. NATS handles connect
 }
 ```
 
-### Firewall Ports
+---
 
-- `6222` - NATS cluster (required)
-- `4222` - NATS client (optional)
-- `8222` - NATS monitoring (optional)
+## Mount Setup
+
+```bash
+# Add to cloud-init or /etc/fstab
+//uXXXXX.your-storagebox.de/backup /mnt/forest cifs user=uXXXXX,pass=PASSWORD,uid=root,gid=root 0 0
+```
+
+---
+
+## Firewall Ports
+
+| Port | Purpose | Required |
+|------|---------|----------|
+| 6222 | NATS cluster | Yes |
+| 4222 | NATS client | Optional (debugging) |
+| 8222 | NATS monitoring | Optional |
 
 ---
 
@@ -143,7 +156,7 @@ type Server struct {
 
 type Config struct {
     NodeName    string   // hostname
-    ClusterName string   // forest_id
+    ClusterName string   // forest_id  
     DataDir     string   // /var/lib/nimsforest/jetstream
     Peers       []string // ["[2a01::1]:6222", "[2a01::2]:6222"]
 }
@@ -158,8 +171,6 @@ func (s *Server) Shutdown()
 ```bash
 go get github.com/nats-io/nats-server/v2
 ```
-
----
 
 ### 2. Read Config Files
 
@@ -211,14 +222,12 @@ func GetPeers(forestID, selfIP string) []string {
     var peers []string
     for _, node := range reg.Nodes[forestID] {
         if node.IP != selfIP {
-            peers = append(peers, node.IP+":6222")
+            peers = append(peers, "["+node.IP+"]:6222")  // IPv6 brackets
         }
     }
     return peers
 }
 ```
-
----
 
 ### 3. Update main.go
 
@@ -252,8 +261,6 @@ func runForest() {
     // ... rest unchanged
 }
 ```
-
----
 
 ### 4. Update systemd service
 

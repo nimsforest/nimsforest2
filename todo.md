@@ -6,24 +6,21 @@
 
 ### What Morpheus should do:
 
-1. **Don't install NATS** - nimsforest binary includes it (you already don't, just confirming)
+1. **Mount StorageBox** on each machine at `/mnt/forest/` - nimsforest reads the registry as a local file
 
-2. **Include registry credentials in node-info.json** - nimsforest needs to query the StorageBox registry to discover peers. Update `/etc/morpheus/node-info.json` to include:
-
+2. **Write node-info.json** to `/etc/morpheus/node-info.json`:
 ```json
 {
   "forest_id": "forest-123",
   "node_id": "12345678",
   "role": "edge",
   "provisioner": "morpheus",
-  "provisioned_at": "2025-12-26T10:30:00Z",
-  "registry_url": "https://uXXXXX.your-storagebox.de/morpheus/registry.json",
-  "registry_username": "uXXXXX",
-  "registry_password": "the-storagebox-password"
+  "provisioned_at": "2025-12-26T10:30:00Z"
 }
 ```
+(No registry credentials needed - StorageBox is mounted)
 
-3. **Ensure nodes have IPs in registry** - nimsforest reads the registry to find peer IPs. The existing registry format works:
+3. **Ensure registry.json exists** at `/mnt/forest/registry.json` with node IPs:
 ```json
 {
   "nodes": {
@@ -35,27 +32,26 @@
 }
 ```
 
-4. **Deploy nimsforest binary to** `/opt/nimsforest/bin/forest`
+4. **Deploy nimsforest binary** to `/opt/nimsforest/bin/forest`
 
-5. **Create data directory** `/var/lib/nimsforest/jetstream` (for JetStream storage)
+5. **Create data directory** `/var/lib/nimsforest/jetstream`
 
-6. **Start service** - nimsforest handles NATS startup internally
+6. **Start service**
 
 ### What nimsforest does on startup:
 
 ```
-1. Read /etc/morpheus/node-info.json
-2. Query registry at registry_url (HTTP GET with basic auth)
-3. Find other nodes in same forest_id
-4. Start embedded NATS with routes to peer IPs
-5. NATS cluster forms automatically
-6. Application starts
+1. Read /etc/morpheus/node-info.json → get forest_id
+2. Read /mnt/forest/registry.json → find peer IPs in same forest
+3. Start embedded NATS with routes to peers
+4. Cluster forms automatically
+5. Application starts
 ```
 
 ### Ports needed (firewall):
 
-- `4222` - NATS client (for debugging with nats cli)
-- `6222` - NATS cluster (peer communication)
+- `6222` - NATS cluster (peer communication) - **required**
+- `4222` - NATS client (optional, for nats cli debugging)
 - `8222` - NATS monitoring (optional)
 
 ---
@@ -63,8 +59,8 @@
 ## Goal
 
 Embed NATS into nimsforest binary. On startup:
-1. Read `/etc/morpheus/node-info.json`
-2. Query StorageBox registry for peers
+1. Read `/etc/morpheus/node-info.json` for forest_id
+2. Read `/mnt/forest/registry.json` for peer IPs
 3. Start embedded NATS with peer routes
 4. Run application
 
@@ -72,6 +68,7 @@ Embed NATS into nimsforest binary. On startup:
 
 - **Single binary** - no separate NATS download (solves IPv4-only GitHub API issue)
 - **Simpler deployment** - Morpheus just deploys one binary
+- **No HTTP client** - registry is a mounted file, just read it
 - **Auto-clustering** - NATS gossip handles peer discovery after initial connection
 
 ---
@@ -114,29 +111,64 @@ go get github.com/nats-io/nats-server/v2
 
 ---
 
-### 2. Read Morpheus Config & Query Peers
+### 2. Read Config Files
 
 **File**: `internal/morpheus/morpheus.go`
 
 ```go
 package morpheus
 
-// NodeInfo from /etc/morpheus/node-info.json
+import (
+    "encoding/json"
+    "os"
+)
+
+const (
+    NodeInfoPath  = "/etc/morpheus/node-info.json"
+    RegistryPath  = "/mnt/forest/registry.json"
+)
+
 type NodeInfo struct {
-    ForestID         string `json:"forest_id"`
-    RegistryURL      string `json:"registry_url"`
-    RegistryUsername string `json:"registry_username"`
-    RegistryPassword string `json:"registry_password"`
+    ForestID string `json:"forest_id"`
+    NodeID   string `json:"node_id"`
 }
 
-// Load reads node-info.json, returns nil if not found (standalone mode)
-func Load() *NodeInfo
+type Registry struct {
+    Nodes map[string][]Node `json:"nodes"`
+}
 
-// GetPeers queries registry, returns peer IPs for this forest
-func (n *NodeInfo) GetPeers(selfIP string) ([]string, error)
+type Node struct {
+    ID       string `json:"id"`
+    IP       string `json:"ip"`
+    ForestID string `json:"forest_id"`
+}
+
+// Load reads node-info.json, returns nil if not found
+func Load() *NodeInfo {
+    data, err := os.ReadFile(NodeInfoPath)
+    if err != nil {
+        return nil
+    }
+    var info NodeInfo
+    json.Unmarshal(data, &info)
+    return &info
+}
+
+// GetPeers reads registry.json and returns peer IPs for this forest
+func GetPeers(forestID, selfIP string) []string {
+    data, _ := os.ReadFile(RegistryPath)
+    var reg Registry
+    json.Unmarshal(data, &reg)
+    
+    var peers []string
+    for _, node := range reg.Nodes[forestID] {
+        if node.IP != selfIP {
+            peers = append(peers, node.IP+":6222")
+        }
+    }
+    return peers
+}
 ```
-
-**Registry query**: Simple HTTP GET with basic auth, parse JSON, filter by forest_id.
 
 ---
 
@@ -154,11 +186,11 @@ func runForest() {
     forestID := "standalone"
     if nodeInfo != nil {
         forestID = nodeInfo.ForestID
-        peers, _ = nodeInfo.GetPeers(getLocalIP())
+        peers = morpheus.GetPeers(forestID, getLocalIP())
     }
     
     // 3. Start embedded NATS
-    ns, err := natsembed.New(natsembed.Config{
+    ns, _ := natsembed.New(natsembed.Config{
         NodeName:    hostname(),
         ClusterName: forestID,
         DataDir:     "/var/lib/nimsforest/jetstream",
@@ -167,11 +199,11 @@ func runForest() {
     ns.Start()
     defer ns.Shutdown()
     
-    // 4. Get connection (in-process, no network)
+    // 4. Get connection (in-process)
     nc, _ := ns.ClientConn()
     js, _ := nc.JetStream()
     
-    // 5. Rest unchanged - Wind, River, Trees, Nims...
+    // 5. Rest unchanged
     wind := core.NewWind(nc)
     river, _ := core.NewRiver(js)
     // ...
@@ -187,7 +219,7 @@ func runForest() {
 ```ini
 [Unit]
 Description=NimsForest
-After=network-online.target
+After=network-online.target mnt-forest.mount
 
 [Service]
 ExecStart=/opt/nimsforest/bin/forest
@@ -199,19 +231,6 @@ WorkingDirectory=/var/lib/nimsforest
 WantedBy=multi-user.target
 ```
 
-Remove NATS dependency - it's embedded now.
-
----
-
-## Not Needed
-
-| What | Why not |
-|------|---------|
-| Background peer watcher | NATS gossip handles this after initial connect |
-| Health endpoints | Can add later if needed |
-| Env var overrides | Use node-info.json or defaults |
-| Dynamic replication | Use R1 for now, NATS handles it |
-
 ---
 
 ## Estimated Effort
@@ -219,6 +238,6 @@ Remove NATS dependency - it's embedded now.
 | Task | Hours |
 |------|-------|
 | Embed NATS server | 3-4h |
-| Morpheus config + registry query | 2-3h |
-| Wire up main.go | 1-2h |
-| **Total** | **6-9h** |
+| Read config files | 1h |
+| Wire up main.go | 1h |
+| **Total** | **5-6h** |

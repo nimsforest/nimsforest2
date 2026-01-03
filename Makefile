@@ -6,6 +6,10 @@
 # Variables
 BINARY_NAME := forest
 NATS_VERSION := 2.12.3
+
+# Get version from git tags, fallback to "dev" if no tags
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+LDFLAGS := -ldflags "-X main.version=$(VERSION)"
 NATS_PORT := 4222
 NATS_MONITOR_PORT := 8222
 NATS_DATA_DIR := /tmp/nats-data
@@ -234,10 +238,10 @@ test-coverage: ## Run tests with coverage report
 ##@ Building
 
 build: ## Build the application
-	@echo "$(BLUE)🔨 Building $(BINARY_NAME)...$(NC)"
+	@echo "$(BLUE)🔨 Building $(BINARY_NAME) version $(VERSION)...$(NC)"
 	@if [ -d cmd/forest ]; then \
-		go build -o $(BINARY_NAME) ./cmd/forest; \
-		echo "$(GREEN)✅ Built: $(BINARY_NAME)$(NC)"; \
+		go build $(LDFLAGS) -o $(BINARY_NAME) ./cmd/forest; \
+		echo "$(GREEN)✅ Built: $(BINARY_NAME) ($(VERSION))$(NC)"; \
 	else \
 		echo "$(YELLOW)⚠️  cmd/forest not found - this is a library project$(NC)"; \
 		echo "$(BLUE)ℹ️  Running go build to verify compilation...$(NC)"; \
@@ -246,19 +250,20 @@ build: ## Build the application
 	fi
 
 build-all: ## Build for all platforms
-	@echo "$(BLUE)🔨 Building for all platforms...$(NC)"
-	@GOOS=linux GOARCH=amd64 go build -o $(BINARY_NAME)-linux-amd64 ./cmd/forest
-	@GOOS=linux GOARCH=arm64 go build -o $(BINARY_NAME)-linux-arm64 ./cmd/forest
-	@GOOS=darwin GOARCH=amd64 go build -o $(BINARY_NAME)-darwin-amd64 ./cmd/forest
-	@GOOS=darwin GOARCH=arm64 go build -o $(BINARY_NAME)-darwin-arm64 ./cmd/forest
+	@echo "$(BLUE)🔨 Building for all platforms (version $(VERSION))...$(NC)"
+	@GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o $(BINARY_NAME)-linux-amd64 ./cmd/forest
+	@GOOS=linux GOARCH=arm64 go build $(LDFLAGS) -o $(BINARY_NAME)-linux-arm64 ./cmd/forest
+	@GOOS=linux GOARCH=arm GOARM=7 go build $(LDFLAGS) -o $(BINARY_NAME)-linux-arm ./cmd/forest
+	@GOOS=darwin GOARCH=amd64 go build $(LDFLAGS) -o $(BINARY_NAME)-darwin-amd64 ./cmd/forest
+	@GOOS=darwin GOARCH=arm64 go build $(LDFLAGS) -o $(BINARY_NAME)-darwin-arm64 ./cmd/forest
 	@echo "$(GREEN)✅ Built all platforms$(NC)"
 
 build-deploy: ## Build optimized binary for deployment (Linux AMD64)
-	@echo "$(BLUE)🔨 Building deployment binary...$(NC)"
+	@echo "$(BLUE)🔨 Building deployment binary (version $(VERSION))...$(NC)"
 	@if [ -d cmd/forest ]; then \
-		GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o $(BINARY_NAME) ./cmd/forest; \
+		GOOS=linux GOARCH=amd64 go build -ldflags="-s -w -X main.version=$(VERSION)" -o $(BINARY_NAME) ./cmd/forest; \
 		chmod +x $(BINARY_NAME); \
-		echo "$(GREEN)✅ Deployment binary ready: $(BINARY_NAME)$(NC)"; \
+		echo "$(GREEN)✅ Deployment binary ready: $(BINARY_NAME) ($(VERSION))$(NC)"; \
 	else \
 		echo "$(YELLOW)⚠️  cmd/forest not found - this is a library project$(NC)"; \
 		echo "$(BLUE)ℹ️  Verifying all packages compile for linux/amd64...$(NC)"; \

@@ -34,7 +34,7 @@ func getTestConnection(t *testing.T) (*nats.Conn, nats.JetStreamContext) {
 			NodeName:    "test-node",
 			ClusterName: "test-cluster",
 			DataDir:     filepath.Join(tmpDir, "jetstream"),
-			ClientPort:  0, // Use random port
+			ClientPort:  0,  // Use random port
 			MonitorPort: -1, // Disable monitoring for tests
 		}
 

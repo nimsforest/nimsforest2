@@ -329,15 +329,6 @@ func runForest() {
 	fmt.Println("✅ Shutdown complete")
 }
 
-// hostname returns the system hostname or a default value.
-func hostname() string {
-	h, err := os.Hostname()
-	if err != nil {
-		return "nimsforest"
-	}
-	return h
-}
-
 // getDataDir returns the JetStream data directory.
 func getDataDir() string {
 	dir := os.Getenv("JETSTREAM_DIR")

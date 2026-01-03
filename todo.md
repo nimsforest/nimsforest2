@@ -1,5 +1,65 @@
 # Embedded NATS Implementation
 
+## Note for Morpheus CLI
+
+**nimsforest now embeds NATS** - no separate NATS installation needed.
+
+### What Morpheus should do:
+
+1. **Don't install NATS** - nimsforest binary includes it (you already don't, just confirming)
+
+2. **Include registry credentials in node-info.json** - nimsforest needs to query the StorageBox registry to discover peers. Update `/etc/morpheus/node-info.json` to include:
+
+```json
+{
+  "forest_id": "forest-123",
+  "node_id": "12345678",
+  "role": "edge",
+  "provisioner": "morpheus",
+  "provisioned_at": "2025-12-26T10:30:00Z",
+  "registry_url": "https://uXXXXX.your-storagebox.de/morpheus/registry.json",
+  "registry_username": "uXXXXX",
+  "registry_password": "the-storagebox-password"
+}
+```
+
+3. **Ensure nodes have IPs in registry** - nimsforest reads the registry to find peer IPs. The existing registry format works:
+```json
+{
+  "nodes": {
+    "forest-123": [
+      { "id": "node-1", "ip": "2a01:4f8:...", "forest_id": "forest-123" },
+      { "id": "node-2", "ip": "2a01:4f8:...", "forest_id": "forest-123" }
+    ]
+  }
+}
+```
+
+4. **Deploy nimsforest binary to** `/opt/nimsforest/bin/forest`
+
+5. **Create data directory** `/var/lib/nimsforest/jetstream` (for JetStream storage)
+
+6. **Start service** - nimsforest handles NATS startup internally
+
+### What nimsforest does on startup:
+
+```
+1. Read /etc/morpheus/node-info.json
+2. Query registry at registry_url (HTTP GET with basic auth)
+3. Find other nodes in same forest_id
+4. Start embedded NATS with routes to peer IPs
+5. NATS cluster forms automatically
+6. Application starts
+```
+
+### Ports needed (firewall):
+
+- `4222` - NATS client (for debugging with nats cli)
+- `6222` - NATS cluster (peer communication)
+- `8222` - NATS monitoring (optional)
+
+---
+
 ## Goal
 
 Embed NATS into nimsforest binary. On startup:

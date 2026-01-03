@@ -12,15 +12,33 @@ import (
 )
 
 const (
-	// NodeInfoPath is the path to the local node configuration file.
-	NodeInfoPath = "/etc/morpheus/node-info.json"
+	// DefaultNodeInfoPath is the default path to the local node configuration file.
+	DefaultNodeInfoPath = "/etc/morpheus/node-info.json"
 
-	// RegistryPath is the path to the shared cluster registry file.
-	RegistryPath = "/mnt/forest/registry.json"
+	// DefaultRegistryPath is the default path to the shared cluster registry file.
+	DefaultRegistryPath = "/mnt/forest/registry.json"
 
 	// DefaultClusterPort is the default port for NATS cluster communication.
 	DefaultClusterPort = 6222
 )
+
+// NodeInfoPath returns the path to the node info file.
+// Can be overridden with MORPHEUS_NODE_INFO environment variable.
+func NodeInfoPath() string {
+	if path := os.Getenv("MORPHEUS_NODE_INFO"); path != "" {
+		return path
+	}
+	return DefaultNodeInfoPath
+}
+
+// RegistryPath returns the path to the registry file.
+// Can be overridden with MORPHEUS_REGISTRY environment variable.
+func RegistryPath() string {
+	if path := os.Getenv("MORPHEUS_REGISTRY"); path != "" {
+		return path
+	}
+	return DefaultRegistryPath
+}
 
 // NodeInfo contains the local node's identity in the forest.
 type NodeInfo struct {
@@ -43,7 +61,7 @@ type Node struct {
 // Load reads the local node configuration from the standard path.
 // Returns nil if the file doesn't exist or can't be read.
 func Load() *NodeInfo {
-	return LoadFrom(NodeInfoPath)
+	return LoadFrom(NodeInfoPath())
 }
 
 // LoadFrom reads node configuration from a custom path.
@@ -68,7 +86,7 @@ func LoadFrom(path string) *NodeInfo {
 
 // LoadRegistry reads the cluster registry from the standard path.
 func LoadRegistry() (*Registry, error) {
-	return LoadRegistryFrom(RegistryPath)
+	return LoadRegistryFrom(RegistryPath())
 }
 
 // LoadRegistryFrom reads the cluster registry from a custom path.
@@ -96,7 +114,7 @@ func LoadRegistryFrom(path string) (*Registry, error) {
 // GetPeers returns the cluster peer addresses for a given forest, excluding the current node.
 // Each peer address is formatted as "[IPv6]:port" for NATS cluster connection.
 func GetPeers(forestID, selfIP string) []string {
-	return GetPeersFrom(RegistryPath, forestID, selfIP, DefaultClusterPort)
+	return GetPeersFrom(RegistryPath(), forestID, selfIP, DefaultClusterPort)
 }
 
 // GetPeersFrom reads peers from a custom registry path.
@@ -132,7 +150,7 @@ func GetPeersFrom(registryPath, forestID, selfIP string, clusterPort int) []stri
 // RegisterNode adds or updates a node in the registry.
 // This is typically called by the deployment system (Morpheus).
 func RegisterNode(node Node) error {
-	return RegisterNodeTo(RegistryPath, node)
+	return RegisterNodeTo(RegistryPath(), node)
 }
 
 // RegisterNodeTo adds or updates a node in a custom registry file.
@@ -183,7 +201,7 @@ func RegisterNodeTo(registryPath string, node Node) error {
 
 // UnregisterNode removes a node from the registry.
 func UnregisterNode(forestID, nodeID string) error {
-	return UnregisterNodeFrom(RegistryPath, forestID, nodeID)
+	return UnregisterNodeFrom(RegistryPath(), forestID, nodeID)
 }
 
 // UnregisterNodeFrom removes a node from a custom registry file.
@@ -264,7 +282,7 @@ func (l *fileLock) Unlock() {
 // MustLoad reads the local node configuration and panics if it's missing.
 // Use this when Morpheus configuration is required.
 func MustLoad() *NodeInfo {
-	return MustLoadFrom(NodeInfoPath)
+	return MustLoadFrom(NodeInfoPath())
 }
 
 // MustLoadFrom reads node configuration from a custom path and panics if missing.

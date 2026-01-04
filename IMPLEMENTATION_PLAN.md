@@ -19,11 +19,11 @@ Ordered tasks. No timings. Check off as completed.
 - [ ] Validate config (script exists, valid subjects)
 - [ ] Create `pkg/runtime/config_test.go` - Unit tests
 
-### 1.3 Brain Wrapper for Lua
-- [ ] Create `pkg/runtime/brain_wrapper.go`
-- [ ] Expose `brain.ask(prompt)` to Lua scripts
-- [ ] Handle responses and errors
-- [ ] Unit tests with `MockBrain`
+### 1.3 Prompt Templates
+- [ ] Create `pkg/runtime/prompt.go`
+- [ ] Go template support for prompts (e.g., `{{.body}}`)
+- [ ] Render Leaf data into prompt
+- [ ] Unit tests
 
 ---
 
@@ -39,13 +39,15 @@ Ordered tasks. No timings. Check off as completed.
 
 ### 2.2 Nim Runtime
 - [ ] Create `pkg/runtime/nim.go`
-- [ ] Same as TreeHouse but with brain access
-- [ ] Inject `brain` global into Lua VM
-- [ ] Initialize brain on startup using config
+- [ ] Subscribe to configured NATS subject
+- [ ] Initialize brain on startup (from config)
+- [ ] Render prompt template with Leaf data
+- [ ] Call `brain.Ask(prompt)`
+- [ ] Publish response to output subject
 
 ### 2.3 Unit Tests
-- [ ] TreeHouse tests with mock NATS
-- [ ] Nim tests with mock NATS and mock brain
+- [ ] TreeHouse tests with mock NATS (verify Lua execution)
+- [ ] Nim tests with mock NATS and `MockBrain`
 
 ---
 
@@ -65,17 +67,15 @@ Ordered tasks. No timings. Check off as completed.
 
 ---
 
-## Phase 4: Example Scripts
+## Phase 4: Examples
 
-### 4.1 TreeHouse Examples
+### 4.1 TreeHouse Lua Scripts
 - [ ] `scripts/treehouses/scoring.lua` - Lead scoring
 - [ ] `scripts/treehouses/routing.lua` - Ticket routing
 
-### 4.2 Nim Examples
-- [ ] `scripts/nims/triage.lua` - Ticket triage with LLM
-
-### 4.3 Config Example
+### 4.2 Config Example
 - [ ] `config/forest.yaml` - Complete working config
+- [ ] Include Sources, TreeHouses, Nims with prompts
 
 ---
 

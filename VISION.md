@@ -12,30 +12,31 @@ treehouses:
   scoring:
     subscribes: contact.created
     publishes: lead.scored
-    script: scripts/scoring.lua
+    script: scripts/scoring.lua    # Lua for rules
 
 nims:
   triage:
     subscribes: ticket.routed
     publishes: ticket.triaged
-    script: scripts/triage.lua
     brain: openai
+    prompt: |                       # Prompt for LLM
+      Analyze this ticket: {{.body}}
 ```
 
 ```lua
--- scripts/scoring.lua - define the logic
+-- scripts/scoring.lua - deterministic rules
 function process(contact)
     local score = 0
-    
     if contact.company_size > 200 then
         score = score + 40
     end
-    
     return { contact_id = contact.id, score = score }
 end
 ```
 
-Components subscribe to NATS. NATS connects them. That's it.
+- **TreeHouses** → Lua scripts (deterministic)
+- **Nims** → Prompts to brain (non-deterministic)
+- **River** → NATS connects everything
 
 ---
 
@@ -46,7 +47,7 @@ Components subscribe to NATS. NATS connects them. That's it.
 | **River** | Infrastructure | Event stream (NATS). Events flow through the forest. |
 | **Source** | Interface | Feeds external data into the River. |
 | **TreeHouse** | Deterministic | Applies business rules (Lua). Same input = same output. |
-| **Nim** | Non-deterministic | Makes decisions using `pkg/brain` (LLM). |
+| **Nim** | Non-deterministic | Calls brain (LLM) with prompt. No script - just config. |
 | **Leaf** | Data | An event flowing through the River. |
 
 ### Source Implementations
@@ -155,28 +156,39 @@ treehouses:
     publishes: ticket.routed
     script: scripts/treehouses/routing.lua
 
-# Nims - Lua scripts with brain (LLM) access
+# Nims - call brain (LLM) with prompt, no script
 nims:
   triage:
     subscribes: ticket.routed
     publishes: ticket.triaged
-    script: scripts/nims/triage.lua
     brain: openai
     model: gpt-4o
+    prompt: |
+      Analyze this support ticket and return JSON with:
+      - sentiment: positive/neutral/negative
+      - urgency: low/medium/high/critical
+      - category: billing/technical/general
+      - summary: one sentence
+      
+      Ticket: {{.body}}
     
   response:
     subscribes: ticket.triaged
     publishes: response.drafted
-    script: scripts/nims/response.lua
     brain: claude
     model: claude-3-haiku-20240307
+    prompt: |
+      Draft a helpful response to this support ticket.
+      Be empathetic and concise.
+      
+      Ticket: {{.body}}
+      Category: {{.category}}
+      Sentiment: {{.sentiment}}
 ```
 
 ---
 
-## Lua Scripts
-
-### TreeHouse (Deterministic)
+## Lua Scripts (TreeHouses Only)
 
 ```lua
 -- scripts/treehouses/scoring.lua
@@ -207,50 +219,38 @@ function process(contact)
 end
 ```
 
-### Nim (With Brain Access)
-
 ```lua
--- scripts/nims/triage.lua
+-- scripts/treehouses/routing.lua
 
 function process(ticket)
-    -- Call the brain (LLM)
-    local analysis = brain.ask(
-        "Analyze this support ticket. " ..
-        "Return JSON with: sentiment, urgency, category, summary.\n\n" ..
-        "Ticket: " .. ticket.body
-    )
+    local team = "general"
     
-    local result = json.decode(analysis)
+    if contains(ticket.subject, "billing") or 
+       contains(ticket.subject, "invoice") then
+        team = "billing"
+    elseif contains(ticket.subject, "bug") or 
+           contains(ticket.subject, "error") then
+        team = "engineering"
+    end
     
     return {
         ticket_id = ticket.id,
-        sentiment = result.sentiment,
-        urgency = result.urgency,
-        category = result.category,
-        summary = result.summary,
-        priority = calculate_priority(result)
+        team = team,
+        original_subject = ticket.subject
     }
-end
-
-function calculate_priority(analysis)
-    if analysis.urgency == "critical" then return "p1"
-    elseif analysis.sentiment == "angry" then return "p2"
-    else return "p3"
-    end
 end
 ```
 
 ---
 
-## Lua Helpers Available
+## Lua Helpers (TreeHouses)
 
-| Helper | What | Available In |
-|--------|------|--------------|
-| `contains(str, substr)` | String contains | All |
-| `json.encode(table)` | Table to JSON | All |
-| `json.decode(str)` | JSON to table | All |
-| `log(msg)` | Logging | All |
-| `brain.ask(prompt)` | Call LLM | Nims only |
+| Helper | What |
+|--------|------|
+| `contains(str, substr)` | String contains |
+| `json.encode(table)` | Table to JSON |
+| `json.decode(str)` | JSON to table |
+| `log(msg)` | Logging |
 
 ---
 
@@ -307,12 +307,9 @@ nimsforest/
 │   └── forest.yaml           # Declarative config
 │
 ├── scripts/
-│   ├── treehouses/           # Deterministic Lua
-│   │   ├── scoring.lua
-│   │   └── routing.lua
-│   └── nims/                 # LLM-powered Lua
-│       ├── triage.lua
-│       └── response.lua
+│   └── treehouses/           # Deterministic Lua scripts
+│       ├── scoring.lua
+│       └── routing.lua
 │
 └── sources/                  # Source implementations
     ├── source.go             # Source interface
@@ -327,12 +324,12 @@ nimsforest/
 
 ## Principles
 
-1. **Declarative config, Lua logic.** YAML says what exists. Lua says how it works.
+1. **Declarative config.** YAML defines Sources, TreeHouses, Nims.
 
-2. **Components subscribe, that's it.** No registration, no orchestrator.
+2. **TreeHouses use Lua.** Deterministic rules. Same input = same output.
 
-3. **TreeHouses are deterministic.** Same input = same output. Testable.
+3. **Nims use prompts.** Non-deterministic. Brain (LLM) makes the call.
 
-4. **Nims use brains.** LLM for judgment calls. `brain.ask()` in Lua.
+4. **Components subscribe to River.** No registration, no orchestrator.
 
-5. **Adapters are separate.** Core is vendor-agnostic.
+5. **Sources are separate.** Vendor-specific implementations (SalesforceSource, StripeSource, etc.).

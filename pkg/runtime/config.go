@@ -22,7 +22,7 @@ type Config struct {
 
 // TreeHouseConfig defines a TreeHouse - a Lua-based data transformer.
 type TreeHouseConfig struct {
-	Name       string `yaml:"-"`        // Set from map key
+	Name       string `yaml:"-"`          // Set from map key
 	Subscribes string `yaml:"subscribes"` // NATS subject to listen on
 	Publishes  string `yaml:"publishes"`  // NATS subject to publish to
 	Script     string `yaml:"script"`     // Path to Lua script
@@ -30,7 +30,7 @@ type TreeHouseConfig struct {
 
 // NimConfig defines a Nim - an AI-powered processor.
 type NimConfig struct {
-	Name       string `yaml:"-"`        // Set from map key
+	Name       string `yaml:"-"`          // Set from map key
 	Subscribes string `yaml:"subscribes"` // NATS subject to listen on
 	Publishes  string `yaml:"publishes"`  // NATS subject to publish to
 	Prompt     string `yaml:"prompt"`     // Path to prompt template (.md file)

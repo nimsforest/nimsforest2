@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	pkgaiservice "github.com/yourusername/nimsforest/pkg/infrastructure/aiservice"
 	"github.com/yourusername/nimsforest/pkg/brain"
+	pkgaiservice "github.com/yourusername/nimsforest/pkg/infrastructure/aiservice"
 )
 
 // AIServiceBrain adapts an AIService to the brain.Brain interface.

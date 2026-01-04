@@ -31,7 +31,7 @@ func (m *MockBrain) Store(ctx context.Context, content string, tags []string) (*
 	if m.StoreError != nil {
 		return nil, m.StoreError
 	}
-	
+
 	now := time.Now()
 	return &Knowledge{
 		ID:        "mock-id",

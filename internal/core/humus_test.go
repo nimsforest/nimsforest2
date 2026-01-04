@@ -275,14 +275,25 @@ func TestHumus_OrderingGuarantee(t *testing.T) {
 
 	var mu sync.Mutex
 	var slots []uint64
-	var wg sync.WaitGroup
+	numComposts := 5
+
+	// Use a channel to signal completion instead of WaitGroup
+	// to avoid race conditions with the decomposer callback
+	done := make(chan bool, 1)
 
 	// Start decomposer
 	err = humus.Decompose(func(compost Compost) {
 		mu.Lock()
 		slots = append(slots, compost.Slot)
+		count := len(slots)
 		mu.Unlock()
-		wg.Done()
+
+		if count == numComposts {
+			select {
+			case done <- true:
+			default:
+			}
+		}
 	})
 	if err != nil {
 		t.Fatalf("Failed to start decomposer: %v", err)
@@ -291,8 +302,6 @@ func TestHumus_OrderingGuarantee(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 
 	// Add multiple composts
-	numComposts := 5
-	wg.Add(numComposts)
 	for i := 0; i < numComposts; i++ {
 		_, err := humus.Add("test-nim", "tasks/test", "update", []byte(`{"count": 1}`))
 		if err != nil {
@@ -301,12 +310,6 @@ func TestHumus_OrderingGuarantee(t *testing.T) {
 	}
 
 	// Wait for all to be processed
-	done := make(chan bool)
-	go func() {
-		wg.Wait()
-		done <- true
-	}()
-
 	select {
 	case <-done:
 		// Verify slots are in order

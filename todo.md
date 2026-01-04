@@ -176,7 +176,7 @@ func GetPeers(forestID, selfIP string) []string {
     data, _ := os.ReadFile(RegistryPath)
     var reg Registry
     json.Unmarshal(data, &reg)
-    
+
     var peers []string
     for _, node := range reg.Nodes[forestID] {
         if node.IP != selfIP {
@@ -194,14 +194,14 @@ func GetPeers(forestID, selfIP string) []string {
 ```go
 func runForest() {
     nodeInfo := morpheus.Load()
-    
+
     var peers []string
     forestID := "standalone"
     if nodeInfo != nil {
         forestID = nodeInfo.ForestID
         peers = morpheus.GetPeers(forestID, getLocalIP())
     }
-    
+
     ns, _ := natsembed.New(natsembed.Config{
         NodeName:    hostname(),
         ClusterName: forestID,
@@ -210,10 +210,10 @@ func runForest() {
     })
     ns.Start()
     defer ns.Shutdown()
-    
+
     nc, _ := ns.ClientConn()
     js, _ := nc.JetStream()
-    
+
     wind := core.NewWind(nc)
     river, _ := core.NewRiver(js)
     // ... rest unchanged

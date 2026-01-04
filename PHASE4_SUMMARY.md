@@ -34,7 +34,7 @@ All types include proper JSON marshaling support.
 
 ### 2. Payment Tree (Task 4.2) ✅
 
-**Files**: 
+**Files**:
 - `internal/trees/payment.go` (165 lines)
 - `internal/trees/payment_test.go` (275 lines)
 
@@ -57,10 +57,10 @@ All types include proper JSON marshaling support.
 
 **Example Flow**:
 ```
-Stripe Webhook (JSON) 
+Stripe Webhook (JSON)
   → River (river.stripe.webhook)
   → PaymentTree parses
-  → Leaf (payment.completed) 
+  → Leaf (payment.completed)
   → Wind
 ```
 

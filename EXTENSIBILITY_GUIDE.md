@@ -43,11 +43,11 @@ func (t *YourTree) parseYourData(data core.RiverData) {
     // Parse your specific format (JSON, XML, CSV, etc.)
     var payload YourDataType
     json.Unmarshal(data.Data, &payload)
-    
+
     // Extract relevant fields
     // Make business decisions
     // Emit appropriate leaves
-    
+
     t.emitYourLeaf(payload)
 }
 ```
@@ -61,7 +61,7 @@ func (t *YourTree) emitYourLeaf(data YourDataType) {
         "event_type":  "customer.updated",
         // ... your fields
     }
-    
+
     jsonData, _ := json.Marshal(leafData)
     leaf := *core.NewLeaf("customer.updated", jsonData, t.Name())
     t.Drop(leaf)
@@ -119,13 +119,13 @@ func (n *YourNim) handleCustomerUpdate(ctx context.Context, leaf core.Leaf) erro
     // Parse the leaf data
     var customer Customer
     json.Unmarshal(leaf.Data, &customer)
-    
+
     // YOUR BUSINESS LOGIC HERE
     // - Read state from Soil via n.Dig()
     // - Make decisions
     // - Persist changes via n.Compost()
     // - Emit new leaves via n.Leaf()
-    
+
     return nil
 }
 ```

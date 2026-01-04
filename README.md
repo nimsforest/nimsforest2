@@ -501,7 +501,7 @@ make start
 
 - **Language**: Go 1.23+
 - **Messaging**: NATS Server v2.12.3 with JetStream (native binary)
-- **Dependencies**: 
+- **Dependencies**:
   - github.com/nats-io/nats.go v1.48.0 (NATS client library)
 - **Infrastructure**: Native NATS binary managed via Make
 - **Architecture**: Event-driven, microservices-ready
@@ -756,7 +756,7 @@ See: [DEPLOYMENT.md](./DEPLOYMENT.md) for all options
 
 ## Production Considerations
 
-**Automatic Deployment**: 
+**Automatic Deployment**:
 - Staging on push to `main`
 - Production on release
 - Works with any SSH-accessible Linux server

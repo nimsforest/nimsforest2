@@ -457,11 +457,11 @@ Once everything passes:
    ```bash
    # Delete test branches
    git branch -D test/ci-validation test/complete-validation
-   
+
    # Delete test releases
    gh release delete v0.0.1-test --yes
    gh release delete v0.0.2-test --yes
-   
+
    # Delete test tags
    git tag -d v0.0.1-test v0.0.2-test
    git push origin --delete v0.0.1-test v0.0.2-test

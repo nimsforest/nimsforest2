@@ -52,7 +52,7 @@ A comprehensive CI/CD pipeline has been added to NimsForest, optimized for Debia
   - Zero-downtime deployment with automatic rollback
   - SSH-based secure deployment using Make commands
   - Service health verification
-- **When it runs**: 
+- **When it runs**:
   - Push to `main` → Staging
   - Release published (`v*`) → Production
   - Manual trigger → Your choice
@@ -397,7 +397,7 @@ linters:
    git add .
    git commit -m "test: verify CI pipeline"
    git push
-   
+
    # Watch the Actions tab
    ```
 
@@ -405,7 +405,7 @@ linters:
    ```bash
    git tag -a v1.0.0 -m "Initial release"
    git push origin v1.0.0
-   
+
    # Watch all workflows run
    # Download and test artifacts
    ```

@@ -108,7 +108,7 @@ $ go test ./internal/nims/... -run TestAfterSalesNim_Integration
 - ✅ JSON marshaling/unmarshaling
 - ✅ Integration with Wind, Humus, Soil, Decomposer
 
-**Uncovered Lines**: 
+**Uncovered Lines**:
 - Helper methods (GetTask, UpdateTask, CompleteTask)
 - Start/Stop lifecycle methods
 - Some error paths

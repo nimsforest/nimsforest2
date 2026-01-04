@@ -429,7 +429,7 @@ import (
     "log"
     "os"
     "os/signal"
-    
+
     "github.com/nats-io/nats.go"
     "nimsforest/internal/core"
     "nimsforest/internal/trees"
@@ -443,43 +443,43 @@ func main() {
         log.Fatal(err)
     }
     defer nc.Close()
-    
+
     js, err := nc.JetStream()
     if err != nil {
         log.Fatal(err)
     }
-    
+
     // Initialize core components
     wind := core.NewWind(nc)
     river, _ := core.NewRiver(js)
     humus, _ := core.NewHumus(js)
     soil, _ := core.NewSoil(js)
-    
+
     // Start decomposer
     go core.RunDecomposer(humus, soil)
-    
+
     // Initialize trees
     paymentTreeBase := core.NewBaseTree("payment", wind)
     paymentTree := trees.NewPaymentTree(paymentTreeBase, river)
-    
+
     // Initialize nims
     afterSalesBase := core.NewBaseNim("aftersales", wind, humus, soil)
     afterSalesNim := nims.NewAfterSalesNim(afterSalesBase)
-    
+
     // Start everything
     ctx := context.Background()
     paymentTree.Start(ctx)
     afterSalesNim.Start(ctx)
-    
+
     log.Println("Forest started...")
-    
+
     // Wait for shutdown signal
     sigCh := make(chan os.Signal, 1)
     signal.Notify(sigCh, os.Interrupt)
     <-sigCh
-    
+
     log.Println("Forest shutting down...")
-    
+
     // Cleanup
     paymentTree.Stop()
     afterSalesNim.Stop()

@@ -123,14 +123,14 @@ type FollowupRequired struct {
 // Tree watches the river and produces structured leaves
 type Tree interface {
     Name() string
-    
+
     // Patterns returns the river patterns this tree watches
     Patterns() []string
-    
+
     // Parse attempts to match and structure river data
     // Returns nil if pattern doesn't match
     Parse(subject string, data []byte) *Leaf
-    
+
     Start(ctx context.Context) error
     Stop() error
 }
@@ -154,13 +154,13 @@ func (t *BaseTree) Drop(leaf Leaf) error
 // Nim holds business logic and reacts to leaves
 type Nim interface {
     Name() string
-    
+
     // Subjects returns wind subjects this nim listens to
     Subjects() []string
-    
+
     // Handle processes a caught leaf
     Handle(ctx context.Context, leaf Leaf) error
-    
+
     Start(ctx context.Context) error
     Stop() error
 }
@@ -313,9 +313,9 @@ func (t *PaymentTree) Start(ctx context.Context) error {
 func (t *PaymentTree) parseStripe(data core.RiverData) *core.Leaf {
     var webhook map[string]interface{}
     json.Unmarshal(data.Data, &webhook)
-    
+
     eventType, _ := webhook["type"].(string)
-    
+
     switch eventType {
     case "charge.succeeded":
         // Extract and structure
@@ -372,7 +372,7 @@ func (n *AfterSalesNim) Handle(ctx context.Context, leaf core.Leaf) error {
     case "payment.completed":
         var payment leaves.PaymentCompleted
         json.Unmarshal(leaf.Data, &payment)
-        
+
         // Business logic: create followup task
         task := map[string]interface{}{
             "customer_id": payment.CustomerID,
@@ -381,13 +381,13 @@ func (n *AfterSalesNim) Handle(ctx context.Context, leaf core.Leaf) error {
             "status":      "pending",
         }
         taskBytes, _ := json.Marshal(task)
-        
+
         // Compost to humus (persistent)
         n.Compost("tasks/followup-"+payment.CustomerID, "create", taskBytes)
-        
+
         // Drop thank-you leaf (ephemeral)
         n.Leaf("comms.email.send", leaf.Data)
-        
+
     case "payment.refunded":
         // Different business logic...
     }
@@ -453,34 +453,34 @@ func main() {
     // Connect to NATS
     nc, _ := nats.Connect("nats://localhost:4222")
     js, _ := nc.JetStream()
-    
+
     // Initialize forest layers
     wind := core.NewWind(nc)
     river, _ := core.NewRiver(js)
     humus, _ := core.NewHumus(js)
     soil, _ := core.NewSoil(js)
-    
+
     // Start decomposer
     go core.RunDecomposer(humus, soil)
-    
+
     // Plant trees (edge parsers)
     paymentTreeBase := core.NewBaseTree("payment", wind)
     paymentTree := trees.NewPaymentTree(paymentTreeBase, river)
-    
+
     // Initialize nims (business logic)
     afterSalesBase := core.NewBaseNim("aftersales", wind, humus, soil)
     afterSalesNim := nims.NewAfterSalesNim(afterSalesBase)
-    
+
     // Start everything
     ctx := context.Background()
     paymentTree.Start(ctx)
     afterSalesNim.Start(ctx)
-    
+
     // Wait for shutdown
     sigCh := make(chan os.Signal, 1)
     signal.Notify(sigCh, os.Interrupt)
     <-sigCh
-    
+
     log.Println("Forest shutting down...")
 }
 ```

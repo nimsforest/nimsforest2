@@ -1,0 +1,134 @@
+# Pre-commit hooks configuration for NimsForest
+# Install: pip install pre-commit && pre-commit install
+# Manual run: pre-commit run --all-files
+# See https://pre-commit.com for more information
+
+repos:
+  # General file hygiene
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+      - id: end-of-file-fixer
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: detect-private-key
+      - id: mixed-line-ending
+        args: [--fix=lf]
+
+  # Go formatting - gofmt with simplification
+  - repo: https://github.com/dnephin/pre-commit-golang
+    rev: v0.5.1
+    hooks:
+      - id: go-fmt
+        args: [-s, -w]
+
+  # Go imports organization
+  - repo: https://github.com/dnephin/pre-commit-golang
+    rev: v0.5.1
+    hooks:
+      - id: go-imports
+        args: [-w]
+
+  # Go mod tidy - ensure dependencies are clean
+  - repo: https://github.com/dnephin/pre-commit-golang
+    rev: v0.5.1
+    hooks:
+      - id: go-mod-tidy
+
+  # Go vet - static analysis
+  - repo: local
+    hooks:
+      - id: go-vet
+        name: go vet
+        entry: go vet
+        language: system
+        pass_filenames: false
+        args: [./...]
+        types: [go]
+
+  # Go build - verify compilation
+  - repo: local
+    hooks:
+      - id: go-build
+        name: go build
+        entry: go build
+        language: system
+        pass_filenames: false
+        args: [-v, ./...]
+        types: [go]
+
+  # golangci-lint - comprehensive linting
+  - repo: https://github.com/golangci/golangci-lint
+    rev: v1.62.2
+    hooks:
+      - id: golangci-lint
+        args: [--timeout=5m]
+
+  # Go unit tests (short mode for speed)
+  - repo: local
+    hooks:
+      - id: go-test
+        name: go test (short)
+        entry: go test
+        language: system
+        pass_filenames: false
+        args: [-race, -short, -timeout=60s, ./...]
+        types: [go]
+        stages: [pre-commit]
+
+  # Verify go.mod and go.sum are in sync
+  - repo: local
+    hooks:
+      - id: go-mod-verify
+        name: go mod verify
+        entry: go mod verify
+        language: system
+        pass_filenames: false
+        types: [go]
+
+  # Check for common security issues with gosec (optional, slower)
+  - repo: local
+    hooks:
+      - id: gosec
+        name: gosec security scan
+        entry: gosec
+        language: system
+        pass_filenames: false
+        args: [-quiet, ./...]
+        types: [go]
+        stages: [pre-push]  # Run on push, not commit (slower)
+
+  # Markdown linting (for documentation)
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.43.0
+    hooks:
+      - id: markdownlint
+        args: [--fix, --disable, MD013, MD033, MD041, --]
+        exclude: ^(DEPLOYMENT|CI_CD|PHASE|STATUS|PROGRESS|VALIDATION|todo).*\.md$
+
+  # Shell script linting
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.10.0.1
+    hooks:
+      - id: shellcheck
+        args: [-x]
+
+# CI configuration - which hooks run in different stages
+default_stages: [pre-commit]
+
+# Skip hooks that require specific binaries if they're not installed
+fail_fast: false
+
+# Exclude generated files and vendor directory
+exclude: |
+  (?x)^(
+    vendor/.*|
+    .*\.pb\.go$|
+    .*_generated\.go$
+  )$

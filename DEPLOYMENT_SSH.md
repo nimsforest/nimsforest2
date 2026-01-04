@@ -397,7 +397,7 @@ The deployment workflow performs these steps:
 1. **Build**: Compile Go binary for Linux AMD64
 2. **Package**: Create deployment tarball with binary and scripts
 3. **Upload**: Copy package to server via SCP
-4. **Deploy**: 
+4. **Deploy**:
    - Stop existing service
    - Backup current binary
    - Install new binary

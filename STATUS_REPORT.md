@@ -87,7 +87,7 @@
 nimsforest/
 ├── cmd/
 │   └── forest/                    (⏳ Phase 5)
-│       └── main.go                 
+│       └── main.go  
 ├── internal/
 │   ├── core/                      (✅ Complete)
 │   │   ├── leaf.go                 (✅ 84 lines)
@@ -101,9 +101,9 @@ nimsforest/
 │   │   ├── test_helpers.go         (✅ 35 lines)
 │   │   ├── *_test.go               (✅ ~2400 lines)
 │   ├── trees/                     (⏳ Phase 4)
-│   │   └── payment.go              
+│   │   └── payment.go  
 │   ├── nims/                      (⏳ Phase 4)
-│   │   └── aftersales.go           
+│   │   └── aftersales.go  
 │   └── leaves/                    (✅ Complete)
 │       └── types.go                (✅ Basic types defined)
 ├── go.mod                         (✅ Complete)

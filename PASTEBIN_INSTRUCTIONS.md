@@ -96,7 +96,7 @@ log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
 # Check if running as root
-if [ "$EUID" -ne 0 ]; then 
+if [ "$EUID" -ne 0 ]; then
     log_error "This script must be run as root"
     exit 1
 fi
@@ -136,14 +136,14 @@ if ! command -v go &> /dev/null; then
     rm -rf /usr/local/go
     tar -C /usr/local -xzf go${GO_VERSION}.linux-amd64.tar.gz
     rm go${GO_VERSION}.linux-amd64.tar.gz
-    
+
     # Add Go to PATH for all users
     cat >> /etc/profile.d/go.sh << 'EOF'
 export PATH=$PATH:/usr/local/go/bin
 export GOPATH=$HOME/go
 export PATH=$PATH:$GOPATH/bin
 EOF
-    
+
     source /etc/profile.d/go.sh
     log_info "Go installed: $(go version)"
 else

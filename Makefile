@@ -299,6 +299,36 @@ vet: ## Run go vet
 
 check: fmt vet lint ## Run all code quality checks
 
+##@ Git Hooks
+
+install-hooks: ## Install Git pre-commit hooks (standalone bash version)
+	@echo "$(BLUE)🔗 Installing Git hooks...$(NC)"
+	@./scripts/install-hooks.sh
+	@echo "$(GREEN)✅ Git hooks installed$(NC)"
+
+install-hooks-framework: ## Install Git hooks using pre-commit framework
+	@echo "$(BLUE)🔗 Installing Git hooks with pre-commit framework...$(NC)"
+	@./scripts/install-hooks.sh --pre-commit-framework
+	@echo "$(GREEN)✅ Git hooks installed with pre-commit framework$(NC)"
+
+uninstall-hooks: ## Remove Git hooks
+	@echo "$(BLUE)🔗 Removing Git hooks...$(NC)"
+	@rm -f .git/hooks/pre-commit
+	@rm -f .git/hooks/pre-push
+	@if command -v pre-commit > /dev/null 2>&1; then \
+		pre-commit uninstall 2>/dev/null || true; \
+		pre-commit uninstall --hook-type pre-push 2>/dev/null || true; \
+	fi
+	@echo "$(GREEN)✅ Git hooks removed$(NC)"
+
+run-hooks: ## Run pre-commit checks manually (without committing)
+	@echo "$(BLUE)🔍 Running pre-commit checks...$(NC)"
+	@if command -v pre-commit > /dev/null 2>&1 && [ -f .pre-commit-config.yaml ]; then \
+		pre-commit run --all-files; \
+	else \
+		./scripts/pre-commit; \
+	fi
+
 ##@ Cleanup
 
 clean: ## Remove build artifacts and temporary files

@@ -19,7 +19,7 @@ log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
 # Check if running as root
-if [ "$EUID" -ne 0 ]; then 
+if [ "$EUID" -ne 0 ]; then
     log_error "This script must be run as root"
     exit 1
 fi
@@ -59,14 +59,15 @@ if ! command -v go &> /dev/null; then
     rm -rf /usr/local/go
     tar -C /usr/local -xzf go${GO_VERSION}.linux-amd64.tar.gz
     rm go${GO_VERSION}.linux-amd64.tar.gz
-    
+
     # Add Go to PATH for all users
     cat >> /etc/profile.d/go.sh << 'EOF'
 export PATH=$PATH:/usr/local/go/bin
 export GOPATH=$HOME/go
 export PATH=$PATH:$GOPATH/bin
 EOF
-    
+
+    # shellcheck source=/dev/null
     source /etc/profile.d/go.sh
     log_info "Go installed: $(go version)"
 else
@@ -198,7 +199,7 @@ log_info "=========================================="
 log_info ""
 log_info "System Information:"
 log_info "  - Hostname:    $(hostname)"
-log_info "  - OS:          $(lsb_release -ds 2>/dev/null || cat /etc/os-release | grep PRETTY_NAME | cut -d'"' -f2)"
+log_info "  - OS:          $(lsb_release -ds 2>/dev/null || grep PRETTY_NAME /etc/os-release | cut -d'"' -f2)"
 log_info "  - Kernel:      $(uname -r)"
 log_info "  - Go:          $(go version | cut -d' ' -f3)"
 log_info "  - NATS:        $(nats-server --version 2>&1 | head -n1)"

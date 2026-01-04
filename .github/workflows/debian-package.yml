@@ -10,23 +10,23 @@ jobs:
   build-deb:
     name: Build Debian Package
     runs-on: ubuntu-latest
-    
+
     strategy:
       matrix:
         arch: [amd64, arm64]
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       with:
         fetch-depth: 0
-    
+
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
         go-version: '1.24.x'
         cache: true
-    
+
     - name: Get version
       id: version
       run: |
@@ -37,18 +37,18 @@ jobs:
         fi
         echo "version=$VERSION" >> $GITHUB_OUTPUT
         echo "Building version: $VERSION"
-    
+
     - name: Install build dependencies
       run: |
         sudo apt-get update
         sudo apt-get install -y dpkg-dev debhelper
-    
+
     - name: Create package structure
       run: |
         PKG_NAME="nimsforest"
         VERSION="${{ steps.version.outputs.version }}"
         ARCH="${{ matrix.arch }}"
-        
+
         # Map Go arch to Debian arch
         if [ "$ARCH" = "amd64" ]; then
           DEB_ARCH="amd64"
@@ -57,9 +57,9 @@ jobs:
           DEB_ARCH="arm64"
           GO_ARCH="arm64"
         fi
-        
+
         PKG_DIR="${PKG_NAME}_${VERSION}_${DEB_ARCH}"
-        
+
         # Create directory structure
         mkdir -p ${PKG_DIR}/DEBIAN
         mkdir -p ${PKG_DIR}/usr/local/bin
@@ -67,12 +67,12 @@ jobs:
         mkdir -p ${PKG_DIR}/var/lib/nimsforest
         mkdir -p ${PKG_DIR}/var/log/nimsforest
         mkdir -p ${PKG_DIR}/usr/lib/systemd/system
-        
+
         # Build the binary
         GOOS=linux GOARCH=${GO_ARCH} go build -v \
           -ldflags="-s -w -X main.Version=${VERSION}" \
           -o ${PKG_DIR}/usr/local/bin/forest ./cmd/forest
-        
+
         # Create control file
         cat > ${PKG_DIR}/DEBIAN/control << EOF
         Package: ${PKG_NAME}
@@ -88,14 +88,14 @@ jobs:
          It provides clean separation between data ingestion, business logic,
          and state management through a flexible event-driven system.
         EOF
-        
+
         # Create systemd service file
         cat > ${PKG_DIR}/usr/lib/systemd/system/nimsforest.service << 'EOF'
         [Unit]
         Description=NimsForest Event Orchestration System
         After=network.target nats.service
         Wants=nats.service
-        
+
         [Service]
         Type=simple
         User=forest
@@ -108,70 +108,70 @@ jobs:
         StandardOutput=journal
         StandardError=journal
         SyslogIdentifier=nimsforest
-        
+
         # Security settings
         NoNewPrivileges=true
         PrivateTmp=true
         ProtectSystem=strict
         ProtectHome=true
         ReadWritePaths=/var/lib/nimsforest /var/log/nimsforest
-        
+
         [Install]
         WantedBy=multi-user.target
         EOF
-        
+
         # Create postinst script
         cat > ${PKG_DIR}/DEBIAN/postinst << 'EOF'
         #!/bin/bash
         set -e
-        
+
         # Create user if it doesn't exist
         if ! id -u forest > /dev/null 2>&1; then
           useradd -r -s /bin/false -d /var/lib/nimsforest forest
         fi
-        
+
         # Set permissions
         chown -R forest:forest /var/lib/nimsforest
         chown -R forest:forest /var/log/nimsforest
-        
+
         # Reload systemd
         if [ -d /run/systemd/system ]; then
           systemctl daemon-reload || true
         fi
-        
+
         echo "NimsForest installed successfully!"
         echo "Start with: sudo systemctl start nimsforest"
         echo "Enable on boot: sudo systemctl enable nimsforest"
         EOF
-        
+
         chmod +x ${PKG_DIR}/DEBIAN/postinst
-        
+
         # Create prerm script
         cat > ${PKG_DIR}/DEBIAN/prerm << 'EOF'
         #!/bin/bash
         set -e
-        
+
         if [ -d /run/systemd/system ]; then
           systemctl stop nimsforest || true
           systemctl disable nimsforest || true
         fi
         EOF
-        
+
         chmod +x ${PKG_DIR}/DEBIAN/prerm
-        
+
         # Build the package
         dpkg-deb --build ${PKG_DIR}
-        
+
         echo "PKG_FILE=${PKG_DIR}.deb" >> $GITHUB_ENV
         echo "PKG_NAME=${PKG_DIR}.deb" >> $GITHUB_ENV
-    
+
     - name: Upload package artifact
       uses: actions/upload-artifact@v4
       with:
         name: debian-package-${{ matrix.arch }}
         path: ${{ env.PKG_FILE }}
         retention-days: 30
-    
+
     - name: Upload to release
       if: startsWith(github.ref, 'refs/tags/')
       uses: softprops/action-gh-release@v1

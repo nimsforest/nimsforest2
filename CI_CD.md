@@ -102,7 +102,7 @@ NimsForest uses GitHub Actions for automated testing, building, and releasing. T
 
 ### 4. Hetzner Deployment Workflow (`.github/workflows/deploy-hetzner.yml`)
 
-**Triggers**: 
+**Triggers**:
 - Push to `main` → **Staging** (automatic)
 - Release published (`v*`) → **Production** (automatic)
 - Manual dispatch → **Your choice**

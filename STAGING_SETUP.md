@@ -208,9 +208,9 @@ Instead of pastebin.com, you can also use:
 
 - **GitHub Gist** (https://gist.github.com/) - Can be private
   - URL format: `https://gist.githubusercontent.com/USERNAME/GIST_ID/raw/setup-server.sh`
-  
+
 - **dpaste** (https://dpaste.com/) - Simple, no account needed
-  
+
 - **Ubuntu Pastebin** (https://paste.ubuntu.com/) - Official Ubuntu pastebin
 
 ---

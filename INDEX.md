@@ -108,7 +108,7 @@ SAMPLE_TASK_ASSIGNMENTS.md     Implementation
          PROGRESS.md ←──────────────┘
               ↑
     (Updated by everyone)
-              
+
     QUICK_REFERENCE.md
     (Reference anytime)
 ```

@@ -14,13 +14,13 @@ Automated CI/CD pipelines using GitHub Actions:
   - Performs linting and code quality checks
   - Generates code coverage reports
   - Builds for multiple platforms
-  
+
 - **`release.yml`** - Release automation
   - Triggers on version tags (v*)
   - Builds multi-platform binaries
   - Creates GitHub releases with changelogs
   - Publishes Docker images
-  
+
 - **`debian-package.yml`** - Debian package builder
   - Creates native .deb packages
   - Builds for amd64 and arm64

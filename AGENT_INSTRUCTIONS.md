@@ -59,7 +59,7 @@ go test ./... -tags=integration
 
 **Task**: Implement NATS Core Pub/Sub wrapper (Wind)
 
-**Dependencies**: 
+**Dependencies**:
 - Task 1.1 (Infrastructure) - Complete ✅
 - Task 2.1 (Leaf Types) - Complete ✅
 
@@ -434,10 +434,10 @@ Before marking your task complete:
    # Create file
    touch internal/core/soil.go
    touch internal/core/soil_test.go
-   
+
    # Implement (following spec)
    # Write tests
-   
+
    # Test (ensure NATS is running)
    make start
    go test ./internal/core/soil_test.go -v

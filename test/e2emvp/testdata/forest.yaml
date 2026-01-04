@@ -1,0 +1,13 @@
+# Test config for E2E MVP test
+
+treehouses:
+  scoring:
+    subscribes: contact.created
+    publishes: lead.scored
+    script: scripts/treehouses/scoring.lua
+
+nims:
+  qualify:
+    subscribes: lead.scored
+    publishes: lead.qualified
+    prompt: scripts/nims/qualify.md

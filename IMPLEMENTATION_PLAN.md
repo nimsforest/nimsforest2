@@ -40,6 +40,14 @@
 - [x] `scripts/nims/qualify.md`
 - [x] READMEs for each
 
+### 7. E2E Test ✓
+- [x] `test/e2emvp/e2e_test.go` - test skeleton
+- [x] `test/e2emvp/testdata/` - test config + scripts
+- [x] `make test-e2emvp` - run command
+
+Run: `make test-e2emvp`
+Passes when: all TODOs in test are implemented
+
 ---
 
 ## Post-MVP

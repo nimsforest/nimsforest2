@@ -217,6 +217,10 @@ test: ## Run all unit tests
 	@echo "$(BLUE)🧪 Running tests...$(NC)"
 	@go test -v -race -short $(GO_PACKAGES)
 
+test-e2emvp: ## Run MVP E2E test (embedded NATS, mock brain)
+	@echo "$(BLUE)🧪 Running MVP E2E tests...$(NC)"
+	@cd test/e2emvp && go test -v -race ./...
+
 test-integration: ## Run integration tests (requires NATS running)
 	@echo "$(BLUE)🧪 Running integration tests...$(NC)"
 	@if ! pgrep -x nats-server > /dev/null 2>&1; then \

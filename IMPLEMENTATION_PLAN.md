@@ -2,32 +2,37 @@
 
 ## MVP (Do This First)
 
-### 1. Config Loader
-- [ ] `pkg/runtime/config.go` - Parse YAML
-- [ ] TreeHouse: name, subscribes, publishes, script (path)
-- [ ] Nim: name, subscribes, publishes, prompt (path)
+### 1. Config Loader ✓
+- [x] `pkg/runtime/config.go` - Parse YAML
+- [x] TreeHouse: name, subscribes, publishes, script (path)
+- [x] Nim: name, subscribes, publishes, prompt (path)
 
-### 2. Lua Runtime
-- [ ] `pkg/runtime/lua.go` - Lua VM wrapper
-- [ ] Load script from file
-- [ ] Call `process(input)` → output
-- [ ] Helpers: `contains`, `json.encode`, `json.decode`, `log`
+### 2. Lua Runtime ✓
+- [x] `pkg/runtime/lua.go` - Lua VM wrapper
+- [x] Load script from file
+- [x] Call `process(input)` → output
+- [x] Helpers: `contains`, `json.encode`, `json.decode`, `log`
 
-### 3. TreeHouse Runtime
-- [ ] `pkg/runtime/treehouse.go`
-- [ ] Subscribe to NATS subject
-- [ ] On message: decode JSON → Lua table → call process() → encode result
-- [ ] Publish result to output subject
+### 3. TreeHouse Runtime ✓
+- [x] `pkg/runtime/treehouse.go`
+- [x] Subscribe to NATS subject
+- [x] On message: decode JSON → Lua table → call process() → encode result
+- [x] Publish result to output subject
 
-### 4. Nim Runtime
-- [ ] `pkg/runtime/nim.go`
-- [ ] Subscribe to NATS subject
-- [ ] Load prompt template from `.md` file
-- [ ] On message: render template with event data
-- [ ] Call brain (Claude)
-- [ ] Publish response to output subject
+### 4. Nim Runtime ✓
+- [x] `pkg/runtime/nim.go`
+- [x] Subscribe to NATS subject
+- [x] Load prompt template from `.md` file
+- [x] On message: render template with event data
+- [x] Call brain (Claude)
+- [x] Publish response to output subject
 
-### 5. Main
+### 5. Forest Runtime ✓
+- [x] `pkg/runtime/forest.go` - Orchestrates TreeHouses and Nims
+- [x] Load config and create all components
+- [x] Start/Stop lifecycle management
+
+### 6. Main
 - [ ] Load `config/forest.yaml`
 - [ ] Initialize brain (Claude, from env `CLAUDE_API_KEY`)
 - [ ] Start all TreeHouses

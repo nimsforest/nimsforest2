@@ -43,9 +43,11 @@ Components subscribe to NATS. NATS connects them. That's it.
 
 | Primitive | Nature | What It Does |
 |-----------|--------|--------------|
-| **Tree** | Deterministic | Parses raw external data → structured events |
+| **River** | Infrastructure | Event stream (NATS). Events flow through the forest. |
+| **River Source** | Deterministic | Feeds external data into the River (webhooks, APIs). |
 | **TreeHouse** | Deterministic | Applies business rules (Lua). Same input = same output. |
 | **Nim** | Non-deterministic | Makes decisions using `pkg/brain` (LLM). |
+| **Leaf** | Data | An event flowing through the River. |
 
 ---
 
@@ -53,12 +55,12 @@ Components subscribe to NATS. NATS connects them. That's it.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                      ADAPTERS                                │
-│              (translate external → generic)                  │
+│                    RIVER SOURCES                             │
+│                 (adapters feed the river)                    │
 │                                                              │
-│   Stripe webhook  →  payment.received                       │
-│   CRM webhook     →  contact.created                        │
-│   Support webhook →  ticket.created                         │
+│   Stripe webhook  ─┐                                        │
+│   CRM webhook     ─┼──►  River (NATS)                       │
+│   Support webhook ─┘                                        │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
@@ -74,7 +76,7 @@ Components subscribe to NATS. NATS connects them. That's it.
 │   pkg/brain ───────► LLM for Nims (OpenAI, Claude, Gemini)  │
 │                           │                                  │
 │                           ▼                                  │
-│   NATS ────────────► Pub/sub connects everything            │
+│   River (NATS) ────► Pub/sub connects everything            │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -108,6 +110,23 @@ No registration. No orchestrator. Components subscribe to NATS subjects.
 
 ```yaml
 # config/forest.yaml
+
+# River Sources - feed external data into the River
+sources:
+  stripe:
+    type: webhook
+    path: /webhooks/stripe
+    publishes: payment.*
+    
+  crm:
+    type: webhook
+    path: /webhooks/crm
+    publishes: contact.*, deal.*
+    
+  support:
+    type: webhook
+    path: /webhooks/support
+    publishes: ticket.created
 
 # TreeHouses - deterministic Lua scripts
 treehouses:
@@ -285,7 +304,10 @@ nimsforest/
 │       ├── triage.lua
 │       └── response.lua
 │
-└── adapters/                 # External system translation
+└── sources/                  # River sources (feed external data into River)
+    ├── webhook/              # HTTP webhook receiver
+    ├── stripe/               # Stripe events
+    └── crm/                  # CRM events
 ```
 
 ---

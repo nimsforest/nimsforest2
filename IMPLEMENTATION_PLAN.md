@@ -91,17 +91,22 @@ Ordered tasks. No timings. Check off as completed.
 
 ---
 
-## Phase 6: Adapters (Examples)
+## Phase 6: River Sources (Adapters)
 
-### 6.1 Webhook Adapter
-- [ ] `adapters/webhook/server.go` - HTTP server
+### 6.1 River Source Base
+- [ ] `pkg/river/source.go` - Base interface for sources
+- [ ] Connect to River (NATS)
+- [ ] Translate external data → Leaf events
+- [ ] Publish to River
+
+### 6.2 Webhook Source
+- [ ] `sources/webhook/server.go` - HTTP server
 - [ ] Parse incoming webhooks
-- [ ] Translate to generic events
-- [ ] Publish to NATS
+- [ ] Route by path/header to appropriate translator
 
-### 6.2 Example Adapters
-- [ ] Stripe adapter (payment events)
-- [ ] Generic CRM adapter (contact events)
+### 6.3 Example Sources
+- [ ] Stripe source (payment.received, subscription.*)
+- [ ] Generic CRM source (contact.created, deal.*)
 
 ---
 

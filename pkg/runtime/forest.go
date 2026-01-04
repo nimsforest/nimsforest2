@@ -7,19 +7,30 @@ import (
 	"sync"
 
 	"github.com/nats-io/nats.go"
+	"github.com/yourusername/nimsforest/internal/core"
 	"github.com/yourusername/nimsforest/pkg/brain"
 )
 
 // Forest is the main runtime that manages all TreeHouses and Nims.
 type Forest struct {
 	config     *Config
-	nc         *nats.Conn
+	wind       *core.Wind
+	nc         *nats.Conn // Fallback for raw NATS
+	humus      *core.Humus // Optional: for state tracking
 	brain      brain.Brain
 	treehouses map[string]*TreeHouse
 	nims       map[string]*Nim
 
 	mu      sync.Mutex
 	running bool
+}
+
+// ForestOptions configures how a Forest is created.
+type ForestOptions struct {
+	Wind  *core.Wind
+	NC    *nats.Conn
+	Humus *core.Humus
+	Brain brain.Brain
 }
 
 // NewForest creates a new Forest runtime from a configuration file.
@@ -33,6 +44,7 @@ func NewForest(configPath string, nc *nats.Conn, b brain.Brain) (*Forest, error)
 }
 
 // NewForestFromConfig creates a new Forest runtime from an existing config.
+// Uses raw NATS connection (for backward compatibility and testing).
 func NewForestFromConfig(cfg *Config, nc *nats.Conn, b brain.Brain) (*Forest, error) {
 	f := &Forest{
 		config:     cfg,
@@ -45,7 +57,7 @@ func NewForestFromConfig(cfg *Config, nc *nats.Conn, b brain.Brain) (*Forest, er
 	// Create TreeHouses
 	for name, thCfg := range cfg.TreeHouses {
 		scriptPath := cfg.ResolvePath(thCfg.Script)
-		th, err := NewTreeHouse(thCfg, nc, scriptPath)
+		th, err := NewTreeHouseWithConn(thCfg, nc, scriptPath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create treehouse %s: %w", name, err)
 		}
@@ -55,7 +67,100 @@ func NewForestFromConfig(cfg *Config, nc *nats.Conn, b brain.Brain) (*Forest, er
 	// Create Nims
 	for name, nimCfg := range cfg.Nims {
 		promptPath := cfg.ResolvePath(nimCfg.Prompt)
-		nim, err := NewNim(nimCfg, nc, b, promptPath)
+		nim, err := NewNimWithConn(nimCfg, nc, b, promptPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create nim %s: %w", name, err)
+		}
+		f.nims[name] = nim
+	}
+
+	return f, nil
+}
+
+// NewForestWithWind creates a new Forest using Wind for pub/sub.
+// This is the preferred method when integrating with the full NimsForest system.
+func NewForestWithWind(cfg *Config, wind *core.Wind, b brain.Brain) (*Forest, error) {
+	f := &Forest{
+		config:     cfg,
+		wind:       wind,
+		brain:      b,
+		treehouses: make(map[string]*TreeHouse),
+		nims:       make(map[string]*Nim),
+	}
+
+	// Create TreeHouses
+	for name, thCfg := range cfg.TreeHouses {
+		scriptPath := cfg.ResolvePath(thCfg.Script)
+		th, err := NewTreeHouse(thCfg, wind, scriptPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create treehouse %s: %w", name, err)
+		}
+		f.treehouses[name] = th
+	}
+
+	// Create Nims
+	for name, nimCfg := range cfg.Nims {
+		promptPath := cfg.ResolvePath(nimCfg.Prompt)
+		nim, err := NewNim(nimCfg, wind, b, promptPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create nim %s: %w", name, err)
+		}
+		f.nims[name] = nim
+	}
+
+	return f, nil
+}
+
+// NewForestWithOptions creates a Forest with full options including Humus support.
+func NewForestWithOptions(cfg *Config, opts ForestOptions) (*Forest, error) {
+	f := &Forest{
+		config:     cfg,
+		wind:       opts.Wind,
+		nc:         opts.NC,
+		humus:      opts.Humus,
+		brain:      opts.Brain,
+		treehouses: make(map[string]*TreeHouse),
+		nims:       make(map[string]*Nim),
+	}
+
+	// Create TreeHouses
+	for name, thCfg := range cfg.TreeHouses {
+		scriptPath := cfg.ResolvePath(thCfg.Script)
+		var th *TreeHouse
+		var err error
+		
+		if opts.Wind != nil {
+			th, err = NewTreeHouse(thCfg, opts.Wind, scriptPath)
+		} else if opts.NC != nil {
+			th, err = NewTreeHouseWithConn(thCfg, opts.NC, scriptPath)
+		} else {
+			return nil, fmt.Errorf("no connection provided (need Wind or NC)")
+		}
+		
+		if err != nil {
+			return nil, fmt.Errorf("failed to create treehouse %s: %w", name, err)
+		}
+		f.treehouses[name] = th
+	}
+
+	// Create Nims
+	for name, nimCfg := range cfg.Nims {
+		promptPath := cfg.ResolvePath(nimCfg.Prompt)
+		var nim *Nim
+		var err error
+		
+		if opts.Wind != nil {
+			if opts.Humus != nil {
+				nim, err = NewNimWithHumus(nimCfg, opts.Wind, opts.Humus, opts.Brain, promptPath)
+			} else {
+				nim, err = NewNim(nimCfg, opts.Wind, opts.Brain, promptPath)
+			}
+		} else if opts.NC != nil {
+			nim, err = NewNimWithConn(nimCfg, opts.NC, opts.Brain, promptPath)
+		} else {
+			return nil, fmt.Errorf("no connection provided (need Wind or NC)")
+		}
+		
 		if err != nil {
 			return nil, fmt.Errorf("failed to create nim %s: %w", name, err)
 		}

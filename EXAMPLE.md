@@ -19,16 +19,26 @@ nims:
   qualify:
     subscribes: lead.scored
     publishes: lead.qualified
-    prompt: |
-      You are a sales qualification assistant.
-      
-      A lead was scored:
-      - Contact ID: {{.contact_id}}
-      - Score: {{.score}}
-      - Signals: {{.signals}}
-      
-      Based on this score, should we pursue this lead?
-      Reply with JSON: {"pursue": true/false, "reason": "..."}
+    prompt: scripts/nims/qualify.md
+```
+
+## Prompt
+
+```markdown
+<!-- scripts/nims/qualify.md -->
+
+You are a sales qualification assistant.
+
+A lead was scored:
+- Contact ID: {{.contact_id}}
+- Email: {{.email}}
+- Score: {{.score}}
+- Signals: {{.signals}}
+
+Based on this score and signals, should we pursue this lead?
+
+Reply with JSON only:
+{"pursue": true/false, "reason": "one sentence explanation"}
 ```
 
 ---

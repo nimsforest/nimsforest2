@@ -27,15 +27,12 @@ nims:
   qualify:                        # Name of this Nim
     subscribes: lead.scored       # NATS subject to listen to
     publishes: lead.qualified     # NATS subject to publish to
-    prompt: |                     # Prompt template sent to Claude
-      A lead was scored:
-      - Score: {{.score}}
-      ...
+    prompt: scripts/nims/qualify.md  # Path to prompt file
 ```
 
 - **subscribes**: When an event hits this subject, the Nim wakes up
 - **publishes**: After LLM responds, result goes here
-- **prompt**: Go template. `{{.field}}` pulls from incoming event data
+- **prompt**: Path to `.md` file containing the prompt template
 
 ---
 

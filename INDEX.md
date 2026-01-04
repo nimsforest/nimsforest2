@@ -31,13 +31,13 @@ treehouses:
   scoring:
     subscribes: contact.created
     publishes: lead.scored
-    script: scripts/scoring.lua
+    script: scripts/treehouses/scoring.lua
 
 nims:
   qualify:
     subscribes: lead.scored
     publishes: lead.qualified
-    prompt: "Score: {{.score}}. Pursue? YES/NO."
+    prompt: scripts/nims/qualify.md
 ```
 
-That's it. Config + Lua scripts + prompts.
+That's it. Config + Lua scripts + prompt files.

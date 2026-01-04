@@ -81,13 +81,10 @@ nims:
   triage:
     subscribes: ticket.created
     publishes: ticket.triaged
-    prompt: |
-      Ticket: {{.body}}
-      
-      Return JSON: {sentiment, urgency, category}
+    prompt: scripts/nims/triage.md   # Separate file
 ```
 
-Template uses Go syntax: `{{.field}}`
+Prompt file uses Go template syntax: `{{.field}}`
 
 ---
 
@@ -106,8 +103,7 @@ nims:
   name:
     subscribes: subject.in
     publishes: subject.out
-    prompt: |
-      Your prompt with {{.data}}
+    prompt: scripts/nims/name.md   # Path to prompt file
 ```
 
 ---
@@ -127,8 +123,10 @@ nimsforest/
 ├── config/
 │   └── forest.yaml
 └── scripts/
-    └── treehouses/
-        └── scoring.lua
+    ├── treehouses/
+    │   └── scoring.lua
+    └── nims/
+        └── qualify.md
 ```
 
 ---

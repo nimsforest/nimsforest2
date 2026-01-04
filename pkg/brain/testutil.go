@@ -9,13 +9,14 @@ import (
 // MockBrain implements Brain interface for testing purposes
 type MockBrain struct {
 	// Optional fields for controlling mock behavior
-	AskResponse   string
-	AskError      error
-	StoreError    error
-	UpdateError   error
-	DeleteError   error
-	InitError     error
-	CloseError    error
+	AskResponse    string
+	AskResponseRaw bool // If true, return AskResponse as-is without prepending question
+	AskError       error
+	StoreError     error
+	UpdateError    error
+	DeleteError    error
+	InitError      error
+	CloseError     error
 }
 
 // NewMockBrain creates a new MockBrain with default responses
@@ -92,12 +93,21 @@ func (m *MockBrain) Ask(ctx context.Context, question string) (string, error) {
 	if m.AskError != nil {
 		return "", m.AskError
 	}
-	
+
 	if m.AskResponse != "" {
+		if m.AskResponseRaw {
+			return m.AskResponse, nil
+		}
 		return fmt.Sprintf("%s: %s", m.AskResponse, question), nil
 	}
-	
+
 	return fmt.Sprintf("Mock response to: %s", question), nil
+}
+
+// SetRawResponse sets the response to be returned as-is (useful for JSON responses)
+func (m *MockBrain) SetRawResponse(response string) {
+	m.AskResponse = response
+	m.AskResponseRaw = true
 }
 
 // Initialize implements Brain.Initialize

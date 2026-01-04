@@ -10,12 +10,19 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/nats-io/nats-server/v2/server"
+	"github.com/nats-io/nats.go"
 	"github.com/yourusername/nimsforest/internal/core"
 	"github.com/yourusername/nimsforest/internal/natsclusterconfig"
 	"github.com/yourusername/nimsforest/internal/natsembed"
 	"github.com/yourusername/nimsforest/internal/nims"
 	"github.com/yourusername/nimsforest/internal/trees"
 	"github.com/yourusername/nimsforest/internal/updater"
+	"github.com/yourusername/nimsforest/pkg/brain"
+	aifactory "github.com/yourusername/nimsforest/pkg/integrations/aiservice"
+	_ "github.com/yourusername/nimsforest/pkg/integrations/aiservice/thirdparty/claude"
+	_ "github.com/yourusername/nimsforest/pkg/integrations/aiservice/thirdparty/openai"
+	"github.com/yourusername/nimsforest/pkg/runtime"
 )
 
 // version is set at build time via -ldflags
@@ -40,6 +47,12 @@ func main() {
 			return
 		case "run", "start":
 			// Continue to run the forest
+		case "standalone":
+			runStandalone()
+			return
+		case "test":
+			runTest()
+			return
 		default:
 			fmt.Fprintf(os.Stderr, "Unknown command: %s\n\n", command)
 			printHelp()
@@ -104,29 +117,37 @@ func printHelp() {
 	fmt.Println("  forest [command]")
 	fmt.Println()
 	fmt.Println("Commands:")
-	fmt.Println("  (no command)    Start the NimsForest event processor")
-	fmt.Println("  run, start      Start the NimsForest event processor")
+	fmt.Println("  (no command)    Start the NimsForest event processor (requires cluster config)")
+	fmt.Println("  run, start      Start the NimsForest event processor (requires cluster config)")
+	fmt.Println("  standalone      Start standalone mode (embedded NATS, no cluster config needed)")
+	fmt.Println("  test            Run E2E tests with sample leads")
 	fmt.Println("  version         Show version information")
 	fmt.Println("  update          Check for updates and install if available")
 	fmt.Println("  check-update    Check for updates without installing")
 	fmt.Println("  help            Show this help message")
 	fmt.Println()
-	fmt.Println("Required Configuration:")
+	fmt.Println("Standalone Mode (for development/testing):")
+	fmt.Println("  forest standalone               # Start with embedded NATS server")
+	fmt.Println("  forest test                     # Run E2E tests")
+	fmt.Println()
+	fmt.Println("Required for cluster mode:")
 	fmt.Println("  /etc/nimsforest/node-info.json  Node identity (forest_id, node_id)")
 	fmt.Println("  /mnt/forest/registry.json       Cluster registry (shared storage)")
 	fmt.Println()
 	fmt.Println("Environment Variables:")
+	fmt.Println("  ANTHROPIC_API_KEY       Claude API key for AI-powered Nims")
+	fmt.Println("  OPENAI_API_KEY          OpenAI API key (alternative to Claude)")
+	fmt.Println("  FOREST_CONFIG           Path to forest.yaml config file")
 	fmt.Println("  NATS_CLUSTER_NODE_INFO  Override node info path")
 	fmt.Println("  NATS_CLUSTER_REGISTRY   Override registry path")
-	fmt.Println("  JETSTREAM_DIR           JetStream data directory (default: /var/lib/nimsforest/jetstream)")
+	fmt.Println("  JETSTREAM_DIR           JetStream data directory")
 	fmt.Println("  DEMO                    Set to 'true' to run demo mode")
 	fmt.Println()
 	fmt.Println("Examples:")
-	fmt.Println("  forest                          # Start the forest")
-	fmt.Println("  forest version                  # Show version")
-	fmt.Println("  forest check-update             # Check for new versions")
-	fmt.Println("  forest update                   # Update to latest version")
-	fmt.Println("  DEMO=true forest                # Start with demo mode")
+	fmt.Println("  forest standalone                          # Development mode")
+	fmt.Println("  forest test                                # Run E2E tests")
+	fmt.Println("  ANTHROPIC_API_KEY=sk-... forest standalone # With Claude AI")
+	fmt.Println("  forest                                     # Production cluster mode")
 	fmt.Println()
 	fmt.Println("More info: https://github.com/yourusername/nimsforest")
 }
@@ -274,6 +295,62 @@ func runForest() {
 	defer generalNim.Stop()
 	fmt.Println("  🧚 GeneralNim awake (catches: data.received, status.update, etc.)")
 
+	// Start YAML-configured runtime (TreeHouses + AI Nims)
+	var runtimeForest *runtime.Forest
+	configPath := getConfigPath()
+	if configPath != "" {
+		fmt.Println("\n🌳 Loading YAML-configured runtime...")
+		fmt.Printf("   Config: %s\n", configPath)
+
+		cfg, err := runtime.LoadConfig(configPath)
+		if err != nil {
+			log.Printf("⚠️  Failed to load runtime config: %v\n", err)
+		} else {
+			// Create brain from AI service
+			aiBrain, err := createBrain()
+			if err != nil {
+				log.Printf("⚠️  Failed to create AI brain: %v\n", err)
+				log.Println("   Using simple fallback brain (set ANTHROPIC_API_KEY for AI)")
+				simpleBrain := runtime.NewSimpleBrain()
+				if err := simpleBrain.Initialize(ctx); err != nil {
+					log.Printf("⚠️  Failed to initialize simple brain: %v\n", err)
+				} else {
+					runtimeForest, err = runtime.NewForestWithHumus(cfg, wind, humus, simpleBrain)
+					if err != nil {
+						log.Printf("⚠️  Failed to create runtime forest: %v\n", err)
+					}
+				}
+			} else {
+				if err := aiBrain.Initialize(ctx); err != nil {
+					log.Printf("⚠️  Failed to initialize AI brain: %v\n", err)
+				} else {
+					runtimeForest, err = runtime.NewForestWithHumus(cfg, wind, humus, aiBrain)
+					if err != nil {
+						log.Printf("⚠️  Failed to create runtime forest: %v\n", err)
+					}
+				}
+			}
+
+			if runtimeForest != nil {
+				if err := runtimeForest.Start(ctx); err != nil {
+					log.Printf("⚠️  Failed to start runtime forest: %v\n", err)
+				} else {
+					defer runtimeForest.Stop()
+					fmt.Printf("   ✅ Runtime started with %d TreeHouses and %d Nims\n",
+						len(cfg.TreeHouses), len(cfg.Nims))
+
+					// List what's running
+					for name := range cfg.TreeHouses {
+						fmt.Printf("   🏠 TreeHouse:%s (Lua script)\n", name)
+					}
+					for name := range cfg.Nims {
+						fmt.Printf("   🧚 Nim:%s (AI-powered)\n", name)
+					}
+				}
+			}
+		}
+	}
+
 	// Give components time to initialize
 	time.Sleep(500 * time.Millisecond)
 
@@ -342,6 +419,64 @@ func getDataDir() string {
 		return dir
 	}
 	return "/var/lib/nimsforest/jetstream"
+}
+
+// getConfigPath finds the forest.yaml config file.
+func getConfigPath() string {
+	// Check environment variable first
+	if path := os.Getenv("FOREST_CONFIG"); path != "" {
+		if _, err := os.Stat(path); err == nil {
+			return path
+		}
+	}
+
+	// Check common locations
+	paths := []string{
+		"config/forest.yaml",
+		"/etc/nimsforest/forest.yaml",
+		"forest.yaml",
+	}
+
+	for _, p := range paths {
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+	}
+
+	return ""
+}
+
+// createBrain creates an AI service brain from environment configuration.
+func createBrain() (*runtime.AIServiceBrain, error) {
+	// Check for API keys in order of preference
+	apiKey := os.Getenv("ANTHROPIC_API_KEY")
+	serviceType := aifactory.ServiceTypeClaude
+	model := os.Getenv("ANTHROPIC_MODEL")
+	if model == "" {
+		model = "claude-3-haiku-20240307"
+	}
+
+	if apiKey == "" {
+		apiKey = os.Getenv("OPENAI_API_KEY")
+		serviceType = aifactory.ServiceTypeOpenAI
+		model = os.Getenv("OPENAI_MODEL")
+		if model == "" {
+			model = "gpt-4o-mini"
+		}
+	}
+
+	if apiKey == "" {
+		return nil, fmt.Errorf("no AI API key found (set ANTHROPIC_API_KEY or OPENAI_API_KEY)")
+	}
+
+	// Create AI service
+	service, err := aifactory.NewService(serviceType, apiKey, model)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create AI service: %w", err)
+	}
+
+	// Wrap in brain adapter
+	return runtime.NewAIServiceBrain(service), nil
 }
 
 func printBanner() {
@@ -481,4 +616,323 @@ func sendDemoData(river *core.River) {
 	fmt.Println("✨ All demo events sent! See processing above.")
 	fmt.Println("💡 Now YOU can add your own trees and nims!")
 	fmt.Println()
+}
+
+// runStandalone runs the forest in standalone mode with embedded NATS
+func runStandalone() {
+	fmt.Println("🌲 NimsForest Standalone Mode")
+	fmt.Println("=============================")
+	fmt.Println()
+
+	// 1. Start embedded NATS server
+	fmt.Println("📡 Starting embedded NATS server...")
+	opts := &server.Options{
+		Host: "127.0.0.1",
+		Port: 4222,
+	}
+	ns, err := server.NewServer(opts)
+	if err != nil {
+		log.Fatalf("❌ Failed to create NATS server: %v\n", err)
+	}
+	go ns.Start()
+	if !ns.ReadyForConnections(5 * time.Second) {
+		log.Fatal("❌ NATS server not ready")
+	}
+	defer ns.Shutdown()
+	fmt.Printf("✅ NATS server at %s\n", ns.ClientURL())
+
+	// 2. Connect to NATS
+	nc, err := nats.Connect(ns.ClientURL())
+	if err != nil {
+		log.Fatalf("❌ Failed to connect: %v\n", err)
+	}
+	defer nc.Close()
+
+	// 3. Create Wind
+	wind := core.NewWind(nc)
+	fmt.Println("✅ Wind initialized")
+
+	// 4. Load config
+	configPath := getConfigPath()
+	if configPath == "" {
+		log.Fatal("❌ No config/forest.yaml found")
+	}
+	fmt.Printf("📄 Config: %s\n", configPath)
+
+	cfg, err := runtime.LoadConfig(configPath)
+	if err != nil {
+		log.Fatalf("❌ Failed to load config: %v\n", err)
+	}
+
+	// 5. Create brain
+	ctx := context.Background()
+	nimBrain, brainType := createBrainWithFallback(ctx)
+	fmt.Printf("🧠 Brain: %s\n", brainType)
+
+	// 6. Create and start forest
+	forest, err := runtime.NewForestFromConfig(cfg, wind, nimBrain)
+	if err != nil {
+		log.Fatalf("❌ Failed to create forest: %v\n", err)
+	}
+
+	if err := forest.Start(ctx); err != nil {
+		log.Fatalf("❌ Failed to start forest: %v\n", err)
+	}
+	defer forest.Stop()
+
+	fmt.Println()
+	fmt.Println("🌲 Forest running!")
+	for name := range cfg.TreeHouses {
+		fmt.Printf("   🏠 TreeHouse:%s\n", name)
+	}
+	for name := range cfg.Nims {
+		fmt.Printf("   🧚 Nim:%s\n", name)
+	}
+
+	// 7. Subscribe to outputs to display results
+	wind.Catch("lead.scored", func(leaf core.Leaf) {
+		var data map[string]interface{}
+		json.Unmarshal(leaf.Data, &data)
+		fmt.Printf("\n📊 SCORED: %v → score=%v signals=%v\n",
+			data["contact_id"], data["score"], data["signals"])
+	})
+
+	wind.Catch("lead.qualified", func(leaf core.Leaf) {
+		var data map[string]interface{}
+		json.Unmarshal(leaf.Data, &data)
+		pursue := data["pursue"]
+		if pursue == true {
+			fmt.Printf("🎯 QUALIFIED: ✅ PURSUE - %v\n", data["reason"])
+		} else {
+			fmt.Printf("🎯 QUALIFIED: ❌ PASS - %v\n", data["reason"])
+		}
+	})
+
+	fmt.Println()
+	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	fmt.Println("Send test leads with:")
+	fmt.Println(`  nats pub contact.created '{"subject":"contact.created","data":{"id":"test","email":"cto@corp.com","title":"CTO","company_size":500,"industry":"technology"},"source":"cli","ts":"2026-01-01T00:00:00Z"}'`)
+	fmt.Println()
+	fmt.Println("Press Ctrl+C to exit...")
+	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+	// Wait for shutdown
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	<-sigChan
+	fmt.Println("\n👋 Shutting down...")
+}
+
+// runTest runs E2E tests with sample leads
+func runTest() {
+	fmt.Println("🧪 NimsForest E2E Test")
+	fmt.Println("======================")
+	fmt.Println()
+
+	// 1. Start embedded NATS server
+	fmt.Println("📡 Starting embedded NATS server...")
+	opts := &server.Options{
+		Host: "127.0.0.1",
+		Port: -1, // Random port for testing
+	}
+	ns, err := server.NewServer(opts)
+	if err != nil {
+		log.Fatalf("❌ Failed to create NATS server: %v\n", err)
+	}
+	go ns.Start()
+	if !ns.ReadyForConnections(5 * time.Second) {
+		log.Fatal("❌ NATS server not ready")
+	}
+	defer ns.Shutdown()
+	fmt.Printf("✅ NATS server at %s\n", ns.ClientURL())
+
+	// 2. Connect to NATS
+	nc, err := nats.Connect(ns.ClientURL())
+	if err != nil {
+		log.Fatalf("❌ Failed to connect: %v\n", err)
+	}
+	defer nc.Close()
+
+	// 3. Create Wind
+	wind := core.NewWind(nc)
+
+	// 4. Load config
+	configPath := getConfigPath()
+	if configPath == "" {
+		log.Fatal("❌ No config/forest.yaml found")
+	}
+
+	cfg, err := runtime.LoadConfig(configPath)
+	if err != nil {
+		log.Fatalf("❌ Failed to load config: %v\n", err)
+	}
+
+	// 5. Create brain
+	ctx := context.Background()
+	nimBrain, brainType := createBrainWithFallback(ctx)
+	fmt.Printf("🧠 Brain: %s\n", brainType)
+
+	// 6. Create and start forest
+	forest, err := runtime.NewForestFromConfig(cfg, wind, nimBrain)
+	if err != nil {
+		log.Fatalf("❌ Failed to create forest: %v\n", err)
+	}
+
+	if err := forest.Start(ctx); err != nil {
+		log.Fatalf("❌ Failed to start forest: %v\n", err)
+	}
+	defer forest.Stop()
+
+	fmt.Println("✅ Forest running")
+	fmt.Println()
+
+	// 7. Collect results
+	results := make(chan map[string]interface{}, 10)
+
+	wind.Catch("lead.qualified", func(leaf core.Leaf) {
+		var data map[string]interface{}
+		json.Unmarshal(leaf.Data, &data)
+		results <- data
+	})
+
+	time.Sleep(200 * time.Millisecond)
+
+	// 8. Define test cases
+	testCases := []struct {
+		name         string
+		id           string
+		email        string
+		title        string
+		companySize  int
+		industry     string
+		expectPursue bool
+	}{
+		{
+			name:         "Enterprise CTO (should pursue)",
+			id:           "test-001",
+			email:        "cto@enterprise.com",
+			title:        "CTO",
+			companySize:  800,
+			industry:     "technology",
+			expectPursue: true,
+		},
+		{
+			name:         "Mid-market VP (should pursue)",
+			id:           "test-002",
+			email:        "vp@midsize.com",
+			title:        "VP Engineering",
+			companySize:  200,
+			industry:     "finance",
+			expectPursue: true,
+		},
+		{
+			name:         "Small startup engineer (should not pursue)",
+			id:           "test-003",
+			email:        "dev@tiny.io",
+			title:        "Software Engineer",
+			companySize:  10,
+			industry:     "retail",
+			expectPursue: false,
+		},
+	}
+
+	// 9. Run tests
+	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	passed := 0
+	failed := 0
+
+	for i, tc := range testCases {
+		fmt.Printf("\n📤 Test %d: %s\n", i+1, tc.name)
+
+		// Send test contact
+		contact := map[string]interface{}{
+			"id":           tc.id,
+			"email":        tc.email,
+			"title":        tc.title,
+			"company_size": tc.companySize,
+			"industry":     tc.industry,
+		}
+		data, _ := json.Marshal(contact)
+		leaf := core.NewLeaf("contact.created", data, "test")
+		wind.Drop(*leaf)
+
+		// Wait for result
+		select {
+		case result := <-results:
+			pursue, _ := result["pursue"].(bool)
+			reason, _ := result["reason"].(string)
+			priority, _ := result["priority"].(string)
+
+			// Truncate reason for display
+			if len(reason) > 80 {
+				reason = reason[:80] + "..."
+			}
+
+			if pursue == tc.expectPursue {
+				fmt.Printf("   ✅ PASS: pursue=%v priority=%v\n", pursue, priority)
+				fmt.Printf("   📝 %s\n", reason)
+				passed++
+			} else {
+				fmt.Printf("   ❌ FAIL: expected pursue=%v, got %v\n", tc.expectPursue, pursue)
+				fmt.Printf("   📝 %s\n", reason)
+				failed++
+			}
+
+		case <-time.After(10 * time.Second):
+			fmt.Printf("   ❌ FAIL: timeout waiting for result\n")
+			failed++
+		}
+	}
+
+	// 10. Summary
+	fmt.Println()
+	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	fmt.Printf("📊 Results: %d passed, %d failed\n", passed, failed)
+
+	if failed == 0 {
+		fmt.Println("✅ All tests passed!")
+	} else {
+		fmt.Println("❌ Some tests failed")
+		os.Exit(1)
+	}
+}
+
+// createBrainWithFallback creates a brain with fallback to SimpleBrain
+func createBrainWithFallback(ctx context.Context) (brain.Brain, string) {
+	// Try Anthropic first
+	if apiKey := os.Getenv("ANTHROPIC_API_KEY"); apiKey != "" {
+		model := os.Getenv("ANTHROPIC_MODEL")
+		if model == "" {
+			model = "claude-3-haiku-20240307"
+		}
+		service, err := aifactory.NewService(aifactory.ServiceTypeClaude, apiKey, model)
+		if err == nil {
+			b := runtime.NewAIServiceBrain(service)
+			if err := b.Initialize(ctx); err == nil {
+				return b, fmt.Sprintf("Claude (%s)", model)
+			}
+		}
+	}
+
+	// Try OpenAI
+	if apiKey := os.Getenv("OPENAI_API_KEY"); apiKey != "" {
+		model := os.Getenv("OPENAI_MODEL")
+		if model == "" {
+			model = "gpt-4o-mini"
+		}
+		service, err := aifactory.NewService(aifactory.ServiceTypeOpenAI, apiKey, model)
+		if err == nil {
+			b := runtime.NewAIServiceBrain(service)
+			if err := b.Initialize(ctx); err == nil {
+				return b, fmt.Sprintf("OpenAI (%s)", model)
+			}
+		}
+	}
+
+	// Fallback to simple brain
+	fmt.Println("⚠️  No AI API key found - using rule-based SimpleBrain")
+	fmt.Println("   Set ANTHROPIC_API_KEY or OPENAI_API_KEY for AI-powered evaluation")
+	b := runtime.NewSimpleBrain()
+	b.Initialize(ctx)
+	return b, "SimpleBrain (rule-based fallback)"
 }

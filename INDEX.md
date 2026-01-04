@@ -7,7 +7,8 @@ Event-driven automation. Lua rules. LLM decisions.
 ## Start Here
 
 1. **[VISION.md](./VISION.md)** — What it is
-2. **[IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md)** — What to build
+2. **[EXAMPLE.md](./EXAMPLE.md)** — Working example
+3. **[IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md)** — What to build
 
 ---
 

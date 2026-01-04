@@ -1,0 +1,23 @@
+# NimsForest Configuration
+# Lead scoring pipeline example
+
+treehouses:
+  scoring:
+    subscribes: contact.created
+    publishes: lead.scored
+    script: scripts/treehouses/scoring.lua
+
+nims:
+  qualify:
+    subscribes: lead.scored
+    publishes: lead.qualified
+    prompt: |
+      You are a sales qualification assistant.
+      
+      A lead was scored:
+      - Contact ID: {{.contact_id}}
+      - Score: {{.score}}
+      - Signals: {{.signals}}
+      
+      Based on this score, should we pursue this lead?
+      Reply with JSON: {"pursue": true/false, "reason": "..."}

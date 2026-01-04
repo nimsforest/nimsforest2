@@ -31,9 +31,9 @@
 - [ ] Start Nims
 - [ ] Wait for shutdown
 
-### 6. Example
-- [ ] `config/forest.yaml` - one TreeHouse, one Nim
-- [ ] `scripts/treehouses/scoring.lua`
+### 6. Example (see EXAMPLE.md)
+- [ ] `config/forest.yaml` - scoring TreeHouse + qualify Nim
+- [ ] `scripts/treehouses/scoring.lua` - lead scoring logic
 
 ---
 

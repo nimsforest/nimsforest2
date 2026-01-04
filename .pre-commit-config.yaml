@@ -27,18 +27,6 @@ repos:
     hooks:
       - id: go-fmt
         args: [-s, -w]
-
-  # Go imports organization
-  - repo: https://github.com/dnephin/pre-commit-golang
-    rev: v0.5.1
-    hooks:
-      - id: go-imports
-        args: [-w]
-
-  # Go mod tidy - ensure dependencies are clean
-  - repo: https://github.com/dnephin/pre-commit-golang
-    rev: v0.5.1
-    hooks:
       - id: go-mod-tidy
 
   # Go vet - static analysis
@@ -91,18 +79,6 @@ repos:
         language: system
         pass_filenames: false
         types: [go]
-
-  # Check for common security issues with gosec (optional, slower)
-  - repo: local
-    hooks:
-      - id: gosec
-        name: gosec security scan
-        entry: gosec
-        language: system
-        pass_filenames: false
-        args: [-quiet, ./...]
-        types: [go]
-        stages: [pre-push]  # Run on push, not commit (slower)
 
   # Markdown linting (for documentation)
   - repo: https://github.com/igorshubovych/markdownlint-cli

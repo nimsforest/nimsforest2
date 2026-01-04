@@ -91,22 +91,23 @@ Ordered tasks. No timings. Check off as completed.
 
 ---
 
-## Phase 6: River Sources (Adapters)
+## Phase 6: Sources
 
-### 6.1 River Source Base
-- [ ] `pkg/river/source.go` - Base interface for sources
+### 6.1 Source Interface
+- [ ] `sources/source.go` - Source interface
+- [ ] `Start()`, `Stop()`, `Name()` methods
 - [ ] Connect to River (NATS)
 - [ ] Translate external data → Leaf events
-- [ ] Publish to River
 
-### 6.2 Webhook Source
-- [ ] `sources/webhook/server.go` - HTTP server
+### 6.2 WebhookSource (Generic)
+- [ ] `sources/webhook/webhook.go` - HTTP server
 - [ ] Parse incoming webhooks
-- [ ] Route by path/header to appropriate translator
+- [ ] Configurable path → subject mapping
 
-### 6.3 Example Sources
-- [ ] Stripe source (payment.received, subscription.*)
-- [ ] Generic CRM source (contact.created, deal.*)
+### 6.3 Example Implementations
+- [ ] `StripeSource` - Stripe webhooks → payment.*, subscription.*
+- [ ] `SalesforceSource` - Salesforce events → contact.*, deal.*
+- [ ] `ZendeskSource` - Zendesk webhooks → ticket.*
 
 ---
 

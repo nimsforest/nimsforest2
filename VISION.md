@@ -44,10 +44,20 @@ Components subscribe to NATS. NATS connects them. That's it.
 | Primitive | Nature | What It Does |
 |-----------|--------|--------------|
 | **River** | Infrastructure | Event stream (NATS). Events flow through the forest. |
-| **River Source** | Deterministic | Feeds external data into the River (webhooks, APIs). |
+| **Source** | Interface | Feeds external data into the River. |
 | **TreeHouse** | Deterministic | Applies business rules (Lua). Same input = same output. |
 | **Nim** | Non-deterministic | Makes decisions using `pkg/brain` (LLM). |
 | **Leaf** | Data | An event flowing through the River. |
+
+### Source Implementations
+
+| Implementation | What It Connects |
+|----------------|------------------|
+| `SalesforceSource` | Salesforce CRM |
+| `HubSpotSource` | HubSpot CRM |
+| `StripeSource` | Stripe payments |
+| `ZendeskSource` | Zendesk support |
+| `WebhookSource` | Generic webhooks |
 
 ---
 
@@ -55,12 +65,12 @@ Components subscribe to NATS. NATS connects them. That's it.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    RIVER SOURCES                             │
-│                 (adapters feed the river)                    │
+│                       SOURCES                                │
+│              (implementations feed the River)                │
 │                                                              │
-│   Stripe webhook  ─┐                                        │
-│   CRM webhook     ─┼──►  River (NATS)                       │
-│   Support webhook ─┘                                        │
+│   StripeSource     ─┐                                       │
+│   SalesforceSource ─┼──►  River (NATS)                      │
+│   ZendeskSource    ─┘                                       │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
@@ -111,22 +121,22 @@ No registration. No orchestrator. Components subscribe to NATS subjects.
 ```yaml
 # config/forest.yaml
 
-# River Sources - feed external data into the River
+# Sources - feed external data into the River
 sources:
-  stripe:
-    type: webhook
-    path: /webhooks/stripe
-    publishes: payment.*
+  payments:
+    type: stripe
+    webhook_path: /webhooks/stripe
+    webhook_secret: ${STRIPE_WEBHOOK_SECRET}
     
   crm:
-    type: webhook
-    path: /webhooks/crm
-    publishes: contact.*, deal.*
+    type: salesforce
+    instance_url: ${SALESFORCE_INSTANCE_URL}
+    client_id: ${SALESFORCE_CLIENT_ID}
     
   support:
-    type: webhook
-    path: /webhooks/support
-    publishes: ticket.created
+    type: zendesk
+    subdomain: ${ZENDESK_SUBDOMAIN}
+    webhook_path: /webhooks/zendesk
 
 # TreeHouses - deterministic Lua scripts
 treehouses:
@@ -304,10 +314,13 @@ nimsforest/
 │       ├── triage.lua
 │       └── response.lua
 │
-└── sources/                  # River sources (feed external data into River)
-    ├── webhook/              # HTTP webhook receiver
-    ├── stripe/               # Stripe events
-    └── crm/                  # CRM events
+└── sources/                  # Source implementations
+    ├── source.go             # Source interface
+    ├── salesforce/           # SalesforceSource
+    ├── hubspot/              # HubSpotSource
+    ├── stripe/               # StripeSource
+    ├── zendesk/              # ZendeskSource
+    └── webhook/              # WebhookSource (generic)
 ```
 
 ---

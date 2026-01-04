@@ -44,6 +44,40 @@
 
 ## Post-MVP
 
+### Agentic Nims
+Current MVP: prompt → response (one shot)
+
+Full vision:
+- [ ] Multi-step reasoning loops
+- [ ] Tool use (read files, search, call APIs)
+- [ ] Human checkpoints (pause, await approval, resume)
+- [ ] State persistence (survive restarts)
+- [ ] Publish intermediate status to River
+- [ ] Configurable autonomy level (full auto → human approval → human only)
+
+Example flow:
+```
+ticket.created
+    │
+    ▼
+Nim: analyze ticket
+    │ (reason)
+    ▼
+Nim: search knowledge base (tool)
+    │ (reason)
+    ▼
+Nim: draft response
+    │
+    ▼
+response.drafted (checkpoint: await human approval)
+    │
+    ▼
+Human approves/edits
+    │
+    ▼
+response.sent
+```
+
 ### Sources
 - [ ] Source interface
 - [ ] WebhookSource (generic HTTP)

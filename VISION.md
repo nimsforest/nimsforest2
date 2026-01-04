@@ -76,15 +76,33 @@ Helpers: `contains(str, sub)`, `json.encode(t)`, `json.decode(s)`, `log(msg)`
 
 Non-deterministic. LLM decides.
 
+### MVP: One-shot
+
 ```yaml
 nims:
   triage:
     subscribes: ticket.created
     publishes: ticket.triaged
-    prompt: scripts/nims/triage.md   # Separate file
+    prompt: scripts/nims/triage.md
 ```
 
-Prompt file uses Go template syntax: `{{.field}}`
+Receives event → calls Claude → publishes response.
+
+### Future: Agentic
+
+```yaml
+nims:
+  resolver:
+    subscribes: ticket.escalated
+    publishes: ticket.resolved
+    prompt: scripts/nims/resolver.md
+    tools: [search_kb, read_docs, draft_response]
+    checkpoint: human_approval
+```
+
+Reason → use tools → checkpoint for human → continue → complete.
+
+Like Cursor: autonomous work with human oversight.
 
 ---
 

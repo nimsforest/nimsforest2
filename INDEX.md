@@ -1,72 +1,38 @@
-# NimsForest Document Index
+# NimsForest
 
-## The Goal
-
-**Automate the route to $1M ARR with 10 FTEs.**
+Event-driven automation framework. Components subscribe to NATS, process events, publish results.
 
 ---
 
-## Start Here
+## Docs
 
-| Document | Purpose |
-|----------|---------|
-| [VISION.md](./VISION.md) | Why we're building this. Core vs Adapters. |
+| Document | What |
+|----------|------|
+| [VISION.md](./VISION.md) | What NimsForest is. Core primitives. |
 | [IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md) | What to build, in what order. |
+| [README.md](./README.md) | Quick start, running the system. |
 
 ---
 
-## Architecture
+## Core Primitives
+
+| Primitive | What | Nature |
+|-----------|------|--------|
+| **Tree** | Parses raw data → structured events | Deterministic |
+| **TreeHouse** | Applies rules. Same input = same output. | Deterministic |
+| **Nim** | Makes decisions. Human or LLM. | Non-deterministic |
+
+---
+
+## How It Works
 
 ```
-ADAPTERS (separate, optional)          CORE FRAMEWORK (testable)
-─────────────────────────              ─────────────────────────
-Stripe   ─┐                            
-PayPal   ─┼─► payment.received ──────► TreeHouses (deterministic)
-                                              │
-HubSpot  ─┐                                   ▼
-Salesforce┼─► contact.created ───────► Nims (human/LLM)
-                                              │
-Zendesk  ─┐                                   ▼
-Intercom ─┼─► ticket.created ────────► Soil (state)
+Components subscribe to NATS subjects.
+Components publish to NATS subjects.
+NATS connects them.
 ```
 
-**Core is vendor-agnostic. Adapters translate external systems.**
-
----
-
-## Key Concepts
-
-| Concept | What It Is |
-|---------|------------|
-| **Tree** | Parses raw data → structured event (deterministic) |
-| **Tree House** | Applies business rules. Same input = same output. (deterministic) |
-| **Nim** | Makes decisions requiring judgment. Human or LLM. (non-deterministic) |
-| **Adapter** | Translates external webhook → generic event |
-
----
-
-## MVP Focus
-
-**Contacts → Qualified Leads → Sales**
-
-| Phase | What |
-|-------|------|
-| 1 | TreeHouse foundation + generic leaf types |
-| 2 | Lead path: Scoring → Qualification → Enrichment |
-| 3 | LLM infrastructure |
-| 4 | Support path: Routing → Triage → Response |
-| 5 | Adapters (Stripe, CRM, Support) |
-| 6 | Integration & E2E tests |
-
----
-
-## Reference Documents
-
-| Document | When to Use |
-|----------|-------------|
-| [README.md](./README.md) | Technical overview, quick start |
-| [Cursorinstructions.md](./Cursorinstructions.md) | Original architecture spec |
-| [EXTENSIBILITY_GUIDE.md](./EXTENSIBILITY_GUIDE.md) | Adding new components |
+No central orchestrator. No registration. Just pub/sub.
 
 ---
 
@@ -74,16 +40,19 @@ Intercom ─┼─► ticket.created ────────► Soil (state)
 
 ```
 internal/
-├── core/           # Base infrastructure (exists)
-├── leaves/         # Generic event types
+├── core/           # Primitives (Wind, River, Tree, TreeHouse, Nim, etc.)
+├── leaves/         # Event types (Contact, Lead, Ticket, Payment)
 ├── treehouses/     # Deterministic rules
-├── nims/           # Human/LLM decisions
+├── nims/           # LLM/Human decisions
 └── llm/            # LLM client
 
-adapters/           # External system translations (separate)
-├── stripe/
-├── crm/
-└── support/
-
-test/e2e/           # End-to-end tests (no external services)
+adapters/           # External system translation (Stripe, CRM, etc.)
 ```
+
+---
+
+## Start
+
+1. Read [VISION.md](./VISION.md)
+2. Follow [IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md)
+3. Start with Phase 1: TreeHouse base

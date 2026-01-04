@@ -1,496 +1,471 @@
 # 🌲 NimsForest Implementation Plan
 
-## Principle
+## What Exists
 
-**Build only what's used. Test without external services.**
-
----
-
-## Architecture Overview
-
-```
-┌──────────────────────────────────────────────────────┐
-│                     ADAPTERS                          │
-│            (separate package, optional)               │
-│                                                       │
-│   adapters/stripe/     → payment.received            │
-│   adapters/hubspot/    → contact.created             │
-│   adapters/zendesk/    → ticket.created              │
-└───────────────────────────┬──────────────────────────┘
-                            │ Generic events
-                            ▼
-┌──────────────────────────────────────────────────────┐
-│                   CORE FRAMEWORK                      │
-│                                                       │
-│   internal/core/        Base infrastructure          │
-│   internal/leaves/      Generic event types          │
-│   internal/treehouses/  Deterministic rules          │
-│   internal/nims/        Human/LLM decisions          │
-│   internal/llm/         LLM integration              │
-└──────────────────────────────────────────────────────┘
-```
-
----
-
-## What Already Exists
-
-- [x] `internal/core/` - Wind, River, Humus, Soil, Decomposer
-- [x] `internal/core/tree.go` - Base Tree interface
-- [x] `internal/core/nim.go` - Base Nim interface
-- [x] `internal/leaves/types.go` - PaymentCompleted, PaymentFailed
-- [x] `internal/trees/payment.go` - Example tree (Stripe-specific, will move to adapter)
+- [x] `internal/core/wind.go` - NATS pub/sub
+- [x] `internal/core/river.go` - NATS JetStream ingestion
+- [x] `internal/core/humus.go` - NATS JetStream state log
+- [x] `internal/core/soil.go` - NATS KV state store
+- [x] `internal/core/decomposer.go` - Applies humus to soil
+- [x] `internal/core/leaf.go` - Event structure
+- [x] `internal/core/tree.go` - Parser base
+- [x] `internal/core/nim.go` - Decision base
+- [x] `internal/trees/payment.go` - Stripe parser (move to adapter)
 - [x] `internal/nims/aftersales.go` - Example nim
 
 ---
 
-## Phase 1: Core Foundation
+## What To Build
 
-**Goal:** Tree House infrastructure + generic leaf types.
+### Phase 1: TreeHouse Base
 
-### 1.1 TreeHouse Base Interface
+**Goal:** Enable deterministic rule processing.
 
-File: `internal/core/treehouse.go`
+**File:** `internal/core/treehouse.go`
 
 ```go
+// TreeHouse applies deterministic rules to events
+// Same input MUST produce same output
 type TreeHouse interface {
     Name() string
     InputSubjects() []string
-    Process(leaf Leaf) ([]Leaf, error)  // Must be deterministic
-    Start(ctx context.Context) error
-    Stop() error
+    Process(leaf Leaf) ([]Leaf, error)
 }
 
+// BaseTreeHouse handles subscription and publishing
 type BaseTreeHouse struct {
     name string
     wind *Wind
 }
+
+func (h *BaseTreeHouse) Start(ctx context.Context) error {
+    for _, subject := range h.InputSubjects() {
+        h.wind.Catch(subject, func(leaf Leaf) {
+            results, err := h.Process(leaf)
+            if err != nil {
+                log.Printf("[%s] error: %v", h.name, err)
+                return
+            }
+            for _, result := range results {
+                h.wind.Drop(result)
+            }
+        })
+    }
+    return nil
+}
 ```
 
-- [ ] Create interface
-- [ ] Create BaseTreeHouse with Wind integration
-- [ ] Catch input subjects, call Process, drop output leaves
-- [ ] Unit tests proving determinism
+Tasks:
+- [ ] Create TreeHouse interface
+- [ ] Create BaseTreeHouse with Wind subscription
+- [ ] Unit tests asserting determinism
 
-### 1.2 Generic Leaf Types
+---
 
-File: `internal/leaves/types.go`
+### Phase 2: LLM Client
+
+**Goal:** Enable Nims to use LLM reasoning.
+
+**Files:** `internal/llm/`
+
+```go
+// internal/llm/client.go
+type Client interface {
+    Complete(ctx context.Context, prompt string) (string, error)
+}
+
+// internal/llm/openai.go
+type OpenAI struct {
+    apiKey string
+    model  string
+}
+
+// internal/llm/mock.go
+type Mock struct {
+    responses map[string]string
+}
+```
+
+Tasks:
+- [ ] Create Client interface
+- [ ] Create OpenAI implementation
+- [ ] Create Mock for testing
+
+---
+
+### Phase 3: Generic Leaf Types
+
+**Goal:** Define vendor-agnostic event types.
+
+**File:** `internal/leaves/types.go`
 
 ```go
 // Contact - a person or company
 type Contact struct {
-    ID          string
-    Email       string
-    Name        string
-    Company     string
-    CompanySize int
-    Title       string
-    Source      string    // "inbound", "outbound", "referral"
-    CreatedAt   time.Time
+    ID        string
+    Email     string
+    Name      string
+    Company   string
+    Source    string
+    CreatedAt time.Time
 }
 
-// Lead - a contact with a score
+// Lead - scored contact
 type Lead struct {
-    ContactID   string
-    Score       int
+    ContactID     string
+    Score         int
     Qualification string  // "none", "mql", "sql"
-    Signals     []string  // what contributed to score
-    ScoredAt    time.Time
+    Signals       []string
 }
 
-// Ticket - a support request
+// Ticket - support request
 type Ticket struct {
-    ID          string
-    ContactID   string
-    Subject     string
-    Body        string
-    Channel     string    // "email", "chat", "form"
-    Priority    string    // "low", "normal", "high", "urgent"
-    Status      string
-    CreatedAt   time.Time
+    ID        string
+    ContactID string
+    Subject   string
+    Body      string
+    Priority  string
+    Status    string
 }
 
 // Payment - money movement
 type Payment struct {
-    ID          string
-    ContactID   string
-    Amount      float64
-    Currency    string
-    Status      string    // "succeeded", "failed", "refunded"
-    FailReason  string
-    CreatedAt   time.Time
+    ID        string
+    ContactID string
+    Amount    float64
+    Currency  string
+    Status    string  // "succeeded", "failed"
 }
 ```
 
+Tasks:
 - [ ] Define Contact
-- [ ] Define Lead  
+- [ ] Define Lead
 - [ ] Define Ticket
 - [ ] Define Payment
-- [ ] Define supporting types (Qualification, TicketTriage, etc.)
 
 ---
 
-## Phase 2: Lead Generation Path
+### Phase 4: Example TreeHouses
 
-**Goal:** Contact → Scored → Qualified → Ready for Sales
+**Goal:** Demonstrate deterministic rule processing.
 
-### 2.1 ScoringHouse
+#### 4.1 ScoringHouse
 
-File: `internal/treehouses/scoring.go`
+**File:** `internal/treehouses/scoring.go`
 
-Input: `contact.created`, `contact.activity`
-Output: `lead.scored`
-
-Rules (configurable):
 ```go
-type ScoringRules struct {
-    CompanySizeScore    map[string]int  // "1-10": 5, "11-50": 15, "51-200": 25, "200+": 40
-    TitleScore          map[string]int  // "engineer": 10, "manager": 20, "director": 30, "vp": 40, "c-level": 50
-    ActivityScore       map[string]int  // "page_view": 1, "pricing_view": 10, "demo_request": 50
+type ScoringHouse struct {
+    *core.BaseTreeHouse
+    rules ScoringRules
+}
+
+func (h *ScoringHouse) InputSubjects() []string {
+    return []string{"contact.created"}
+}
+
+func (h *ScoringHouse) Process(leaf Leaf) ([]Leaf, error) {
+    var contact Contact
+    json.Unmarshal(leaf.Data, &contact)
+    
+    score := h.calculateScore(contact)
+    lead := Lead{
+        ContactID: contact.ID,
+        Score:     score,
+        Signals:   h.getSignals(contact),
+    }
+    
+    return []Leaf{NewLeaf("lead.scored", lead)}, nil
 }
 ```
 
+Tasks:
 - [ ] Create ScoringHouse
-- [ ] Configurable scoring rules (no hardcoded values)
-- [ ] Calculate total score from signals
-- [ ] Emit `lead.scored` with score and contributing signals
-- [ ] Unit tests with various contact profiles
+- [ ] Configurable scoring rules
+- [ ] Unit tests with various inputs
 
-### 2.2 QualificationHouse
+#### 4.2 QualificationHouse
 
-File: `internal/treehouses/qualification.go`
+**File:** `internal/treehouses/qualification.go`
 
-Input: `lead.scored`
-Output: `lead.qualified`
-
-Rules:
 ```go
-type QualificationRules struct {
-    MQLThreshold int  // Score >= this = MQL
-    SQLThreshold int  // Score >= this = SQL
-    RequiredSignals []string  // Must have these to qualify
+func (h *QualificationHouse) InputSubjects() []string {
+    return []string{"lead.scored"}
+}
+
+func (h *QualificationHouse) Process(leaf Leaf) ([]Leaf, error) {
+    var lead Lead
+    json.Unmarshal(leaf.Data, &lead)
+    
+    if lead.Score >= h.rules.SQLThreshold {
+        lead.Qualification = "sql"
+    } else if lead.Score >= h.rules.MQLThreshold {
+        lead.Qualification = "mql"
+    }
+    
+    return []Leaf{NewLeaf("lead.qualified", lead)}, nil
 }
 ```
 
+Tasks:
 - [ ] Create QualificationHouse
-- [ ] Apply MQL/SQL thresholds
-- [ ] Check required signals
-- [ ] Emit `lead.qualified` with qualification level
-- [ ] Unit tests for threshold edge cases
+- [ ] Configurable thresholds
+- [ ] Unit tests for edge cases
 
-### 2.3 LeadNim (LLM Enrichment)
+#### 4.3 RoutingHouse
 
-File: `internal/nims/lead.go`
-
-Input: `lead.qualified` (SQL only)
-Output: `lead.enriched`
-
-LLM analyzes:
-- Company research summary
-- Suggested talking points
-- Potential pain points based on title/industry
-
-- [ ] Create LeadNim
-- [ ] LLM prompt for enrichment
-- [ ] Emit enriched lead for sales
-- [ ] Tests with mock LLM
-
----
-
-## Phase 3: LLM Infrastructure
-
-**Goal:** Enable Nims to use LLM reasoning.
-
-### 3.1 LLM Client Interface
-
-File: `internal/llm/client.go`
+**File:** `internal/treehouses/routing.go`
 
 ```go
-type Client interface {
-    Complete(ctx context.Context, prompt string) (string, error)
-    CompleteJSON(ctx context.Context, prompt string, schema any) error
+func (h *RoutingHouse) InputSubjects() []string {
+    return []string{"ticket.created"}
+}
+
+func (h *RoutingHouse) Process(leaf Leaf) ([]Leaf, error) {
+    var ticket Ticket
+    json.Unmarshal(leaf.Data, &ticket)
+    
+    ticket.Priority = h.calculatePriority(ticket)
+    category := h.categorize(ticket)
+    
+    return []Leaf{NewLeaf("ticket.routed", ticket)}, nil
 }
 ```
 
-- [ ] Define interface
-- [ ] Support both freeform and structured responses
-
-### 3.2 OpenAI Implementation
-
-File: `internal/llm/openai.go`
-
-- [ ] Implement Client interface
-- [ ] Handle API key from environment
-- [ ] Handle rate limits and retries
-- [ ] Configurable model selection
-
-### 3.3 Mock Implementation
-
-File: `internal/llm/mock.go`
-
-- [ ] Implement Client interface
-- [ ] Return configured responses for testing
-- [ ] Record calls for assertions
-
----
-
-## Phase 4: Support Path
-
-**Goal:** Ticket → Routed → Triaged → Response Drafted
-
-### 4.1 RoutingHouse
-
-File: `internal/treehouses/routing.go`
-
-Input: `ticket.created`
-Output: `ticket.routed`
-
-Rules:
-```go
-type RoutingRules struct {
-    CategoryKeywords map[string][]string  // "billing": ["invoice", "charge", "payment"]
-    PriorityRules    []PriorityRule       // If contains "urgent" → high
-    DefaultQueue     string
-}
-```
-
+Tasks:
 - [ ] Create RoutingHouse
 - [ ] Keyword-based categorization
 - [ ] Priority rules
-- [ ] Emit `ticket.routed` with queue and priority
 - [ ] Unit tests
 
-### 4.2 TriageNim
+---
 
-File: `internal/nims/triage.go`
+### Phase 5: Example Nims
 
-Input: `ticket.routed`
-Output: `ticket.triaged`
+**Goal:** Demonstrate LLM-powered decisions.
 
-LLM analyzes:
-- Sentiment (positive, neutral, negative, angry)
-- Urgency (low, medium, high, critical)
-- Intent (question, complaint, request, praise)
-- Summary (one line)
+#### 5.1 TriageNim
 
+**File:** `internal/nims/triage.go`
+
+```go
+type TriageNim struct {
+    *core.BaseNim
+    llm llm.Client
+}
+
+func (n *TriageNim) Subjects() []string {
+    return []string{"ticket.routed"}
+}
+
+func (n *TriageNim) Handle(ctx context.Context, leaf Leaf) error {
+    var ticket Ticket
+    json.Unmarshal(leaf.Data, &ticket)
+    
+    // LLM analyzes sentiment, urgency, intent
+    analysis, err := n.llm.Complete(ctx, n.buildPrompt(ticket))
+    if err != nil {
+        return err
+    }
+    
+    triage := parseTriage(analysis)
+    return n.Leaf("ticket.triaged", triage)
+}
+```
+
+Tasks:
 - [ ] Create TriageNim
-- [ ] LLM prompt for analysis
-- [ ] Structured output parsing
+- [ ] Prompt for sentiment/urgency analysis
 - [ ] Tests with mock LLM
 
-### 4.3 ResponseNim
+#### 5.2 ResponseNim
 
-File: `internal/nims/response.go`
+**File:** `internal/nims/response.go`
 
-Input: `ticket.triaged`
-Output: `response.drafted`
+```go
+func (n *ResponseNim) Subjects() []string {
+    return []string{"ticket.triaged"}
+}
 
-LLM drafts:
-- Empathetic response matching sentiment
-- Addresses the core issue
-- Suggests next steps
+func (n *ResponseNim) Handle(ctx context.Context, leaf Leaf) error {
+    // LLM drafts response based on ticket + triage
+    draft, err := n.llm.Complete(ctx, n.buildPrompt(leaf))
+    if err != nil {
+        return err
+    }
+    
+    return n.Leaf("response.drafted", draft)
+}
+```
 
+Tasks:
 - [ ] Create ResponseNim
-- [ ] LLM prompt for drafting
-- [ ] Include ticket context in prompt
+- [ ] Prompt for response drafting
 - [ ] Tests with mock LLM
 
 ---
 
-## Phase 5: Adapters (Separate from Core)
+### Phase 6: Adapters
 
 **Goal:** Translate external webhooks to generic events.
 
-Directory: `adapters/`
-
-### 5.1 Adapter Interface
-
-File: `adapters/adapter.go`
+**Directory:** `adapters/`
 
 ```go
+// adapters/adapter.go
 type Adapter interface {
-    Name() string
-    // Translate converts raw webhook to generic leaf
-    Translate(subject string, data []byte) (*core.Leaf, error)
+    Translate(subject string, data []byte) (*Leaf, error)
+}
+
+// adapters/stripe/adapter.go
+func (a *StripeAdapter) Translate(subject string, data []byte) (*Leaf, error) {
+    var webhook StripeWebhook
+    json.Unmarshal(data, &webhook)
+    
+    switch webhook.Type {
+    case "charge.succeeded":
+        payment := Payment{...}
+        return NewLeaf("payment.received", payment), nil
+    }
 }
 ```
 
-### 5.2 Stripe Adapter
-
-File: `adapters/stripe/adapter.go`
-
-- [ ] Parse Stripe webhook format
-- [ ] `charge.succeeded` → `payment.received`
-- [ ] `charge.failed` → `payment.failed`
-- [ ] Move existing PaymentTree logic here
-
-### 5.3 CRM Adapter (Generic)
-
-File: `adapters/crm/adapter.go`
-
-- [ ] Parse common CRM webhook formats
-- [ ] Contact created/updated events
-- [ ] Deal/opportunity events
-- [ ] Can be extended for HubSpot, Salesforce, etc.
-
-### 5.4 Support Adapter (Generic)
-
-File: `adapters/support/adapter.go`
-
-- [ ] Parse common support webhook formats
-- [ ] Ticket created/updated events
-- [ ] Can be extended for Zendesk, Intercom, etc.
+Tasks:
+- [ ] Create Adapter interface
+- [ ] Create Stripe adapter (move from trees/payment.go)
+- [ ] Create generic CRM adapter
+- [ ] Create generic Support adapter
 
 ---
 
-## Phase 6: Integration
+### Phase 7: Integration
 
-**Goal:** Wire everything together, prove it works.
+**Goal:** Wire it together, prove it works.
 
-### 6.1 Main.go Updates
-
-- [ ] Start all TreeHouses
-- [ ] Start all Nims
-- [ ] Adapters loaded based on config
-
-### 6.2 E2E Test: Lead Path
-
-File: `test/e2e/lead_test.go`
+#### 7.1 Main.go
 
 ```go
-func TestContactToQualifiedLead(t *testing.T) {
-    // No external services - all generic events
+func main() {
+    // Infrastructure
+    nc, _ := nats.Connect(natsURL)
+    js, _ := nc.JetStream()
     
-    // Create contact
-    river.Flow("contact.created", Contact{...})
+    wind := core.NewWind(nc)
+    river, _ := core.NewRiver(js)
+    humus, _ := core.NewHumus(js)
+    soil, _ := core.NewSoil(js)
     
-    // Simulate activity
-    river.Flow("contact.activity", Activity{Type: "pricing_view"})
+    go core.RunDecomposer(humus, soil)
     
-    // Assert lead is qualified in Soil
-    lead := soil.Dig("lead:contact-123")
-    assert.Equal(t, "sql", lead.Qualification)
+    // LLM
+    llmClient := llm.NewOpenAI(os.Getenv("OPENAI_API_KEY"))
+    
+    // TreeHouses (subscribe on creation)
+    treehouses.NewScoringHouse(wind, scoringRules)
+    treehouses.NewQualificationHouse(wind, qualRules)
+    treehouses.NewRoutingHouse(wind, routingRules)
+    
+    // Nims (subscribe on creation)
+    nims.NewTriageNim(wind, humus, soil, llmClient)
+    nims.NewResponseNim(wind, humus, soil, llmClient)
+    
+    // Running. Components subscribed to NATS.
+    select{}
 }
 ```
 
-- [ ] Test full lead path
-- [ ] Test scoring rules
-- [ ] Test qualification thresholds
+Tasks:
+- [ ] Update main.go with new components
+- [ ] Configuration loading
 
-### 6.3 E2E Test: Support Path
-
-File: `test/e2e/support_test.go`
+#### 7.2 E2E Tests
 
 ```go
-func TestTicketToResponse(t *testing.T) {
-    // Create ticket
-    river.Flow("ticket.created", Ticket{...})
+func TestLeadScoring(t *testing.T) {
+    // Publish contact.created
+    wind.Drop(NewLeaf("contact.created", contact))
     
-    // Assert routing happened
-    // Assert triage happened (mock LLM)
-    // Assert response drafted
+    // Wait for lead.qualified
+    // Assert score and qualification
+}
+
+func TestTicketTriage(t *testing.T) {
+    // Use mock LLM
+    // Publish ticket.created
+    // Assert ticket.triaged has sentiment
 }
 ```
 
-- [ ] Test full support path
-- [ ] Test routing rules
-- [ ] Test LLM integration (mocked)
+Tasks:
+- [ ] E2E test for lead flow
+- [ ] E2E test for ticket flow
+- [ ] All tests pass without external services
 
 ---
 
 ## File Checklist
 
-### Core Framework
+### Core
+- [ ] `internal/core/treehouse.go`
+- [ ] `internal/core/treehouse_test.go`
 
-```
-internal/
-├── core/
-│   ├── treehouse.go           # NEW
-│   └── treehouse_test.go      # NEW
-├── leaves/
-│   └── types.go               # EXPAND
-├── treehouses/
-│   ├── scoring.go             # NEW
-│   ├── scoring_test.go        # NEW
-│   ├── qualification.go       # NEW
-│   ├── qualification_test.go  # NEW
-│   ├── routing.go             # NEW
-│   └── routing_test.go        # NEW
-├── nims/
-│   ├── lead.go                # NEW
-│   ├── lead_test.go           # NEW
-│   ├── triage.go              # NEW
-│   ├── triage_test.go         # NEW
-│   ├── response.go            # NEW
-│   └── response_test.go       # NEW
-└── llm/
-    ├── client.go              # NEW
-    ├── openai.go              # NEW
-    └── mock.go                # NEW
-```
+### LLM
+- [ ] `internal/llm/client.go`
+- [ ] `internal/llm/openai.go`
+- [ ] `internal/llm/mock.go`
 
-### Adapters (Separate)
+### Leaves
+- [ ] `internal/leaves/types.go` (expand)
 
-```
-adapters/
-├── adapter.go                 # Interface
-├── stripe/
-│   ├── adapter.go
-│   └── adapter_test.go
-├── crm/
-│   ├── adapter.go
-│   └── adapter_test.go
-└── support/
-    ├── adapter.go
-    └── adapter_test.go
-```
+### TreeHouses
+- [ ] `internal/treehouses/scoring.go`
+- [ ] `internal/treehouses/scoring_test.go`
+- [ ] `internal/treehouses/qualification.go`
+- [ ] `internal/treehouses/qualification_test.go`
+- [ ] `internal/treehouses/routing.go`
+- [ ] `internal/treehouses/routing_test.go`
+
+### Nims
+- [ ] `internal/nims/triage.go`
+- [ ] `internal/nims/triage_test.go`
+- [ ] `internal/nims/response.go`
+- [ ] `internal/nims/response_test.go`
+
+### Adapters
+- [ ] `adapters/adapter.go`
+- [ ] `adapters/stripe/adapter.go`
+- [ ] `adapters/stripe/adapter_test.go`
 
 ### Tests
-
-```
-test/
-└── e2e/
-    ├── lead_test.go           # NEW
-    └── support_test.go        # NEW
-```
+- [ ] `test/e2e/lead_test.go`
+- [ ] `test/e2e/ticket_test.go`
 
 ---
 
-## Dependency Graph
+## Dependency Order
 
 ```
-Phase 1.1 (TreeHouse base)
+Phase 1 (TreeHouse base)
     │
-    ├──► Phase 2.1 (ScoringHouse)
-    │        │
-    │        └──► Phase 2.2 (QualificationHouse)
-    │                 │
-    │                 └──► Phase 2.3 (LeadNim) ◄── Phase 3 (LLM)
+    ├──► Phase 4.1 (ScoringHouse)
+    │         │
+    │         └──► Phase 4.2 (QualificationHouse)
     │
-    └──► Phase 4.1 (RoutingHouse)
-             │
-             └──► Phase 4.2 (TriageNim) ◄── Phase 3 (LLM)
-                      │
-                      └──► Phase 4.3 (ResponseNim)
+    └──► Phase 4.3 (RoutingHouse)
+              │
+              └──► Phase 5.1 (TriageNim) ◄── Phase 2 (LLM)
+                        │
+                        └──► Phase 5.2 (ResponseNim)
 
-Phase 5 (Adapters) ── Independent, can be done anytime
-
-Phase 6 (Integration) ── After all above complete
+Phase 3 (Leaf types) ── needed by Phase 4+
+Phase 6 (Adapters) ── independent
+Phase 7 (Integration) ── after all above
 ```
-
----
-
-## What's NOT Being Built (Yet)
-
-- Dunning/payment recovery (add when revenue justifies)
-- Onboarding automation (add after leads convert)
-- Health scores (add after customer base grows)
-- Complex workflows (add when needed)
-- Multiple LLM providers (add when OpenAI isn't enough)
 
 ---
 
 ## Start Here
 
-**Phase 1.1:** Create TreeHouse base interface
+**Phase 1:** Create TreeHouse interface and BaseTreeHouse.
 
-This unlocks all TreeHouse development and establishes the deterministic processing pattern.
+This enables all deterministic rule processing.

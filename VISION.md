@@ -1,245 +1,159 @@
-# 🌲 NimsForest Vision
+# 🌲 NimsForest
 
-## The Goal
+## What It Is
 
-**Automate the route to $1M ARR with 10 FTEs.**
-
-## The Focus
-
-**Contacts → Qualified Leads → Sales**
-
-Everything else is secondary.
+An event-driven automation framework. Components subscribe to NATS subjects, process events, publish results. That's it.
 
 ---
 
-## Architecture: Core vs Adapters
+## Core Primitives
 
-### The Problem with Coupling
+| Primitive | What It Does | Nature |
+|-----------|--------------|--------|
+| **Tree** | Parses raw external data → structured events | Deterministic |
+| **TreeHouse** | Applies business rules. Same input = same output. | Deterministic |
+| **Nim** | Makes decisions requiring judgment. Human or LLM. | Non-deterministic |
 
-If Salesforce/HubSpot/Stripe are baked into the framework:
-- Can't test without mocking external APIs
-- Can't swap providers without rewriting
-- Framework is tied to specific vendors
+### Infrastructure
 
-### The Solution: Abstract Core + Pluggable Adapters
+| Component | Purpose |
+|-----------|---------|
+| **Wind** | NATS pub/sub. Carries events between components. |
+| **River** | NATS JetStream. Ingests external data. |
+| **Humus** | NATS JetStream. Logs state changes. |
+| **Soil** | NATS KV. Stores current state. |
+| **Decomposer** | Applies state changes from Humus to Soil. |
+
+---
+
+## How Components Connect
+
+Components don't register with a central system. They subscribe to NATS subjects.
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                         ADAPTERS                             │
-│  (Translate external systems to generic events)              │
-│                                                              │
-│   Stripe ──┐    HubSpot ──┐    Zendesk ──┐                  │
-│   PayPal ──┼──► Payment   │    Salesforce┼──► Contact       │
-│   Paddle ──┘    Adapter   │    Pipedrive─┘    Adapter       │
-│                    │      │                      │           │
-│                    ▼      │                      ▼           │
-└────────────────────┼──────┴──────────────────────┼───────────┘
-                     │                             │
-┌────────────────────┼─────────────────────────────┼───────────┐
-│                    ▼         CORE FRAMEWORK      ▼           │
-│                                                              │
-│   payment.received ─────►  contact.created ─────►            │
-│          │                       │                           │
-│          ▼                       ▼                           │
-│   Tree Houses              Tree Houses                       │
-│   (Deterministic)          (Scoring, Qualifying)             │
-│          │                       │                           │
-│          ▼                       ▼                           │
-│       Nims                    Nims                           │
-│   (Human/LLM)              (Human/LLM)                       │
-│          │                       │                           │
-│          ▼                       ▼                           │
-│       Soil ◄──────────────────────                          │
-│   (State)                                                    │
-│                                                              │
-│   Generic concepts: Contact, Lead, Ticket, Payment           │
-│   No vendor names. Fully testable.                           │
-└──────────────────────────────────────────────────────────────┘
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│  ScoringHouse   │     │ QualificationH. │     │   TriageNim     │
+│                 │     │                 │     │                 │
+│ subscribes to:  │     │ subscribes to:  │     │ subscribes to:  │
+│ contact.created │     │ lead.scored     │     │ ticket.routed   │
+│                 │     │                 │     │                 │
+│ publishes:      │     │ publishes:      │     │ publishes:      │
+│ lead.scored     │     │ lead.qualified  │     │ ticket.triaged  │
+└────────┬────────┘     └────────┬────────┘     └────────┬────────┘
+         │                       │                       │
+         └───────────────────────┴───────────────────────┘
+                                 │
+                                 ▼
+                              NATS
+                       (the only connection)
 ```
 
 ---
 
-## Core Concepts (Vendor-Agnostic)
+## Trees vs TreeHouses vs Nims
 
-| Concept | What It Represents | Not Tied To |
-|---------|-------------------|-------------|
-| **Contact** | A person/company we know about | HubSpot, Salesforce |
-| **Lead** | A contact showing buying intent | Any CRM |
-| **Ticket** | A support request | Zendesk, Intercom |
-| **Payment** | Money received/failed | Stripe, PayPal |
-| **Message** | Communication sent/received | SendGrid, Mailgun |
+All three subscribe to subjects and publish results. The difference:
 
-The core framework only knows about these abstractions.
+| Type | Input | Processing | Output |
+|------|-------|------------|--------|
+| **Tree** | Raw data (River) | Parse/structure | Structured event (Wind) |
+| **TreeHouse** | Structured event | Deterministic rules | Enriched/routed event |
+| **Nim** | Structured event | Human or LLM judgment | Decision/action |
 
----
+### Deterministic vs Non-Deterministic
 
-## Component Types
+**TreeHouses** are deterministic:
+- Same input always produces same output
+- Unit testable with fixed inputs
+- No external calls, no randomness
 
-| Component | Nature | Purpose |
-|-----------|--------|---------|
-| **Adapter** | Translation | Convert external webhook → generic event |
-| **Tree** | Deterministic | Parse river data → structured leaf |
-| **Tree House** | Deterministic | Apply rules. Same input = same output. |
-| **Nim** | Non-deterministic | Human or LLM judgment required |
-
-### Trees vs Tree Houses
-
-Both are deterministic, but:
-- **Trees** parse raw data into structured events (edge of system)
-- **Tree Houses** apply business rules to structured events (core logic)
-
-### Nims
-
-Non-deterministic. Used when:
-- Judgment is needed (LLM analyzes sentiment)
-- Human approval is required
-- Context matters (different answer for same input)
+**Nims** are non-deterministic:
+- May produce different output for same input
+- Involve LLM reasoning or human judgment
+- Test with mocked LLM or approval stubs
 
 ---
 
-## MVP: Contacts → Leads → Sales
+## Adapters
 
-### What We Actually Need
-
-```
-Contact enters system
-       │
-       ▼
-   Score it (TreeHouse)
-   - Firmographic signals
-   - Behavioral signals
-       │
-       ▼
-   Qualify it (TreeHouse)
-   - MQL threshold
-   - SQL threshold
-       │
-       ▼
-   Surface to sales (Nim)
-   - LLM enrichment
-   - Human prioritization
-       │
-       ▼
-   Close deal
-```
-
-### Secondary: Support That Scales
+Adapters translate external system webhooks to generic events.
 
 ```
-Ticket enters system
-       │
-       ▼
-   Route it (TreeHouse)
-   - Category
-   - Priority
-       │
-       ▼
-   Triage it (Nim - LLM)
-   - Sentiment
-   - Urgency
-       │
-       ▼
-   Draft response (Nim - LLM)
-   - Context-aware
-   - Human reviews
+External Systems              Adapters                    Generic Events
+────────────────              ────────                    ──────────────
+Stripe webhook     ────►      Stripe adapter    ────►    payment.received
+HubSpot webhook    ────►      CRM adapter       ────►    contact.created
+Zendesk webhook    ────►      Support adapter   ────►    ticket.created
 ```
+
+Adapters are thin. They just translate format. No business logic.
+
+Core framework only sees generic events. Easily testable without external services.
 
 ---
 
-## What's In vs Out of Core
+## Organization
 
-### IN: Core Framework
+The framework has no opinion on how you organize components.
 
-- Base interfaces (Tree, TreeHouse, Nim)
-- Generic leaf types (Contact, Lead, Ticket, Payment)
-- Infrastructure (Wind, River, Humus, Soil)
-- Abstract Tree Houses (Scoring, Qualification, Routing)
-- Abstract Nims (Triage, Response, Approval)
+**Folder structure is up to you:**
 
-### OUT: Adapters (Separate Package)
-
-- Stripe adapter
-- HubSpot adapter
-- Salesforce adapter
-- Zendesk adapter
-- SendGrid adapter
-
-Adapters are thin. They just translate webhooks to generic events.
-
----
-
-## Testing Strategy
-
-### Core Framework Tests
-
-```go
-// No external services needed
-func TestScoringHouse(t *testing.T) {
-    // Given a contact with these attributes
-    contact := Contact{
-        CompanySize: 100,
-        Title: "VP Engineering",
-        PagesViewed: []string{"/pricing"},
-    }
-    
-    // When scored
-    result := scoringHouse.Process(contact)
-    
-    // Then score is calculated correctly
-    assert.Equal(t, 85, result.Score)
-}
+```
+internal/
+├── growth/           # Or "sales/", "acquisition/", whatever
+├── ops/              # Or "support/", "delivery/", whatever
+└── direction/        # Or "insights/", "analytics/", whatever
 ```
 
-### Adapter Tests
+**Subject naming is up to you:**
 
-```go
-// Test translation only
-func TestStripeAdapter(t *testing.T) {
-    // Given a Stripe webhook payload
-    webhook := `{"type": "charge.succeeded", ...}`
-    
-    // When translated
-    payment := stripeAdapter.Translate(webhook)
-    
-    // Then generic payment event is correct
-    assert.Equal(t, "payment.received", payment.Type)
-}
+```
+growth.contact.created
+growth.lead.scored
+ops.ticket.created
+ops.ticket.triaged
 ```
 
-### E2E Tests
-
-```go
-// Use mock adapters, test full flow
-func TestContactToQualifiedLead(t *testing.T) {
-    // Send generic contact event (no Salesforce needed)
-    river.Flow("contact.created", contact)
-    
-    // Wait for processing
-    // Assert lead is qualified in Soil
-}
-```
+The framework doesn't care. Components subscribe to subjects. That's the only contract.
 
 ---
 
-## Success Criteria
+## Example Use Case: SME Scaling
 
-1. **Core is vendor-agnostic** - No HubSpot/Stripe in framework code
-2. **Everything built is used** - No dead code
-3. **E2E tests work offline** - No external API calls
-4. **Path to leads is clear** - Contact → Score → Qualify → Surface
+One way to use NimsForest. Not the only way.
+
+**Goal:** Automate route to $1M ARR with 10 FTEs.
+
+**Domains:**
+- Growth: Contact → Customer
+- Ops: Customer → Value  
+- Direction: Strategy + Insights
+
+**Components:**
+
+| Domain | Component | Type | Does |
+|--------|-----------|------|------|
+| Growth | ScoringHouse | TreeHouse | Score leads |
+| Growth | QualificationHouse | TreeHouse | MQL/SQL |
+| Growth | EnrichNim | Nim | LLM research |
+| Ops | RoutingHouse | TreeHouse | Route tickets |
+| Ops | TriageNim | Nim | LLM sentiment |
+| Ops | ResponseNim | Nim | LLM draft |
+| Direction | MetricsHouse | TreeHouse | Aggregate |
+| Direction | AnalyzeNim | Nim | LLM insights |
+
+This is an example. Your use case may be different.
 
 ---
 
-## Guiding Principles
+## Principles
 
-1. **Abstract the vendor, not the concept.** Payment is universal. Stripe is not.
+1. **Components subscribe, that's it.** No registration, no central orchestrator.
 
-2. **Test the core, mock the edge.** Core framework tests need zero external services.
+2. **Deterministic where possible.** TreeHouses handle the volume. Nims handle exceptions.
 
-3. **Build what you'll use.** No speculative features.
+3. **Vendor-agnostic core.** Adapters translate. Core sees generic events.
 
-4. **Leads first.** Revenue comes from qualified leads, not features.
+4. **Test without external services.** Mock adapters, mock LLM, test core logic.
 
----
-
-See [IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md) for the simplified build order.
+5. **Organize however you want.** Framework doesn't impose structure.

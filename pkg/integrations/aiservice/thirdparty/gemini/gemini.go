@@ -32,10 +32,10 @@ func init() {
 // NewGeminiService is the exported constructor.
 func NewGeminiService(apiKey, model string) (pkgaiservice.AIService, error) {
 	if apiKey == "" {
-		return nil, fmt.Errorf("Gemini API key is required")
+		return nil, fmt.Errorf("gemini API key is required")
 	}
 	if model == "" {
-		return nil, fmt.Errorf("Gemini model name is required")
+		return nil, fmt.Errorf("gemini model name is required")
 	}
 
 	// Construct the Gemini-specific API endpoint URL
@@ -172,10 +172,10 @@ func (s *GeminiService) Ask(ctx context.Context, question string) (string, error
 			} `json:"error"`
 		}
 		if parseErr := json.Unmarshal(body, &googleErr); parseErr == nil && googleErr.Error.Message != "" {
-			return "", fmt.Errorf("Gemini API request failed with status %d: %s", resp.StatusCode, googleErr.Error.Message)
+			return "", fmt.Errorf("gemini API request failed with status %d: %s", resp.StatusCode, googleErr.Error.Message)
 		}
 		// Fallback to raw body
-		return "", fmt.Errorf("Gemini API request failed with status %d: %s", resp.StatusCode, string(body))
+		return "", fmt.Errorf("gemini API request failed with status %d: %s", resp.StatusCode, string(body))
 	}
 
 	var response GeminiAPIResponse

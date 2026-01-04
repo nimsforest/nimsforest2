@@ -36,7 +36,7 @@ func init() {
 // newClaudeService creates a new instance from a config (used for testing)
 func newClaudeService(config aifactory.Config) (*ClaudeService, error) {
 	if config.APIKey == "" {
-		return nil, fmt.Errorf("Claude API key is required")
+		return nil, fmt.Errorf("claude API key is required")
 	}
 
 	model := config.Model
@@ -149,7 +149,7 @@ func (s *ClaudeService) Ask(ctx context.Context, question string) (string, error
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("Claude API request failed with status %d: %s", resp.StatusCode, string(body))
+		return "", fmt.Errorf("claude API request failed with status %d: %s", resp.StatusCode, string(body))
 	}
 
 	var response ClaudeAPIResponse

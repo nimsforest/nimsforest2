@@ -16,6 +16,10 @@ import (
 	"github.com/yourusername/nimsforest/internal/nims"
 	"github.com/yourusername/nimsforest/internal/trees"
 	"github.com/yourusername/nimsforest/internal/updater"
+	aifactory "github.com/yourusername/nimsforest/pkg/integrations/aiservice"
+	_ "github.com/yourusername/nimsforest/pkg/integrations/aiservice/thirdparty/claude"
+	_ "github.com/yourusername/nimsforest/pkg/integrations/aiservice/thirdparty/openai"
+	"github.com/yourusername/nimsforest/pkg/runtime"
 )
 
 // version is set at build time via -ldflags
@@ -274,6 +278,53 @@ func runForest() {
 	defer generalNim.Stop()
 	fmt.Println("  🧚 GeneralNim awake (catches: data.received, status.update, etc.)")
 
+	// Start YAML-configured runtime (TreeHouses + AI Nims)
+	var runtimeForest *runtime.Forest
+	configPath := getConfigPath()
+	if configPath != "" {
+		fmt.Println("\n🌳 Loading YAML-configured runtime...")
+		fmt.Printf("   Config: %s\n", configPath)
+
+		cfg, err := runtime.LoadConfig(configPath)
+		if err != nil {
+			log.Printf("⚠️  Failed to load runtime config: %v\n", err)
+		} else {
+			// Create brain from AI service
+			nimBrain, err := createBrain()
+			if err != nil {
+				log.Printf("⚠️  Failed to create AI brain: %v\n", err)
+				log.Println("   Using simple fallback brain (set ANTHROPIC_API_KEY for AI)")
+				nimBrain = runtime.NewSimpleBrain()
+			}
+
+			if err := nimBrain.Initialize(ctx); err != nil {
+				log.Printf("⚠️  Failed to initialize brain: %v\n", err)
+			} else {
+				// Create runtime forest with Humus for state tracking
+				runtimeForest, err = runtime.NewForestWithHumus(cfg, wind, humus, nimBrain)
+				if err != nil {
+					log.Printf("⚠️  Failed to create runtime forest: %v\n", err)
+				} else {
+					if err := runtimeForest.Start(ctx); err != nil {
+						log.Printf("⚠️  Failed to start runtime forest: %v\n", err)
+					} else {
+						defer runtimeForest.Stop()
+						fmt.Printf("   ✅ Runtime started with %d TreeHouses and %d Nims\n",
+							len(cfg.TreeHouses), len(cfg.Nims))
+						
+						// List what's running
+						for name := range cfg.TreeHouses {
+							fmt.Printf("   🏠 TreeHouse:%s (Lua script)\n", name)
+						}
+						for name := range cfg.Nims {
+							fmt.Printf("   🧚 Nim:%s (AI-powered)\n", name)
+						}
+					}
+				}
+			}
+		}
+	}
+
 	// Give components time to initialize
 	time.Sleep(500 * time.Millisecond)
 
@@ -342,6 +393,64 @@ func getDataDir() string {
 		return dir
 	}
 	return "/var/lib/nimsforest/jetstream"
+}
+
+// getConfigPath finds the forest.yaml config file.
+func getConfigPath() string {
+	// Check environment variable first
+	if path := os.Getenv("FOREST_CONFIG"); path != "" {
+		if _, err := os.Stat(path); err == nil {
+			return path
+		}
+	}
+
+	// Check common locations
+	paths := []string{
+		"config/forest.yaml",
+		"/etc/nimsforest/forest.yaml",
+		"forest.yaml",
+	}
+
+	for _, p := range paths {
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+	}
+
+	return ""
+}
+
+// createBrain creates an AI service brain from environment configuration.
+func createBrain() (interface{ Initialize(context.Context) error; Ask(context.Context, string) (string, error); Close(context.Context) error }, error) {
+	// Check for API keys in order of preference
+	apiKey := os.Getenv("ANTHROPIC_API_KEY")
+	serviceType := aifactory.ServiceTypeClaude
+	model := os.Getenv("ANTHROPIC_MODEL")
+	if model == "" {
+		model = "claude-3-haiku-20240307"
+	}
+
+	if apiKey == "" {
+		apiKey = os.Getenv("OPENAI_API_KEY")
+		serviceType = aifactory.ServiceTypeOpenAI
+		model = os.Getenv("OPENAI_MODEL")
+		if model == "" {
+			model = "gpt-4o-mini"
+		}
+	}
+
+	if apiKey == "" {
+		return nil, fmt.Errorf("no AI API key found (set ANTHROPIC_API_KEY or OPENAI_API_KEY)")
+	}
+
+	// Create AI service
+	service, err := aifactory.NewService(serviceType, apiKey, model)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create AI service: %w", err)
+	}
+
+	// Wrap in brain adapter
+	return runtime.NewAIServiceBrain(service), nil
 }
 
 func printBanner() {

@@ -4,216 +4,242 @@
 
 **Automate the route to $1M ARR with 10 FTEs.**
 
-A 10-person company must do the work of 30-50 people. NimsForest is the automation layer that makes this possible.
+## The Focus
+
+**Contacts → Qualified Leads → Sales**
+
+Everything else is secondary.
 
 ---
 
-## The Problem
+## Architecture: Core vs Adapters
 
-Small teams hit a wall. As customers grow, so does operational load:
+### The Problem with Coupling
 
-| Function | What Happens Without Automation |
-|----------|--------------------------------|
-| **Support** | Tickets pile up. Response times spike. Customers churn. |
-| **Sales** | Leads go cold. Manual qualification wastes time on bad fits. |
-| **Onboarding** | Each customer needs hand-holding. Doesn't scale. |
-| **Billing** | Failed payments need chasing. Disputes eat time. |
-| **Operations** | Admin overhead consumes everyone. No time for growth. |
+If Salesforce/HubSpot/Stripe are baked into the framework:
+- Can't test without mocking external APIs
+- Can't swap providers without rewriting
+- Framework is tied to specific vendors
 
-**The result:** 10 people spend all their time on operations, zero on growth.
-
----
-
-## The Solution
-
-NimsForest is an event-driven automation system that:
-
-1. **Ingests data** from external systems (payments, CRM, support, email)
-2. **Applies rules** deterministically (routing, scoring, thresholds)
-3. **Uses AI** for judgment calls (triage, drafting, analysis)
-4. **Surfaces exceptions** to humans (approvals, edge cases)
-
-### The Core Principle
-
-> **Humans for exceptions. Machines for rules.**
+### The Solution: Abstract Core + Pluggable Adapters
 
 ```
-Volume Distribution:
-
-80%+ ─── TREE HOUSES (deterministic)
-         Rules-based. Same input = same output.
-         No human needed.
-
-~15% ─── NIMS (LLM)
-         AI judgment. Human reviews output.
-         Drafts, analysis, suggestions.
-
-~5%  ─── NIMS (Human)
-         True exceptions. High-value decisions.
-         Approvals, relationships, strategy.
-```
-
----
-
-## Architecture
-
-### The Forest Metaphor
-
-| Component | What It Is | Nature |
-|-----------|------------|--------|
-| **River** | External data flowing in | Raw webhooks, API events |
-| **Tree** | Parser that structures data | Deterministic transformation |
-| **Leaf** | Structured event | The contract between components |
-| **Tree House** | Rules engine | Deterministic. Same in, same out. |
-| **Nim** | Decision maker | Non-deterministic. Human or LLM. |
-| **Wind** | Event distribution | Carries leaves between components |
-| **Humus** | State change log | Audit trail of all changes |
-| **Soil** | Current state | Source of truth |
-
-### Data Flow
-
-```
-External System (Stripe, Zendesk, HubSpot)
-         │
-         ▼
-      RIVER ──────────────────────────────────────
-         │                                        │
-         ▼                                        │
-       TREE (parse webhook)                       │
-         │                                        │ DETERMINISTIC
-         ▼                                        │
-       LEAF (structured event)                    │
-         │                                        │
-         ▼                                        │
-    TREE HOUSE (apply rules)                      │
-         │                                        │
-         ▼                                   ─────
-       LEAF (enriched/routed)
-         │
-         ▼                                   ─────
-       NIM (LLM/Human decision)                   │
-         │                                        │ NON-DETERMINISTIC
-         ▼                                        │
-    LEAF + COMPOST                           ─────
-         │
-         ▼
-       SOIL (state updated)
+┌─────────────────────────────────────────────────────────────┐
+│                         ADAPTERS                             │
+│  (Translate external systems to generic events)              │
+│                                                              │
+│   Stripe ──┐    HubSpot ──┐    Zendesk ──┐                  │
+│   PayPal ──┼──► Payment   │    Salesforce┼──► Contact       │
+│   Paddle ──┘    Adapter   │    Pipedrive─┘    Adapter       │
+│                    │      │                      │           │
+│                    ▼      │                      ▼           │
+└────────────────────┼──────┴──────────────────────┼───────────┘
+                     │                             │
+┌────────────────────┼─────────────────────────────┼───────────┐
+│                    ▼         CORE FRAMEWORK      ▼           │
+│                                                              │
+│   payment.received ─────►  contact.created ─────►            │
+│          │                       │                           │
+│          ▼                       ▼                           │
+│   Tree Houses              Tree Houses                       │
+│   (Deterministic)          (Scoring, Qualifying)             │
+│          │                       │                           │
+│          ▼                       ▼                           │
+│       Nims                    Nims                           │
+│   (Human/LLM)              (Human/LLM)                       │
+│          │                       │                           │
+│          ▼                       ▼                           │
+│       Soil ◄──────────────────────                          │
+│   (State)                                                    │
+│                                                              │
+│   Generic concepts: Contact, Lead, Ticket, Payment           │
+│   No vendor names. Fully testable.                           │
+└──────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Key Distinctions
+## Core Concepts (Vendor-Agnostic)
 
-### Trees vs Tree Houses vs Nims
+| Concept | What It Represents | Not Tied To |
+|---------|-------------------|-------------|
+| **Contact** | A person/company we know about | HubSpot, Salesforce |
+| **Lead** | A contact showing buying intent | Any CRM |
+| **Ticket** | A support request | Zendesk, Intercom |
+| **Payment** | Money received/failed | Stripe, PayPal |
+| **Message** | Communication sent/received | SendGrid, Mailgun |
 
-| Component | Deterministic? | State? | Purpose |
-|-----------|---------------|--------|---------|
-| **Tree** | Yes | No | Parse external data into structured events |
-| **Tree House** | Yes | No | Apply business rules. Same input = same output. |
-| **Nim** | No | Yes | Make decisions requiring judgment (human or LLM) |
-
-### Tree Houses: Deterministic Rules
-
-Tree Houses are pure functions. They:
-- Apply formulas (lead scores, health scores, pricing)
-- Route based on conditions (tier, category, region)
-- Trigger thresholds (SLA breach, low stock, failed payments)
-- Validate data (required fields, formats)
-- Enrich with lookups (geo, company data)
-
-**Example:** A support ticket always routes to the same queue given the same inputs.
-
-### Nims: Non-Deterministic Decisions
-
-Nims involve judgment. They:
-- Analyze sentiment and intent (LLM)
-- Draft responses (LLM)
-- Suggest actions (LLM)
-- Approve exceptions (Human)
-- Handle ambiguity (Human or LLM)
-
-**Example:** An LLM analyzing a support ticket may interpret urgency differently based on context.
+The core framework only knows about these abstractions.
 
 ---
 
-## Business Impact
+## Component Types
 
-### What NimsForest Automates
+| Component | Nature | Purpose |
+|-----------|--------|---------|
+| **Adapter** | Translation | Convert external webhook → generic event |
+| **Tree** | Deterministic | Parse river data → structured leaf |
+| **Tree House** | Deterministic | Apply rules. Same input = same output. |
+| **Nim** | Non-deterministic | Human or LLM judgment required |
 
-| Function | Without NimsForest | With NimsForest |
-|----------|-------------------|-----------------|
-| **Support** | 20-30 tickets/person/day | 100-150 tickets/person/day |
-| **Sales** | Manual qualification (hours) | Auto-qualification (minutes) |
-| **Billing** | Chase failed payments manually | Auto-retry + dunning sequences |
-| **Onboarding** | Hand-hold each customer | Self-serve with smart nudges |
-| **Operations** | Reactive firefighting | Proactive alerts on exceptions |
+### Trees vs Tree Houses
 
-### The 10 FTE Team
+Both are deterministic, but:
+- **Trees** parse raw data into structured events (edge of system)
+- **Tree Houses** apply business rules to structured events (core logic)
 
-| Role | Count | What They Do | What NimsForest Does |
-|------|-------|--------------|---------------------|
-| Founder/CEO | 1 | Strategy, big deals | Dashboard of exceptions |
-| Product/Eng | 3 | Build product, maintain system | Trees + Tree Houses = leverage |
-| Sales | 2 | Close qualified deals | Pre-qualified leads, drafted proposals |
-| Support | 2 | Handle escalations | LLM drafts 80% of responses |
-| Marketing | 1 | Campaigns, content | Lead scoring shows what works |
-| Ops/Finance | 1 | Billing exceptions | System handles routine billing |
+### Nims
+
+Non-deterministic. Used when:
+- Judgment is needed (LLM analyzes sentiment)
+- Human approval is required
+- Context matters (different answer for same input)
 
 ---
 
-## MVP Scope
+## MVP: Contacts → Leads → Sales
 
-### What We're Building
+### What We Actually Need
 
-| Layer | Components | Purpose |
-|-------|-----------|---------|
-| **Trees** | Payment, Support, CRM | Ingest external data |
-| **Tree Houses** | Dunning, Routing, Scoring, Threshold, Onboarding | Deterministic rules |
-| **Nims** | Triage, Response, Approval | LLM + Human decisions |
+```
+Contact enters system
+       │
+       ▼
+   Score it (TreeHouse)
+   - Firmographic signals
+   - Behavioral signals
+       │
+       ▼
+   Qualify it (TreeHouse)
+   - MQL threshold
+   - SQL threshold
+       │
+       ▼
+   Surface to sales (Nim)
+   - LLM enrichment
+   - Human prioritization
+       │
+       ▼
+   Close deal
+```
 
-### What We're NOT Building (Yet)
+### Secondary: Support That Scales
 
-- Inventory management
-- Calendar/scheduling
-- Code/engineering workflows
-- Advanced analytics
-- Complex multi-step workflows
+```
+Ticket enters system
+       │
+       ▼
+   Route it (TreeHouse)
+   - Category
+   - Priority
+       │
+       ▼
+   Triage it (Nim - LLM)
+   - Sentiment
+   - Urgency
+       │
+       ▼
+   Draft response (Nim - LLM)
+   - Context-aware
+   - Human reviews
+```
 
-### Revenue-First Priority
+---
 
-1. **Don't lose money** — Billing automation, payment recovery
-2. **Support at scale** — LLM triage and response drafts
-3. **Sales efficiency** — Lead scoring and auto-qualification
-4. **Customer success** — Automated onboarding, health scores
+## What's In vs Out of Core
+
+### IN: Core Framework
+
+- Base interfaces (Tree, TreeHouse, Nim)
+- Generic leaf types (Contact, Lead, Ticket, Payment)
+- Infrastructure (Wind, River, Humus, Soil)
+- Abstract Tree Houses (Scoring, Qualification, Routing)
+- Abstract Nims (Triage, Response, Approval)
+
+### OUT: Adapters (Separate Package)
+
+- Stripe adapter
+- HubSpot adapter
+- Salesforce adapter
+- Zendesk adapter
+- SendGrid adapter
+
+Adapters are thin. They just translate webhooks to generic events.
+
+---
+
+## Testing Strategy
+
+### Core Framework Tests
+
+```go
+// No external services needed
+func TestScoringHouse(t *testing.T) {
+    // Given a contact with these attributes
+    contact := Contact{
+        CompanySize: 100,
+        Title: "VP Engineering",
+        PagesViewed: []string{"/pricing"},
+    }
+    
+    // When scored
+    result := scoringHouse.Process(contact)
+    
+    // Then score is calculated correctly
+    assert.Equal(t, 85, result.Score)
+}
+```
+
+### Adapter Tests
+
+```go
+// Test translation only
+func TestStripeAdapter(t *testing.T) {
+    // Given a Stripe webhook payload
+    webhook := `{"type": "charge.succeeded", ...}`
+    
+    // When translated
+    payment := stripeAdapter.Translate(webhook)
+    
+    // Then generic payment event is correct
+    assert.Equal(t, "payment.received", payment.Type)
+}
+```
+
+### E2E Tests
+
+```go
+// Use mock adapters, test full flow
+func TestContactToQualifiedLead(t *testing.T) {
+    // Send generic contact event (no Salesforce needed)
+    river.Flow("contact.created", contact)
+    
+    // Wait for processing
+    // Assert lead is qualified in Soil
+}
+```
 
 ---
 
 ## Success Criteria
 
-NimsForest is successful when:
-
-1. **Support scales:** 2 people handle 500+ customers effectively
-2. **Sales focuses:** Reps only talk to qualified, ready-to-buy leads
-3. **Billing runs itself:** Failed payments auto-recover, exceptions surface
-4. **Onboarding is self-serve:** 80%+ customers succeed without hand-holding
-5. **Exceptions surface:** System tells humans what needs attention
+1. **Core is vendor-agnostic** - No HubSpot/Stripe in framework code
+2. **Everything built is used** - No dead code
+3. **E2E tests work offline** - No external API calls
+4. **Path to leads is clear** - Contact → Score → Qualify → Surface
 
 ---
 
 ## Guiding Principles
 
-1. **Automate the rule, surface the exception.** If it can be a rule, it's a Tree House. If it needs judgment, it's a Nim.
+1. **Abstract the vendor, not the concept.** Payment is universal. Stripe is not.
 
-2. **LLM for drafts, humans for sends.** AI suggests, humans approve (at least initially).
+2. **Test the core, mock the edge.** Core framework tests need zero external services.
 
-3. **Deterministic first.** Build Tree Houses before Nims. Rules scale infinitely.
+3. **Build what you'll use.** No speculative features.
 
-4. **One source of truth.** All state lives in Soil. All changes flow through Humus.
-
-5. **Observe everything.** Every event, decision, and state change is logged.
+4. **Leads first.** Revenue comes from qualified leads, not features.
 
 ---
 
-## What's Next
-
-See [IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md) for the ordered task list.
+See [IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md) for the simplified build order.

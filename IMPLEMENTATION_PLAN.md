@@ -22,7 +22,7 @@
 - [ ] `pkg/runtime/nim.go`
 - [ ] Subscribe to NATS subject
 - [ ] Render prompt template with `{{.field}}`
-- [ ] Call brain (OpenAI only for MVP)
+- [ ] Call brain (Claude for MVP)
 - [ ] Publish result
 
 ### 5. Main
@@ -46,7 +46,7 @@
 - [ ] SalesforceSource
 
 ### More Brains
-- [ ] Claude
+- [ ] OpenAI
 - [ ] Gemini
 
 ### CLI
@@ -62,7 +62,7 @@
 ## MVP Flow
 
 ```
-Manual publish to NATS     TreeHouse (Lua)        Nim (OpenAI)
+Manual publish to NATS     TreeHouse (Lua)        Nim (Claude)
         │                       │                      │
         │  contact.created      │                      │
         ├──────────────────────►│                      │

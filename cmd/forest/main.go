@@ -290,35 +290,44 @@ func runForest() {
 			log.Printf("⚠️  Failed to load runtime config: %v\n", err)
 		} else {
 			// Create brain from AI service
-			nimBrain, err := createBrain()
+			aiBrain, err := createBrain()
 			if err != nil {
 				log.Printf("⚠️  Failed to create AI brain: %v\n", err)
 				log.Println("   Using simple fallback brain (set ANTHROPIC_API_KEY for AI)")
-				nimBrain = runtime.NewSimpleBrain()
+				simpleBrain := runtime.NewSimpleBrain()
+				if err := simpleBrain.Initialize(ctx); err != nil {
+					log.Printf("⚠️  Failed to initialize simple brain: %v\n", err)
+				} else {
+					runtimeForest, err = runtime.NewForestWithHumus(cfg, wind, humus, simpleBrain)
+					if err != nil {
+						log.Printf("⚠️  Failed to create runtime forest: %v\n", err)
+					}
+				}
+			} else {
+				if err := aiBrain.Initialize(ctx); err != nil {
+					log.Printf("⚠️  Failed to initialize AI brain: %v\n", err)
+				} else {
+					runtimeForest, err = runtime.NewForestWithHumus(cfg, wind, humus, aiBrain)
+					if err != nil {
+						log.Printf("⚠️  Failed to create runtime forest: %v\n", err)
+					}
+				}
 			}
 
-			if err := nimBrain.Initialize(ctx); err != nil {
-				log.Printf("⚠️  Failed to initialize brain: %v\n", err)
-			} else {
-				// Create runtime forest with Humus for state tracking
-				runtimeForest, err = runtime.NewForestWithHumus(cfg, wind, humus, nimBrain)
-				if err != nil {
-					log.Printf("⚠️  Failed to create runtime forest: %v\n", err)
+			if runtimeForest != nil {
+				if err := runtimeForest.Start(ctx); err != nil {
+					log.Printf("⚠️  Failed to start runtime forest: %v\n", err)
 				} else {
-					if err := runtimeForest.Start(ctx); err != nil {
-						log.Printf("⚠️  Failed to start runtime forest: %v\n", err)
-					} else {
-						defer runtimeForest.Stop()
-						fmt.Printf("   ✅ Runtime started with %d TreeHouses and %d Nims\n",
-							len(cfg.TreeHouses), len(cfg.Nims))
-						
-						// List what's running
-						for name := range cfg.TreeHouses {
-							fmt.Printf("   🏠 TreeHouse:%s (Lua script)\n", name)
-						}
-						for name := range cfg.Nims {
-							fmt.Printf("   🧚 Nim:%s (AI-powered)\n", name)
-						}
+					defer runtimeForest.Stop()
+					fmt.Printf("   ✅ Runtime started with %d TreeHouses and %d Nims\n",
+						len(cfg.TreeHouses), len(cfg.Nims))
+
+					// List what's running
+					for name := range cfg.TreeHouses {
+						fmt.Printf("   🏠 TreeHouse:%s (Lua script)\n", name)
+					}
+					for name := range cfg.Nims {
+						fmt.Printf("   🧚 Nim:%s (AI-powered)\n", name)
 					}
 				}
 			}
@@ -421,7 +430,7 @@ func getConfigPath() string {
 }
 
 // createBrain creates an AI service brain from environment configuration.
-func createBrain() (interface{ Initialize(context.Context) error; Ask(context.Context, string) (string, error); Close(context.Context) error }, error) {
+func createBrain() (*runtime.AIServiceBrain, error) {
 	// Check for API keys in order of preference
 	apiKey := os.Getenv("ANTHROPIC_API_KEY")
 	serviceType := aifactory.ServiceTypeClaude

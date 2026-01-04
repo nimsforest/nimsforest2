@@ -31,9 +31,11 @@ Phase 7: Enhancements       [3 tasks]  🚀 Optional
 ## 📋 All Tasks Quick List
 
 ### Phase 1: Foundation
+
 - [ ] **1.1** - Infrastructure Setup (go.mod, NATS binary, helper scripts)
 
 ### Phase 2: Core Components
+
 - [ ] **2.1** - Leaf Types (basic struct)
 - [ ] **2.2** - Wind (NATS pub/sub)
 - [ ] **2.3** - River (JetStream input)
@@ -41,23 +43,28 @@ Phase 7: Enhancements       [3 tasks]  🚀 Optional
 - [ ] **2.5** - Humus (state stream)
 
 ### Phase 3: Base Interfaces
+
 - [ ] **3.1** - Base Tree Interface
 - [ ] **3.2** - Base Nim Interface
 - [ ] **3.3** - Decomposer Worker
 
 ### Phase 4: Examples
+
 - [ ] **4.1** - Leaf Type Definitions
 - [ ] **4.2** - Payment Tree (Stripe parser)
 - [ ] **4.3** - AfterSales Nim
 
 ### Phase 5: Main Application
+
 - [ ] **5.1** - Main Entry Point
 
 ### Phase 6: Testing & Documentation
+
 - [ ] **6.1** - End-to-End Testing
 - [ ] **6.2** - Documentation
 
 ### Phase 7: Optional
+
 - [ ] **7.1** - Additional Examples
 - [ ] **7.2** - Monitoring & Observability
 - [ ] **7.3** - Performance Testing
@@ -121,53 +128,67 @@ Phase 7: Enhancements       [3 tasks]  🚀 Optional
 ## 🚀 Parallel Execution Batches
 
 ### Batch 1 (Sequential)
+
 ```
 Task 1.1 → Infrastructure
 ```
+
 **1 agent, ~1 hour**
 
 ### Batch 2 (Parallel)
+
 ```
 Task 2.1 → Leaf
 Task 2.3 → River
 Task 2.4 → Soil  
 Task 2.5 → Humus
 ```
+
 **4 agents, ~4-6 hours**
 
 ### Batch 3 (Parallel)
+
 ```
 Task 2.2 → Wind (after 2.1)
 Task 3.3 → Decomposer (after 2.4, 2.5)
 Task 4.1 → Leaf Types (after 2.1)
 ```
+
 **3 agents, ~4-6 hours**
 
 ### Batch 4 (Parallel)
+
 ```
 Task 3.1 → Base Tree
 Task 3.2 → Base Nim
 ```
+
 **2 agents, ~4-6 hours**
 
 ### Batch 5 (Parallel)
+
 ```
 Task 4.2 → Payment Tree
 Task 4.3 → AfterSales Nim
 ```
+
 **2 agents, ~4-6 hours**
 
 ### Batch 6 (Sequential)
+
 ```
 Task 5.1 → Main Application
 ```
+
 **1 agent, ~4 hours**
 
 ### Batch 7 (Parallel)
+
 ```
 Task 6.1 → E2E Testing
 Task 6.2 → Documentation
 ```
+
 **2 agents, ~8 hours**
 
 ---
@@ -216,6 +237,7 @@ The fastest path through the project:
 ## ⚡ Common Commands
 
 ### Setup
+
 ```bash
 # Start NATS
 make start
@@ -231,6 +253,7 @@ go mod tidy
 ```
 
 ### Testing
+
 ```bash
 # Run all tests
 go test ./... -v
@@ -249,6 +272,7 @@ go test ./internal/core/... -v
 ```
 
 ### Code Quality
+
 ```bash
 # Format
 go fmt ./...
@@ -261,6 +285,7 @@ golangci-lint run
 ```
 
 ### Running
+
 ```bash
 # Build
 go build -o forest ./cmd/forest
@@ -287,11 +312,13 @@ go run ./cmd/forest/main.go
 ## 📝 Update Checklist (For Agents)
 
 When starting a task:
+
 - [ ] Update `PROGRESS.md` status to 🏃
 - [ ] Add your name as assigned agent
 - [ ] Add start date
 
 When completing a task:
+
 - [ ] Run all tests
 - [ ] Check code coverage
 - [ ] Format code
@@ -348,6 +375,7 @@ Soil
 ## 🎯 Quality Gates
 
 ### Before Marking Task Complete
+
 - ✅ All code compiles
 - ✅ Unit tests pass
 - ✅ Integration tests pass (if applicable)
@@ -358,12 +386,14 @@ Soil
 - ✅ PROGRESS.md updated
 
 ### Before Marking Phase Complete
+
 - ✅ All phase tasks complete
 - ✅ All tests pass
 - ✅ No blockers
 - ✅ Code quality verified
 
 ### Before Final Delivery
+
 - ✅ All Phase 1-5 complete
 - ✅ E2E test demonstrates full flow
 - ✅ Documentation complete
@@ -406,6 +436,7 @@ Soil
 ## 📈 Project Velocity Tracking
 
 Update daily in **PROGRESS.md**:
+
 - Tasks completed today: X
 - Tasks in progress: Y
 - Tasks blocked: Z

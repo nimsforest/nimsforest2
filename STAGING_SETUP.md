@@ -14,6 +14,7 @@ Quick guide to set up staging on Hetzner (or any Linux server).
 ## Step 1: Create Server
 
 Create a server on [Hetzner Cloud](https://console.hetzner.cloud/):
+
 - **Image:** Ubuntu 22.04
 - **Type:** CPX11 (2 vCPU, 2GB RAM) - €4.51/month
 - **Name:** nimsforest-staging
@@ -34,7 +35,7 @@ The complete setup script is in `scripts/setup-server.sh` in this repository.
 
 ### 2.2: Create Pastebin
 
-1. Go to https://pastebin.com/
+1. Go to <https://pastebin.com/>
 2. Paste the script content from `scripts/setup-server.sh`
 3. Set **"Paste Expiration"**: Never (or 1 year)
 4. Set **"Paste Exposure"**: Unlisted (not public but accessible via URL)
@@ -60,6 +61,7 @@ sudo ./setup-server.sh
 ```
 
 This installs:
+
 - Go 1.24.0
 - NATS Server with JetStream
 - Firewall (UFW)
@@ -100,6 +102,7 @@ git push origin main
 ```
 
 GitHub Actions will automatically:
+
 - Build your code
 - Run tests
 - Deploy to staging via SSH
@@ -125,10 +128,12 @@ ssh root@YOUR_SERVER_IP "sudo systemctl status nats"
 ## Production Setup
 
 Repeat the same process with:
+
 - Server name: `nimsforest-production`
 - Secrets prefix: `PRODUCTION_SSH_*`
 
 Deploy to production via releases:
+
 ```bash
 git tag -a v1.0.0 -m "Release 1.0.0"
 git push origin v1.0.0
@@ -139,11 +144,13 @@ git push origin v1.0.0
 ## How It Works
 
 **Your workflow after setup:**
+
 1. Make code changes
 2. `git push origin main`
 3. GitHub Actions automatically deploys to staging
 
 **The deployment uses your existing Makefile:**
+
 - `make deps` - Download dependencies
 - `make build-deploy` - Build Linux binary
 - `make deploy-package` - Create deployment package
@@ -156,6 +163,7 @@ git push origin v1.0.0
 ## Troubleshooting
 
 ### Service won't start
+
 ```bash
 ssh root@YOUR_SERVER_IP
 sudo systemctl status nimsforest
@@ -163,6 +171,7 @@ sudo journalctl -u nimsforest -n 100
 ```
 
 ### NATS issues
+
 ```bash
 ssh root@YOUR_SERVER_IP
 sudo systemctl status nats
@@ -171,12 +180,14 @@ curl http://localhost:8222/varz
 ```
 
 ### Deployment fails
+
 ```bash
 gh run list --workflow=deploy.yml
 gh run view --log
 ```
 
 Check that all 4 secrets are set:
+
 ```bash
 gh secret list | grep STAGING
 ```
@@ -206,12 +217,12 @@ sudo ./setup-server.sh
 
 Instead of pastebin.com, you can also use:
 
-- **GitHub Gist** (https://gist.github.com/) - Can be private
+- **GitHub Gist** (<https://gist.github.com/>) - Can be private
   - URL format: `https://gist.githubusercontent.com/USERNAME/GIST_ID/raw/setup-server.sh`
 
-- **dpaste** (https://dpaste.com/) - Simple, no account needed
+- **dpaste** (<https://dpaste.com/>) - Simple, no account needed
 
-- **Ubuntu Pastebin** (https://paste.ubuntu.com/) - Official Ubuntu pastebin
+- **Ubuntu Pastebin** (<https://paste.ubuntu.com/>) - Official Ubuntu pastebin
 
 ---
 

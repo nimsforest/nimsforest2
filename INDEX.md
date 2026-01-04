@@ -118,6 +118,7 @@ SAMPLE_TASK_ASSIGNMENTS.md     Implementation
 ## 📖 Reading Paths
 
 ### Path 1: Coordinator Getting Started
+
 1. `INDEX.md` ← You are here
 2. `README.md` - Understand the project
 3. `COORDINATOR_GUIDE.md` - Learn coordination process
@@ -127,6 +128,7 @@ SAMPLE_TASK_ASSIGNMENTS.md     Implementation
 7. Monitor `PROGRESS.md` daily
 
 ### Path 2: Agent Getting Started
+
 1. `INDEX.md` ← You are here
 2. `README.md` - Understand the project
 3. `AGENT_INSTRUCTIONS.md` - Learn the process
@@ -137,6 +139,7 @@ SAMPLE_TASK_ASSIGNMENTS.md     Implementation
 8. Update `PROGRESS.md`
 
 ### Path 3: Quick Lookup While Working
+
 1. `QUICK_REFERENCE.md` - Find what you need fast
 2. Jump to relevant detailed doc if needed
 
@@ -163,22 +166,27 @@ SAMPLE_TASK_ASSIGNMENTS.md     Implementation
 ### By Information Type
 
 **Specifications** (What to build):
+
 - `Cursorinstructions.md` - Detailed technical spec
 - `TASK_BREAKDOWN.md` - Task-level specifications
 
 **Processes** (How to build):
+
 - `AGENT_INSTRUCTIONS.md` - Agent workflow
 - `COORDINATOR_GUIDE.md` - Coordination workflow
 
 **Status** (What's built):
+
 - `PROGRESS.md` - Current state
 - Test results in progress tracker
 
 **Reference** (Quick help):
+
 - `QUICK_REFERENCE.md` - Quick lookups
 - `SAMPLE_TASK_ASSIGNMENTS.md` - Templates
 
 **Navigation** (Where is it):
+
 - `README.md` - Overview and entry
 - `INDEX.md` - This file
 
@@ -228,6 +236,7 @@ For planning your reading time:
 ## 🎯 Daily Usage Patterns
 
 ### Coordinator Daily Workflow
+
 1. Morning: Check `PROGRESS.md` for updates
 2. Review: Use `COORDINATOR_GUIDE.md` for decisions
 3. Assign: Use `SAMPLE_TASK_ASSIGNMENTS.md` for templates
@@ -235,6 +244,7 @@ For planning your reading time:
 5. Evening: Update `PROGRESS.md` summary
 
 ### Agent Daily Workflow
+
 1. Morning: Check task assignment and `PROGRESS.md`
 2. Implement: Reference `Cursorinstructions.md` for details
 3. Help: Use `AGENT_INSTRUCTIONS.md` for processes
@@ -262,16 +272,19 @@ For planning your reading time:
 ## 📱 Quick Access Bookmarks
 
 ### Most Frequently Accessed
+
 1. `PROGRESS.md` - Check status (daily)
 2. `QUICK_REFERENCE.md` - Quick lookups (hourly)
 3. `Cursorinstructions.md` - Implementation details (during work)
 
 ### Occasional Reference
+
 4. `AGENT_INSTRUCTIONS.md` - When stuck
 5. `TASK_BREAKDOWN.md` - Check dependencies
 6. `COORDINATOR_GUIDE.md` - Assignment help
 
 ### One-Time Reads
+
 7. `README.md` - Initial orientation
 8. `INDEX.md` - Navigation help
 9. `SAMPLE_TASK_ASSIGNMENTS.md` - Copy templates
@@ -281,17 +294,20 @@ For planning your reading time:
 ## 🎓 Learning Curve
 
 ### First Day
+
 - Read: `README.md`, your role's guide
 - Understand: Project goals, your workflow
 - Setup: Development environment
 - Start: Task 1.1 or receive assignment
 
 ### First Week
+
 - Familiar with: Core documents, task structure
 - Comfortable: Executing tasks, updating progress
 - Reference: Spec and quick reference as needed
 
 ### Ongoing
+
 - Master: Your domain (core/trees/nims)
 - Contribute: Improvements to processes
 - Help: Onboard new agents
@@ -301,6 +317,7 @@ For planning your reading time:
 ## 🏁 Getting Started Checklist
 
 ### For Coordinators
+
 - [ ] Read `README.md`
 - [ ] Read `COORDINATOR_GUIDE.md`
 - [ ] Review `TASK_BREAKDOWN.md`
@@ -309,6 +326,7 @@ For planning your reading time:
 - [ ] Assign first task (1.1)
 
 ### For Agents
+
 - [ ] Read `README.md`
 - [ ] Read `AGENT_INSTRUCTIONS.md`
 - [ ] Setup development environment
@@ -334,17 +352,20 @@ For planning your reading time:
 ## 🆘 Troubleshooting
 
 **Can't find what you need?**
+
 1. Check `QUICK_REFERENCE.md` first
 2. Use document matrix above
 3. Search in likely document with Ctrl+F
 4. Check INDEX.md (this file)
 
 **Document seems out of date?**
+
 1. Check "Last Updated" date
 2. Notify coordinator
 3. Refer to `Cursorinstructions.md` as source of truth
 
 **Conflicting information?**
+
 1. `Cursorinstructions.md` is always correct (source of truth)
 2. Other docs summarize/organize it
 3. Notify coordinator of conflicts
@@ -370,6 +391,7 @@ For planning your reading time:
 ## ✅ Document Quality Checklist
 
 Each document should be:
+
 - [ ] Clear and concise
 - [ ] Up to date
 - [ ] Cross-referenced where relevant
@@ -382,6 +404,7 @@ Each document should be:
 ## 🎯 Success Metrics
 
 You're using the documentation well when:
+
 - ✅ You can find information quickly
 - ✅ Tasks are clear and actionable
 - ✅ Progress is visible to all

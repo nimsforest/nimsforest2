@@ -9,6 +9,7 @@ Copy the entire content of `scripts/setup-server.sh` (shown below).
 ## Step 2: Create Pastebin
 
 Go to one of these services:
+
 - **pastebin.com** - Public, simple
 - **gist.github.com** - GitHub gists (can be private!)
 - **paste.ubuntu.com** - Ubuntu pastebin
@@ -35,7 +36,7 @@ sudo ./setup-server.sh
 
 ## Example with pastebin.com
 
-1. Go to https://pastebin.com/
+1. Go to <https://pastebin.com/>
 2. Paste the script
 3. Set "Paste Expiration": Never (or as needed)
 4. Set "Paste Exposure": Unlisted (so it's not public but accessible via URL)
@@ -45,7 +46,7 @@ sudo ./setup-server.sh
 
 ## Example with GitHub Gist
 
-1. Go to https://gist.github.com/
+1. Go to <https://gist.github.com/>
 2. Paste the script
 3. Set filename: `setup-server.sh`
 4. Choose "Create secret gist" (or public)
@@ -72,7 +73,7 @@ sudo ./setup-server.sh
 
 ---
 
-## The Complete Script to Copy:
+## The Complete Script to Copy
 
 ```bash
 #!/bin/bash

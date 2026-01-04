@@ -1,6 +1,6 @@
 # What's New: Platform-Agnostic SSH Deployment
 
-## ✅ You Were Right!
+## ✅ You Were Right
 
 The deployment is completely **platform-agnostic** - it just uses SSH. Works with **any Linux server** you can SSH into.
 
@@ -11,10 +11,12 @@ The deployment is completely **platform-agnostic** - it just uses SSH. Works wit
 ### 1. Renamed Everything from "Hetzner" to "SSH"
 
 **Files**:
+
 - `deploy-hetzner.yml` → `deploy.yml`
 - `HETZNER_DEPLOYMENT.md` → `DEPLOYMENT_SSH.md`
 
 **GitHub Secrets** (now generic):
+
 - `HETZNER_SSH_PRIVATE_KEY` → `SSH_PRIVATE_KEY`
 - `HETZNER_SSH_USER` → `SSH_USER`
 - `HETZNER_HOST` → `SSH_HOST`
@@ -26,6 +28,7 @@ The deployment is completely **platform-agnostic** - it just uses SSH. Works wit
 **After**: 3 files, 953 lines (67% reduction)
 
 **Essential docs**:
+
 - **[DEPLOYMENT_QUICKREF.md](./DEPLOYMENT_QUICKREF.md)** - Quick commands
 - **[DEPLOYMENT_SSH.md](./DEPLOYMENT_SSH.md)** - Complete guide
 - **[DEPLOYMENT_CHANGES.md](./DEPLOYMENT_CHANGES.md)** - What changed
@@ -40,6 +43,7 @@ The deployment is completely **platform-agnostic** - it just uses SSH. Works wit
 ## 🌍 Works With Any Linux Server
 
 ### Cloud Providers
+
 - ✅ **Hetzner Cloud** (~€5/month)
 - ✅ **DigitalOcean** (~$12/month)
 - ✅ **AWS EC2** (~$15/month)
@@ -47,6 +51,7 @@ The deployment is completely **platform-agnostic** - it just uses SSH. Works wit
 - ✅ **Your own server** ($0)
 
 ### Requirements
+
 - SSH access
 - Ubuntu/Debian (or similar)
 - 2GB RAM minimum
@@ -58,9 +63,10 @@ The deployment is completely **platform-agnostic** - it just uses SSH. Works wit
 
 **Just SSH!** No cloud provider credentials.
 
-### Per Environment:
+### Per Environment
 
 **Staging** (optional - skips if not set):
+
 ```bash
 STAGING_SSH_PRIVATE_KEY      # SSH key
 STAGING_SSH_USER             # Usually "root"
@@ -69,6 +75,7 @@ STAGING_SSH_KNOWN_HOSTS      # Fingerprint
 ```
 
 **Production** (optional - skips if not set):
+
 ```bash
 PRODUCTION_SSH_PRIVATE_KEY   # SSH key
 PRODUCTION_SSH_USER          # Usually "root"
@@ -76,7 +83,7 @@ PRODUCTION_SSH_HOST          # Server IP
 PRODUCTION_SSH_KNOWN_HOSTS   # Fingerprint
 ```
 
-### Setup:
+### Setup
 
 ```bash
 # Generate keys
@@ -130,6 +137,7 @@ git push origin v1.0.0
 | **Your server** | Any | $0 |
 
 **For 2 environments** (staging + production):
+
 - Hetzner: ~€9/month
 - Your hardware: Free!
 
@@ -138,12 +146,14 @@ git push origin v1.0.0
 ## 📚 Quick Reference
 
 ### Automatic Deployments
+
 ```bash
 git push origin main          # → Staging
 git tag v1.0.0 && git push origin v1.0.0  # → Production
 ```
 
 ### Manual Deployment
+
 ```bash
 make deploy-package
 scp nimsforest-deploy.tar.gz root@SERVER:/tmp/
@@ -151,6 +161,7 @@ ssh root@SERVER 'bash -s' < scripts/deploy.sh deploy
 ```
 
 ### Common Commands
+
 ```bash
 ssh root@SERVER "sudo systemctl status nimsforest"
 ssh root@SERVER "sudo journalctl -u nimsforest -f"

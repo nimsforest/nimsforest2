@@ -134,6 +134,7 @@ make setup
 ```
 
 This will:
+
 - ✅ Verify Go installation (1.22+)
 - ✅ Download all Go dependencies
 - ✅ Create required project directory structure
@@ -147,6 +148,7 @@ make start
 ```
 
 This will automatically:
+
 - Check if NATS is already running
 - Install NATS server binary if not found (auto-detects OS/architecture)
 - Start NATS with JetStream enabled
@@ -154,6 +156,7 @@ This will automatically:
 - Display connection details and monitoring URLs
 
 Connection details:
+
 - Client connections on `localhost:4222`
 - Monitoring UI on `http://localhost:8222`
 - JetStream enabled with persistent storage
@@ -355,6 +358,7 @@ nimsforest/
 ### Available Make Commands
 
 View all available commands:
+
 ```bash
 make help
 ```
@@ -423,10 +427,10 @@ js, _ := nc.JetStream()
 
 ### Monitoring
 
-- **Monitoring UI**: http://localhost:8222
-- **Varz endpoint**: http://localhost:8222/varz
-- **Connz endpoint**: http://localhost:8222/connz
-- **Jsz endpoint**: http://localhost:8222/jsz (JetStream info)
+- **Monitoring UI**: <http://localhost:8222>
+- **Varz endpoint**: <http://localhost:8222/varz>
+- **Connz endpoint**: <http://localhost:8222/connz>
+- **Jsz endpoint**: <http://localhost:8222/jsz> (JetStream info)
 
 ## Managing NATS
 
@@ -524,6 +528,7 @@ webhook := `{"type": "charge.succeeded", "data": {...}}`
 ```
 
 **Features**:
+
 - Parses `charge.succeeded` and `charge.failed` events
 - Extracts customer, amount, currency, item metadata
 - Converts cents to dollars
@@ -549,6 +554,7 @@ payment.completed leaf
 ```
 
 **Features**:
+
 - Differentiated logic for success vs. failure
 - Configurable thresholds for email triggers
 - Task lifecycle management (create, update, complete)
@@ -558,6 +564,7 @@ payment.completed leaf
 ### Decomposer: State Change Worker
 
 The Decomposer is a background worker that:
+
 1. Consumes compost entries from Humus (state change log)
 2. Applies them to Soil (current state KV store)
 3. Handles create, update, delete operations
@@ -740,12 +747,14 @@ git push origin v1.0.0
 ### Traditional Methods
 
 **Debian Package**:
+
 ```bash
 wget https://github.com/yourusername/nimsforest/releases/latest/download/nimsforest_VERSION_amd64.deb
 sudo dpkg -i nimsforest_VERSION_amd64.deb
 ```
 
 **Manual with Make**:
+
 ```bash
 make deploy-package
 scp nimsforest-deploy.tar.gz root@SERVER:/tmp/
@@ -757,6 +766,7 @@ See: [DEPLOYMENT.md](./DEPLOYMENT.md) for all options
 ## Production Considerations
 
 **Automatic Deployment**:
+
 - Staging on push to `main`
 - Production on release
 - Works with any SSH-accessible Linux server
@@ -768,7 +778,7 @@ See: [DEPLOYMENT.md](./DEPLOYMENT.md) for all options
 
 ### Monitoring
 
-- Monitor NATS server via http://localhost:8222
+- Monitor NATS server via <http://localhost:8222>
 - Log all leaf emissions and catches
 - Track JetStream stream lag
 - Monitor Soil KV operations
@@ -777,6 +787,7 @@ See: [DEPLOYMENT.md](./DEPLOYMENT.md) for all options
 ### Configuration
 
 Environment variables:
+
 - `NATS_URL`: NATS connection URL (default: nats://localhost:4222)
 - `DEMO`: Run in demo mode (default: false)
 
@@ -790,16 +801,19 @@ Environment variables:
 ## Documentation
 
 ### Deployment
+
 - **[DEPLOYMENT_QUICKREF.md](./DEPLOYMENT_QUICKREF.md)** - Quick reference for all deployment commands
 - **[DEPLOYMENT_SSH.md](./DEPLOYMENT_SSH.md)** - SSH deployment to any Linux server
 - **[DEPLOYMENT.md](./DEPLOYMENT.md)** - Traditional deployment methods
 
 ### Development
+
 - **[README.md](./README.md)** - This file
 - **[CI_CD.md](./CI_CD.md)** - CI/CD pipeline documentation
 - **[Makefile](./Makefile)** - All build commands (`make help`)
 
 ### Developer Documentation
+
 - **[Cursorinstructions.md](./Cursorinstructions.md)** - Complete architecture and API specifications
 - **[TASK_BREAKDOWN.md](./TASK_BREAKDOWN.md)** - Development task breakdown
 - **[PROGRESS.md](./PROGRESS.md)** - Current development status
@@ -894,6 +908,7 @@ Contributions are welcome! Please:
 ## Support
 
 For issues, questions, or contributions:
+
 - Open an issue on GitHub
 - Check existing documentation
 - Review test files for usage examples

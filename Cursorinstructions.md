@@ -39,12 +39,14 @@ soil (current state)
 ### Trees vs Nims
 
 **Trees** are the edge layer:
+
 - Watch the river for patterns
 - Parse unstructured data
 - Emit structured leaves
 - No business logic, just transformation
 
 **Nims** are the core:
+
 - Static classes holding business logic
 - Catch leaves from wind
 - Make decisions
@@ -439,6 +441,7 @@ make restart
 ```
 
 The Makefile automatically:
+
 - Detects your OS and architecture
 - Downloads and installs NATS server binary if not present
 - Starts NATS with JetStream enabled on ports 4222 (client) and 8222 (monitoring)

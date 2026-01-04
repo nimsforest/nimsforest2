@@ -63,6 +63,7 @@ $ go test ./internal/nims/... -run TestAfterSalesNim_Integration
 **Coverage**: 84.9%
 
 **Tests**:
+
 1. ✅ `TestPaymentTree_Patterns` - Verifies river pattern matching
 2. ✅ `TestPaymentTree_ParseChargeSucceeded` - Parses successful payments
 3. ✅ `TestPaymentTree_ParseChargeFailed` - Parses failed payments
@@ -72,6 +73,7 @@ $ go test ./internal/nims/... -run TestAfterSalesNim_Integration
 7. ✅ `TestPaymentTree_Integration` - End-to-end with NATS
 
 **What's Tested**:
+
 - ✅ Stripe webhook parsing (charge.succeeded, charge.failed)
 - ✅ JSON unmarshaling
 - ✅ Amount conversion (cents → dollars)
@@ -89,6 +91,7 @@ $ go test ./internal/nims/... -run TestAfterSalesNim_Integration
 **Coverage**: 61.4%
 
 **Tests**:
+
 1. ✅ `TestAfterSalesNim_Subjects` - Subject pattern validation
 2. ✅ `TestAfterSalesNim_HandlePaymentCompleted` - Successful payment handling
 3. ✅ `TestAfterSalesNim_HandlePaymentFailed` - Failed payment handling
@@ -100,6 +103,7 @@ $ go test ./internal/nims/... -run TestAfterSalesNim_Integration
 9. ✅ `TestTask_Marshaling` - Task serialization
 
 **What's Tested**:
+
 - ✅ Payment leaf handling (completed, failed)
 - ✅ Task creation via compost
 - ✅ Due date calculation (24h for success, 2h for failure)
@@ -109,6 +113,7 @@ $ go test ./internal/nims/... -run TestAfterSalesNim_Integration
 - ✅ Integration with Wind, Humus, Soil, Decomposer
 
 **Uncovered Lines**:
+
 - Helper methods (GetTask, UpdateTask, CompleteTask)
 - Start/Stop lifecycle methods
 - Some error paths
@@ -159,30 +164,39 @@ $ go test ./internal/nims/... -run TestAfterSalesNim_Integration
 ## Test Isolation Note
 
 ### Observation
+
 When running `go test ./...` (all tests together), some integration tests fail with:
+
 - `nats: filtered consumer not unique on workqueue stream`
 - `consumer is already bound to a subscription`
 
 ### Root Cause
+
 - Multiple tests using same NATS streams/consumers
 - Tests run in parallel, causing conflicts
 - NATS state persists between tests
 
 ### Resolution
+
 Tests pass reliably when:
+
 1. ✅ Run in short mode: `go test ./... -short`
 2. ✅ Run individually: `go test ./internal/trees/... -run TestPaymentTree_Integration`
 3. ✅ Run with unique consumer names (already implemented in code)
 
 ### Not a Code Issue
+
 This is a **test isolation** issue, not a code defect:
+
 - ✅ Production code uses unique consumer names
 - ✅ Each component works correctly
 - ✅ Integration tests prove functionality
 - ✅ Unit tests all pass reliably
 
 ### Future Improvement
+
 Consider:
+
 - Test fixtures that clean NATS state between tests
 - Use `-p 1` flag to run tests serially
 - Create unique stream names per test
@@ -192,6 +206,7 @@ Consider:
 ## Code Quality Metrics
 
 ### Production Code
+
 | File | Lines | Description |
 |------|-------|-------------|
 | `internal/trees/payment.go` | 165 | PaymentTree implementation |
@@ -199,6 +214,7 @@ Consider:
 | **Total** | **385** | New production code |
 
 ### Test Code
+
 | File | Lines | Description |
 |------|-------|-------------|
 | `internal/trees/payment_test.go` | 275 | PaymentTree tests |
@@ -212,6 +228,7 @@ Consider:
 ## Validation Checklist
 
 ### Functionality
+
 - ✅ PaymentTree parses Stripe webhooks correctly
 - ✅ PaymentTree emits structured leaves
 - ✅ AfterSalesNim catches payment leaves
@@ -221,12 +238,14 @@ Consider:
 - ✅ Decomposer processes compost correctly
 
 ### Error Handling
+
 - ✅ Invalid JSON handled gracefully
 - ✅ Unknown event types ignored
 - ✅ Missing metadata uses defaults
 - ✅ Validation errors prevent processing
 
 ### Integration
+
 - ✅ River → Tree integration works
 - ✅ Tree → Wind integration works
 - ✅ Wind → Nim integration works
@@ -235,6 +254,7 @@ Consider:
 - ✅ Decomposer → Soil integration works
 
 ### Architecture
+
 - ✅ Tree interface correctly implemented
 - ✅ Nim interface correctly implemented
 - ✅ BaseTree helpers used effectively
@@ -247,6 +267,7 @@ Consider:
 ## Performance Observations
 
 ### Test Execution Times
+
 - Unit tests (core): ~10.7s
 - Unit tests (trees): ~0.003s
 - Unit tests (nims): ~0.006s
@@ -254,6 +275,7 @@ Consider:
 - Integration test (nims): ~0.7s
 
 ### Why Integration Tests Take Longer
+
 - Real NATS connection setup
 - JetStream stream/consumer creation
 - Message persistence and ack
@@ -267,16 +289,20 @@ Consider:
 ## Conclusion
 
 ### Summary
+
 ✅ **All tests passing**  
 ✅ **Good coverage** (75% overall, 84.9% for trees)  
 ✅ **End-to-end flows validated**  
 ✅ **Production-ready code quality**
 
 ### Confidence Level
+
 **HIGH** - Phase 4 is thoroughly tested and validated
 
 ### Ready for Next Phase
+
 ✅ **Phase 5** - Main Application
+
 - All dependencies met
 - Core architecture proven
 - Examples demonstrate usage

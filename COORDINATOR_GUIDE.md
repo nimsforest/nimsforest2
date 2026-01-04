@@ -19,9 +19,11 @@ This guide helps you efficiently assign and coordinate tasks across multiple clo
 ## Quick Start Workflow
 
 ### Step 1: Assign First Task
+
 Start with Task 1.1 (Infrastructure Setup) - it has no dependencies.
 
 **Agent Assignment Template**:
+
 ```
 Task: 1.1 - Project Infrastructure Setup
 Reference: TASK_BREAKDOWN.md - Phase 1, Task 1.1
@@ -31,6 +33,7 @@ Update: PROGRESS.md when starting and completing
 ```
 
 ### Step 2: Parallel Phase 2
+
 Once Task 1.1 is complete, assign all Phase 2 tasks simultaneously to different agents:
 
 - **Agent A**: Task 2.1 (Leaf) - Simple, quick
@@ -41,6 +44,7 @@ Once Task 1.1 is complete, assign all Phase 2 tasks simultaneously to different 
 **Agent B-D can work fully in parallel**. Agent A should complete quickly, then move to Task 2.2.
 
 ### Step 3: Continue Through Phases
+
 Follow the dependency graph in TASK_BREAKDOWN.md.
 
 ---
@@ -98,12 +102,14 @@ Agent Notes: [Leave blank for agent to fill]
 ## Batch Assignment Strategy
 
 ### Batch 1: Foundation (Sequential)
+
 ```
 Agent 1 → Task 1.1 (Infrastructure)
 Wait for completion ✅
 ```
 
 ### Batch 2: Core Components Part 1 (Parallel)
+
 ```
 Agent 1 → Task 2.1 (Leaf) [Quick]
 Agent 2 → Task 2.3 (River)
@@ -114,6 +120,7 @@ Wait for 2.1 ✅
 ```
 
 ### Batch 3: Core Components Part 2 (Parallel)
+
 ```
 Agent 1 → Task 2.2 (Wind) [needs 2.1]
 Agent 2 → Task 3.3 (Decomposer) [needs 2.4, 2.5]
@@ -123,6 +130,7 @@ Wait for 2.2, 2.3, 2.4, 2.5 ✅
 ```
 
 ### Batch 4: Base Interfaces (Parallel)
+
 ```
 Agent 1 → Task 3.1 (Base Tree) [needs 2.1, 2.2, 2.3]
 Agent 2 → Task 3.2 (Base Nim) [needs 2.1, 2.2, 2.4, 2.5]
@@ -131,6 +139,7 @@ Wait for 3.1, 3.2, 4.1 ✅
 ```
 
 ### Batch 5: Examples (Parallel)
+
 ```
 Agent 1 → Task 4.2 (Payment Tree) [needs 3.1, 4.1]
 Agent 2 → Task 4.3 (AfterSales Nim) [needs 3.2, 4.1]
@@ -139,6 +148,7 @@ Wait for 4.2, 4.3 ✅
 ```
 
 ### Batch 6: Main Application (Sequential)
+
 ```
 Agent 1 → Task 5.1 (Main)
 
@@ -146,6 +156,7 @@ Wait for 5.1 ✅
 ```
 
 ### Batch 7: Testing & Docs (Parallel)
+
 ```
 Agent 1 → Task 6.1 (E2E Testing)
 Agent 2 → Task 6.2 (Documentation)
@@ -158,29 +169,35 @@ Agent 2 → Task 6.2 (Documentation)
 Before assigning a task, verify all dependencies are complete:
 
 **Task 2.2 (Wind)**:
+
 - ✅ Task 1.1 (Infrastructure) - Complete?
 - ✅ Task 2.1 (Leaf) - Complete?
 
 **Task 3.1 (Base Tree)**:
+
 - ✅ Task 2.1 (Leaf) - Complete?
 - ✅ Task 2.2 (Wind) - Complete?
 - ✅ Task 2.3 (River) - Complete?
 
 **Task 3.2 (Base Nim)**:
+
 - ✅ Task 2.1 (Leaf) - Complete?
 - ✅ Task 2.2 (Wind) - Complete?
 - ✅ Task 2.4 (Soil) - Complete?
 - ✅ Task 2.5 (Humus) - Complete?
 
 **Task 4.2 (Payment Tree)**:
+
 - ✅ Task 3.1 (Base Tree) - Complete?
 - ✅ Task 4.1 (Leaf Types) - Complete?
 
 **Task 4.3 (AfterSales Nim)**:
+
 - ✅ Task 3.2 (Base Nim) - Complete?
 - ✅ Task 4.1 (Leaf Types) - Complete?
 
 **Task 5.1 (Main)**:
+
 - ✅ Task 3.3 (Decomposer) - Complete?
 - ✅ Task 4.2 (Payment Tree) - Complete?
 - ✅ Task 4.3 (AfterSales Nim) - Complete?
@@ -190,12 +207,14 @@ Before assigning a task, verify all dependencies are complete:
 ## Agent Capability Matching
 
 ### Low Complexity Tasks (Good for new agents)
+
 - Task 1.1 - Infrastructure Setup
 - Task 2.1 - Leaf Types
 - Task 4.1 - Leaf Type Definitions
 - Task 6.2 - Documentation
 
 ### Medium Complexity Tasks
+
 - Task 2.2 - Wind
 - Task 2.3 - River
 - Task 2.4 - Soil
@@ -209,6 +228,7 @@ Before assigning a task, verify all dependencies are complete:
 - Task 7.2 - Monitoring
 
 ### High Complexity Tasks (Experienced agents)
+
 - Task 6.1 - End-to-End Testing
 - Task 7.3 - Performance Testing
 
@@ -217,6 +237,7 @@ Before assigning a task, verify all dependencies are complete:
 ## Progress Monitoring
 
 ### Daily Checklist
+
 - [ ] Review PROGRESS.md for status updates
 - [ ] Check for blocked tasks (❌ or ⚠️ status)
 - [ ] Verify agents have updated their status
@@ -225,6 +246,7 @@ Before assigning a task, verify all dependencies are complete:
 - [ ] Check for integration issues
 
 ### Key Metrics to Track
+
 1. **Tasks Complete**: X / 18
 2. **Current Active Tasks**: Count of 🏃
 3. **Blocked Tasks**: Count of ❌
@@ -232,6 +254,7 @@ Before assigning a task, verify all dependencies are complete:
 5. **Overall Progress**: X%
 
 ### Red Flags
+
 - ⚠️ Task in progress for >24 hours without update
 - ⚠️ Multiple tasks blocked on same dependency
 - ⚠️ Tests failing consistently
@@ -243,6 +266,7 @@ Before assigning a task, verify all dependencies are complete:
 ## Communication Templates
 
 ### Task Completion Notification
+
 ```
 Task [X.X] Complete ✅
 
@@ -258,6 +282,7 @@ Unblocked Tasks:
 ```
 
 ### Blocker Report
+
 ```
 Task [X.X] Blocked ❌
 
@@ -270,6 +295,7 @@ Priority: [High/Medium/Low]
 ```
 
 ### Issue Escalation
+
 ```
 Issue with Task [X.X] ⚠️
 
@@ -286,7 +312,9 @@ Help Needed: [Specific request]
 ## Common Issues & Solutions
 
 ### Issue: Agent can't connect to NATS
+
 **Solution**: Verify Task 1.1 complete, NATS server running
+
 ```bash
 ps aux | grep nats-server
 make start
@@ -294,15 +322,19 @@ curl http://localhost:8222/varz
 ```
 
 ### Issue: Import cycle detected
+
 **Solution**: Check component dependencies, core shouldn't import examples
 
 ### Issue: Tests timing out
+
 **Solution**: Add timeouts, check for goroutine leaks, cleanup subscriptions
 
 ### Issue: Optimistic locking failures
+
 **Solution**: Implement retry logic, check revision handling
 
 ### Issue: Task dependencies unclear
+
 **Solution**: Refer to dependency graph in TASK_BREAKDOWN.md
 
 ---
@@ -312,6 +344,7 @@ curl http://localhost:8222/varz
 Before marking Phase complete, verify:
 
 ### Phase 1 Complete
+
 - [ ] go.mod exists and valid
 - [ ] NATS server binary installed
 - [ ] NATS server can be started with `make start`
@@ -320,30 +353,35 @@ Before marking Phase complete, verify:
 - [ ] Test program verifies connectivity
 
 ### Phase 2 Complete
+
 - [ ] All core components implemented
 - [ ] Unit tests pass for all
 - [ ] Integration tests pass
 - [ ] Coverage >80% for each component
 
 ### Phase 3 Complete
+
 - [ ] Interfaces defined
 - [ ] Base implementations working
 - [ ] Decomposer running
 - [ ] Tests pass
 
 ### Phase 4 Complete
+
 - [ ] Example tree works
 - [ ] Example nim works
 - [ ] Leaf types defined
 - [ ] Tests pass
 
 ### Phase 5 Complete
+
 - [ ] Application starts
 - [ ] All components initialized
 - [ ] Graceful shutdown works
 - [ ] Basic integration works
 
 ### Phase 6 Complete
+
 - [ ] E2E test passes
 - [ ] Documentation complete
 - [ ] Setup guide works
@@ -366,6 +404,7 @@ If a task needs to be redone:
 ## Success Metrics
 
 ### Definition of Done (Per Task)
+
 - ✅ All deliverables implemented
 - ✅ Unit tests written and passing
 - ✅ Integration tests (if required) passing
@@ -375,6 +414,7 @@ If a task needs to be redone:
 - ✅ No blocking issues
 
 ### Definition of Done (Project)
+
 - ✅ All Phase 1-5 tasks complete
 - ✅ E2E test demonstrates full flow
 - ✅ Documentation allows new dev to onboard
@@ -448,6 +488,7 @@ Before considering project complete:
 ## Quick Reference Commands
 
 ### Check overall status
+
 ```bash
 grep "✅ Complete" PROGRESS.md | wc -l  # Count completed tasks
 grep "🏃 In Progress" PROGRESS.md      # Show active tasks
@@ -455,6 +496,7 @@ grep "❌ Blocked" PROGRESS.md          # Show blocked tasks
 ```
 
 ### Run all tests
+
 ```bash
 make start
 go test ./... -v
@@ -464,6 +506,7 @@ go test ./... -tags=integration
 ```
 
 ### Check code quality
+
 ```bash
 go fmt ./...
 go vet ./...
@@ -475,6 +518,7 @@ golangci-lint run
 ## Contact & Escalation
 
 For issues requiring human intervention:
+
 1. Document in PROGRESS.md issues section
 2. Mark affected tasks with ⚠️
 3. Include: Issue description, impact, attempted solutions
@@ -483,6 +527,7 @@ For issues requiring human intervention:
 ---
 
 **Remember**: The goal is working software. Prioritize:
+
 1. ✅ Working code over perfect code
 2. ✅ Tests passing over feature complete
 3. ✅ Progress over perfection

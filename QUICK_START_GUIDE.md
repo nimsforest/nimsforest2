@@ -13,6 +13,7 @@ make dev
 ```
 
 That's it! This command:
+
 - ✅ Installs NATS server (if needed)
 - ✅ Downloads Go dependencies
 - ✅ Creates directory structure
@@ -65,6 +66,7 @@ make restart            # Restart NATS
 ## 🆘 Common Issues
 
 ### "NATS won't start"
+
 ```bash
 make status             # Check current status
 make stop               # Stop any stuck processes
@@ -72,12 +74,14 @@ make start              # Start fresh
 ```
 
 ### "Tests failing"
+
 ```bash
 make restart            # Restart NATS
 make test-integration   # Run tests again
 ```
 
 ### "Need fresh environment"
+
 ```bash
 make clean-all          # Clean everything
 make setup              # Setup from scratch

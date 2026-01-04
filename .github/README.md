@@ -14,13 +14,13 @@ Automated CI/CD pipelines using GitHub Actions:
   - Performs linting and code quality checks
   - Generates code coverage reports
   - Builds for multiple platforms
-  
+
 - **`release.yml`** - Release automation
   - Triggers on version tags (v*)
   - Builds multi-platform binaries
   - Creates GitHub releases with changelogs
   - Publishes Docker images
-  
+
 - **`debian-package.yml`** - Debian package builder
   - Creates native .deb packages
   - Builds for amd64 and arm64
@@ -53,16 +53,18 @@ make check
 
 1. Ensure all tests pass
 2. Create and push a version tag:
+
    ```bash
    git tag -a v1.0.0 -m "Release v1.0.0"
    git push origin v1.0.0
    ```
+
 3. Watch the Actions tab for workflow progress
 4. Download artifacts from the releases page
 
 ### Viewing Workflow Results
 
-- Go to: https://github.com/yourusername/nimsforest/actions
+- Go to: <https://github.com/yourusername/nimsforest/actions>
 - Click on any workflow run to see details
 - Download build artifacts from successful runs
 
@@ -88,5 +90,6 @@ Recommended settings for the main branch:
 ## Support
 
 For CI/CD issues, see:
+
 - [CI_CD.md](../CI_CD.md) - Complete CI/CD documentation
 - [GitHub Actions logs](https://github.com/yourusername/nimsforest/actions)

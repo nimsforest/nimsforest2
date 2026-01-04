@@ -22,7 +22,7 @@ jobs:
     name: Deploy to Staging
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    
+
     steps:
     - name: Check if staging secrets are configured
       id: check-staging
@@ -34,44 +34,44 @@ jobs:
         else
           echo "configured=true" >> $GITHUB_OUTPUT
         fi
-    
+
     - name: Checkout code
       if: steps.check-staging.outputs.configured == 'true'
       uses: actions/checkout@v4
-    
+
     - name: Set up Go
       if: steps.check-staging.outputs.configured == 'true'
       uses: actions/setup-go@v5
       with:
         go-version: '1.24.x'
         cache: true
-    
+
     - name: Download dependencies
       if: steps.check-staging.outputs.configured == 'true'
       run: make deps
-    
+
     - name: Build deployment binary
       if: steps.check-staging.outputs.configured == 'true'
       run: make build-deploy
-    
+
     - name: Create deployment package
       if: steps.check-staging.outputs.configured == 'true'
       run: make deploy-package
-    
+
     - name: Install SSH key
       if: steps.check-staging.outputs.configured == 'true'
       uses: shimataro/ssh-key-action@v2
       with:
         key: ${{ secrets.STAGING_SSH_PRIVATE_KEY }}
         known_hosts: ${{ secrets.STAGING_SSH_KNOWN_HOSTS }}
-    
+
     - name: Deploy to staging server
       if: steps.check-staging.outputs.configured == 'true'
       run: |
         # Copy package to server
         scp -o StrictHostKeyChecking=no nimsforest-deploy.tar.gz \
           ${{ secrets.STAGING_SSH_USER }}@${{ secrets.STAGING_SSH_HOST }}:/tmp/
-        
+
         # Extract and deploy using Make
         ssh -o StrictHostKeyChecking=no \
           ${{ secrets.STAGING_SSH_USER }}@${{ secrets.STAGING_SSH_HOST }} << 'ENDSSH'
@@ -82,7 +82,7 @@ jobs:
           cd /tmp
           rm -rf deploy nimsforest-deploy.tar.gz
         ENDSSH
-    
+
     - name: Notify deployment status
       if: always() && steps.check-staging.outputs.configured == 'true'
       run: |
@@ -96,7 +96,7 @@ jobs:
     name: Deploy to Production
     runs-on: ubuntu-latest
     if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production')
-    
+
     steps:
     - name: Check if production secrets are configured
       id: check-production
@@ -108,44 +108,44 @@ jobs:
         else
           echo "configured=true" >> $GITHUB_OUTPUT
         fi
-    
+
     - name: Checkout code
       if: steps.check-production.outputs.configured == 'true'
       uses: actions/checkout@v4
-    
+
     - name: Set up Go
       if: steps.check-production.outputs.configured == 'true'
       uses: actions/setup-go@v5
       with:
         go-version: '1.24.x'
         cache: true
-    
+
     - name: Download dependencies
       if: steps.check-production.outputs.configured == 'true'
       run: make deps
-    
+
     - name: Build deployment binary
       if: steps.check-production.outputs.configured == 'true'
       run: make build-deploy
-    
+
     - name: Create deployment package
       if: steps.check-production.outputs.configured == 'true'
       run: make deploy-package
-    
+
     - name: Install SSH key
       if: steps.check-production.outputs.configured == 'true'
       uses: shimataro/ssh-key-action@v2
       with:
         key: ${{ secrets.PRODUCTION_SSH_PRIVATE_KEY }}
         known_hosts: ${{ secrets.PRODUCTION_SSH_KNOWN_HOSTS }}
-    
+
     - name: Deploy to production server
       if: steps.check-production.outputs.configured == 'true'
       run: |
         # Copy package to server
         scp -o StrictHostKeyChecking=no nimsforest-deploy.tar.gz \
           ${{ secrets.PRODUCTION_SSH_USER }}@${{ secrets.PRODUCTION_SSH_HOST }}:/tmp/
-        
+
         # Extract and deploy using Make
         ssh -o StrictHostKeyChecking=no \
           ${{ secrets.PRODUCTION_SSH_USER }}@${{ secrets.PRODUCTION_SSH_HOST }} << 'ENDSSH'
@@ -156,7 +156,7 @@ jobs:
           cd /tmp
           rm -rf deploy nimsforest-deploy.tar.gz
         ENDSSH
-    
+
     - name: Notify deployment status
       if: always() && steps.check-production.outputs.configured == 'true'
       run: |
@@ -170,7 +170,7 @@ jobs:
     name: Deploy to Staging (Manual)
     runs-on: ubuntu-latest
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging'
-    
+
     steps:
     - name: Check if staging secrets are configured
       id: check-staging
@@ -181,32 +181,32 @@ jobs:
         else
           echo "configured=true" >> $GITHUB_OUTPUT
         fi
-    
+
     - name: Checkout code
       if: steps.check-staging.outputs.configured == 'true'
       uses: actions/checkout@v4
-    
+
     - name: Set up Go
       if: steps.check-staging.outputs.configured == 'true'
       uses: actions/setup-go@v5
       with:
         go-version: '1.24.x'
         cache: true
-    
+
     - name: Build and deploy
       if: steps.check-staging.outputs.configured == 'true'
       run: |
         make deps
         make build-deploy
         make deploy-package
-    
+
     - name: Install SSH key
       if: steps.check-staging.outputs.configured == 'true'
       uses: shimataro/ssh-key-action@v2
       with:
         key: ${{ secrets.STAGING_SSH_PRIVATE_KEY }}
         known_hosts: ${{ secrets.STAGING_SSH_KNOWN_HOSTS }}
-    
+
     - name: Deploy
       if: steps.check-staging.outputs.configured == 'true'
       run: |

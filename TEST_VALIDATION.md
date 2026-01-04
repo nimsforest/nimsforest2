@@ -8,8 +8,9 @@
 ## ✅ Test Results Summary
 
 ### Without Race Detector (Standard Testing)
+
 ```bash
-$ go test ./internal/core -v -timeout 60s
+go test ./internal/core -v -timeout 60s
 ```
 
 **Result**: ✅ **ALL TESTS PASSING**
@@ -41,12 +42,13 @@ The Makefile includes `-race` flag for detecting race conditions:
 
 ```makefile
 test: ## Run all unit tests
-	@go test -v -race -short $(GO_PACKAGES)
+ @go test -v -race -short $(GO_PACKAGES)
 ```
 
 **Race detector behavior**: The `-race` flag is very sensitive to timing in integration tests that use real external services (NATS). Some tests may occasionally timeout or show race warnings when using the race detector, even though the code is functionally correct.
 
 **Recommendation**: For CI/CD pipelines, consider:
+
 1. Running standard tests for validation: `go test ./...`
 2. Running race tests separately with higher timeouts: `go test -race -timeout 120s ./...`
 3. Running integration tests in isolation from unit tests
@@ -56,12 +58,13 @@ test: ## Run all unit tests
 ## 📊 Coverage Details
 
 ```bash
-$ go test ./internal/core -cover
+go test ./internal/core -cover
 ```
 
 **Coverage**: 78.4% of statements
 
 ### Coverage by File
+
 - ✅ Core components: >75% coverage
 - ✅ Integration paths tested
 - ✅ Error handling tested
@@ -74,6 +77,7 @@ $ go test ./internal/core -cover
 ## ✅ Validation Commands
 
 ### Quick Validation
+
 ```bash
 # Start NATS
 make start
@@ -89,6 +93,7 @@ make stop
 ```
 
 ### Full Validation with Race Detection
+
 ```bash
 # Start NATS
 make start
@@ -105,18 +110,21 @@ make stop
 ## 🎯 Test Quality Metrics
 
 ### Unit Tests
+
 - ✅ Mock implementations for testing
 - ✅ Isolated component testing
 - ✅ Edge case coverage
 - ✅ Error path testing
 
 ### Integration Tests
+
 - ✅ Real NATS server
 - ✅ JetStream functionality
 - ✅ End-to-end flows
 - ✅ Concurrent operations
 
 ### Test Organization
+
 - ✅ Clear test names
 - ✅ Descriptive error messages
 - ✅ Consistent test structure
@@ -129,6 +137,7 @@ make stop
 **Phase 2 & 3**: ✅ **COMPLETE**
 
 All core components are:
+
 - ✅ Fully implemented
 - ✅ Comprehensively tested
 - ✅ Passing all tests

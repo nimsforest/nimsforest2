@@ -43,11 +43,11 @@ func (t *YourTree) parseYourData(data core.RiverData) {
     // Parse your specific format (JSON, XML, CSV, etc.)
     var payload YourDataType
     json.Unmarshal(data.Data, &payload)
-    
+
     // Extract relevant fields
     // Make business decisions
     // Emit appropriate leaves
-    
+
     t.emitYourLeaf(payload)
 }
 ```
@@ -61,7 +61,7 @@ func (t *YourTree) emitYourLeaf(data YourDataType) {
         "event_type":  "customer.updated",
         // ... your fields
     }
-    
+
     jsonData, _ := json.Marshal(leafData)
     leaf := *core.NewLeaf("customer.updated", jsonData, t.Name())
     t.Drop(leaf)
@@ -119,13 +119,13 @@ func (n *YourNim) handleCustomerUpdate(ctx context.Context, leaf core.Leaf) erro
     // Parse the leaf data
     var customer Customer
     json.Unmarshal(leaf.Data, &customer)
-    
+
     // YOUR BUSINESS LOGIC HERE
     // - Read state from Soil via n.Dig()
     // - Make decisions
     // - Persist changes via n.Compost()
     // - Emit new leaves via n.Leaf()
-    
+
     return nil
 }
 ```
@@ -133,6 +133,7 @@ func (n *YourNim) handleCustomerUpdate(ctx context.Context, leaf core.Leaf) erro
 ### Step 4: Use State Management
 
 **Read State:**
+
 ```go
 // Read from Soil
 data, revision, err := n.Dig("customer-123")
@@ -142,6 +143,7 @@ if err != nil {
 ```
 
 **Write State:**
+
 ```go
 // Write to Humus (decomposer applies to Soil)
 customerData, _ := json.Marshal(customer)
@@ -149,6 +151,7 @@ slot, err := n.Compost("customer-123", "update", customerData)
 ```
 
 **Emit Events:**
+
 ```go
 // Emit leaves for downstream processing
 eventData, _ := json.Marshal(YourEvent{...})
@@ -232,21 +235,24 @@ nats stream view HUMUS
 
 ## 🎨 Best Practices
 
-### Trees Should:
+### Trees Should
+
 - ✅ Be stateless (no state management)
 - ✅ Focus on parsing and validation
 - ✅ Emit one or more leaves per input
 - ✅ Handle parsing errors gracefully
 - ✅ Log what they're doing
 
-### Nims Should:
+### Nims Should
+
 - ✅ Contain business logic
 - ✅ Be idempotent (can replay safely)
 - ✅ Use Compost() for all state changes
 - ✅ Emit leaves for downstream processes
 - ✅ Handle errors without crashing
 
-### General Tips:
+### General Tips
+
 - 🔍 Use wildcards in subjects wisely (`>` matches all remaining, `*` matches one token)
 - 📝 Log important decisions and actions
 - 🧪 Write unit tests for parsing and business logic

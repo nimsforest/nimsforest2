@@ -9,6 +9,7 @@ Copy the entire content of `scripts/setup-server.sh` (shown below).
 ## Step 2: Create Pastebin
 
 Go to one of these services:
+
 - **pastebin.com** - Public, simple
 - **gist.github.com** - GitHub gists (can be private!)
 - **paste.ubuntu.com** - Ubuntu pastebin
@@ -35,7 +36,7 @@ sudo ./setup-server.sh
 
 ## Example with pastebin.com
 
-1. Go to https://pastebin.com/
+1. Go to <https://pastebin.com/>
 2. Paste the script
 3. Set "Paste Expiration": Never (or as needed)
 4. Set "Paste Exposure": Unlisted (so it's not public but accessible via URL)
@@ -45,7 +46,7 @@ sudo ./setup-server.sh
 
 ## Example with GitHub Gist
 
-1. Go to https://gist.github.com/
+1. Go to <https://gist.github.com/>
 2. Paste the script
 3. Set filename: `setup-server.sh`
 4. Choose "Create secret gist" (or public)
@@ -72,7 +73,7 @@ sudo ./setup-server.sh
 
 ---
 
-## The Complete Script to Copy:
+## The Complete Script to Copy
 
 ```bash
 #!/bin/bash
@@ -96,7 +97,7 @@ log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
 # Check if running as root
-if [ "$EUID" -ne 0 ]; then 
+if [ "$EUID" -ne 0 ]; then
     log_error "This script must be run as root"
     exit 1
 fi
@@ -136,14 +137,14 @@ if ! command -v go &> /dev/null; then
     rm -rf /usr/local/go
     tar -C /usr/local -xzf go${GO_VERSION}.linux-amd64.tar.gz
     rm go${GO_VERSION}.linux-amd64.tar.gz
-    
+
     # Add Go to PATH for all users
     cat >> /etc/profile.d/go.sh << 'EOF'
 export PATH=$PATH:/usr/local/go/bin
 export GOPATH=$HOME/go
 export PATH=$PATH:$GOPATH/bin
 EOF
-    
+
     source /etc/profile.d/go.sh
     log_info "Go installed: $(go version)"
 else

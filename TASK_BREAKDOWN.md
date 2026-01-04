@@ -1,6 +1,7 @@
 # NimsForest Project - Task Breakdown
 
 ## Overview
+
 This document breaks down the NimsForest prototype into discrete tasks that can be executed by multiple cloud agents in parallel or sequence. Each task is designed to be self-contained with clear dependencies.
 
 ---
@@ -8,15 +9,18 @@ This document breaks down the NimsForest prototype into discrete tasks that can 
 ## Phase 1: Foundation Setup (No Dependencies)
 
 ### Task 1.1: Project Infrastructure
+
 **Agent**: Infrastructure Agent
 **Estimated Complexity**: Low
 **Dependencies**: None
 
 **Deliverables**:
+
 - [ ] Create `go.mod` file with Go 1.22+ and NATS dependencies
 - [ ] Setup Makefile with NATS installation and management commands
 - [ ] Ensure NATS server binary installation via `make setup`
 - [ ] Create basic project directory structure:
+
   ```
   nimsforest/
   ├── cmd/forest/
@@ -25,10 +29,12 @@ This document breaks down the NimsForest prototype into discrete tasks that can 
   ├── internal/nims/
   └── internal/leaves/
   ```
+
 - [ ] Create `.gitignore` for Go projects
 - [ ] Create `README.md` with setup instructions
 
 **Acceptance Criteria**:
+
 - `go mod init` runs successfully
 - NATS server can be started with `make start`
 - NATS accessible on ports 4222 (client) and 8222 (monitoring)
@@ -40,11 +46,13 @@ This document breaks down the NimsForest prototype into discrete tasks that can 
 ## Phase 2: Core Components (Parallel Execution Possible)
 
 ### Task 2.1: Leaf Type Definition
+
 **Agent**: Core Types Agent
 **Estimated Complexity**: Low
 **Dependencies**: Task 1.1 (go.mod)
 
 **Deliverables**:
+
 - [ ] Implement `internal/core/leaf.go`
   - `Leaf` struct with Subject, Data, Source, Timestamp
   - JSON marshaling/unmarshaling support
@@ -52,17 +60,20 @@ This document breaks down the NimsForest prototype into discrete tasks that can 
 - [ ] Add unit tests for leaf serialization
 
 **Acceptance Criteria**:
+
 - Leaf can be created, marshaled to JSON, and unmarshaled
 - Tests pass with >80% coverage
 
 ---
 
 ### Task 2.2: Wind (NATS Core Pub/Sub)
+
 **Agent**: Wind Agent
 **Estimated Complexity**: Medium
 **Dependencies**: Task 1.1, Task 2.1
 
 **Deliverables**:
+
 - [ ] Implement `internal/core/wind.go`
   - `Wind` struct with NATS connection
   - `NewWind(nc *nats.Conn) *Wind`
@@ -74,6 +85,7 @@ This document breaks down the NimsForest prototype into discrete tasks that can 
 - [ ] Integration tests with real NATS
 
 **Acceptance Criteria**:
+
 - Can publish and subscribe to leaves
 - Subject patterns work correctly (wildcards)
 - Tests pass including integration test with NATS
@@ -81,11 +93,13 @@ This document breaks down the NimsForest prototype into discrete tasks that can 
 ---
 
 ### Task 2.3: River (JetStream Input Stream)
+
 **Agent**: River Agent
 **Estimated Complexity**: Medium
 **Dependencies**: Task 1.1
 
 **Deliverables**:
+
 - [ ] Implement `internal/core/river.go`
   - `RiverData` struct
   - `River` struct with JetStream context
@@ -97,6 +111,7 @@ This document breaks down the NimsForest prototype into discrete tasks that can 
 - [ ] Unit and integration tests
 
 **Acceptance Criteria**:
+
 - Stream "RIVER" is created with proper configuration
 - Data can be added and consumed
 - Pattern matching works for observers
@@ -105,11 +120,13 @@ This document breaks down the NimsForest prototype into discrete tasks that can 
 ---
 
 ### Task 2.4: Soil (JetStream KV Store)
+
 **Agent**: Soil Agent
 **Estimated Complexity**: Medium
 **Dependencies**: Task 1.1
 
 **Deliverables**:
+
 - [ ] Implement `internal/core/soil.go`
   - `Soil` struct with KV store
   - `NewSoil(js nats.JetStreamContext) (*Soil, error)` - creates KV bucket "SOIL"
@@ -121,6 +138,7 @@ This document breaks down the NimsForest prototype into discrete tasks that can 
 - [ ] Unit and integration tests
 
 **Acceptance Criteria**:
+
 - KV bucket "SOIL" is created
 - CRUD operations work correctly
 - Optimistic locking prevents conflicts
@@ -130,11 +148,13 @@ This document breaks down the NimsForest prototype into discrete tasks that can 
 ---
 
 ### Task 2.5: Humus (JetStream State Stream)
+
 **Agent**: Humus Agent
 **Estimated Complexity**: Medium
 **Dependencies**: Task 1.1
 
 **Deliverables**:
+
 - [ ] Implement `internal/core/humus.go`
   - `Compost` struct
   - `Humus` struct with JetStream context
@@ -146,6 +166,7 @@ This document breaks down the NimsForest prototype into discrete tasks that can 
 - [ ] Unit and integration tests
 
 **Acceptance Criteria**:
+
 - Stream "HUMUS" is created
 - Compost entries are persisted with sequence numbers
 - Decompose can process entries in order
@@ -156,11 +177,13 @@ This document breaks down the NimsForest prototype into discrete tasks that can 
 ## Phase 3: Base Interfaces (Depends on Core Components)
 
 ### Task 3.1: Base Tree Interface & Implementation
+
 **Agent**: Tree Interface Agent
 **Estimated Complexity**: Medium
 **Dependencies**: Task 2.1, Task 2.2, Task 2.3
 
 **Deliverables**:
+
 - [ ] Implement `internal/core/tree.go`
   - `Tree` interface (Name, Patterns, Parse, Start, Stop)
   - `BaseTree` struct
@@ -171,6 +194,7 @@ This document breaks down the NimsForest prototype into discrete tasks that can 
 - [ ] Unit tests for BaseTree
 
 **Acceptance Criteria**:
+
 - BaseTree can be instantiated
 - Drop sends leaves to wind correctly
 - Interface defines clear contract for concrete trees
@@ -179,11 +203,13 @@ This document breaks down the NimsForest prototype into discrete tasks that can 
 ---
 
 ### Task 3.2: Base Nim Interface & Implementation
+
 **Agent**: Nim Interface Agent
 **Estimated Complexity**: Medium
 **Dependencies**: Task 2.1, Task 2.2, Task 2.4, Task 2.5
 
 **Deliverables**:
+
 - [ ] Implement `internal/core/nim.go`
   - `Nim` interface (Name, Subjects, Handle, Start, Stop)
   - `BaseNim` struct with wind, humus, soil
@@ -196,6 +222,7 @@ This document breaks down the NimsForest prototype into discrete tasks that can 
 - [ ] Unit tests for BaseNim
 
 **Acceptance Criteria**:
+
 - BaseNim provides helper methods for all operations
 - Interface defines clear contract for concrete nims
 - Tests pass
@@ -203,11 +230,13 @@ This document breaks down the NimsForest prototype into discrete tasks that can 
 ---
 
 ### Task 3.3: Decomposer Worker
+
 **Agent**: Decomposer Agent
 **Estimated Complexity**: Medium
 **Dependencies**: Task 2.4, Task 2.5
 
 **Deliverables**:
+
 - [ ] Implement `internal/core/decomposer.go`
   - `RunDecomposer(humus *Humus, soil *Soil)` - processes compost to soil
   - Handle create/update/delete actions
@@ -217,6 +246,7 @@ This document breaks down the NimsForest prototype into discrete tasks that can 
 - [ ] Integration tests
 
 **Acceptance Criteria**:
+
 - Decomposer consumes from humus
 - State changes are applied to soil correctly
 - Handles optimistic locking conflicts
@@ -228,11 +258,13 @@ This document breaks down the NimsForest prototype into discrete tasks that can 
 ## Phase 4: Example Implementations (Can be parallel)
 
 ### Task 4.1: Leaf Type Definitions
+
 **Agent**: Types Agent
 **Estimated Complexity**: Low
 **Dependencies**: Task 2.1
 
 **Deliverables**:
+
 - [ ] Implement `internal/leaves/types.go`
   - `PaymentCompleted` struct
   - `PaymentFailed` struct (optional)
@@ -243,6 +275,7 @@ This document breaks down the NimsForest prototype into discrete tasks that can 
 - [ ] Unit tests
 
 **Acceptance Criteria**:
+
 - All example leaf types are defined
 - Can be marshaled/unmarshaled
 - Tests pass
@@ -250,11 +283,13 @@ This document breaks down the NimsForest prototype into discrete tasks that can 
 ---
 
 ### Task 4.2: Payment Tree Example
+
 **Agent**: Payment Tree Agent
 **Estimated Complexity**: Medium
 **Dependencies**: Task 3.1, Task 4.1
 
 **Deliverables**:
+
 - [ ] Implement `internal/trees/payment.go`
   - `PaymentTree` struct
   - `NewPaymentTree(base *core.BaseTree, river *core.River) *PaymentTree`
@@ -266,6 +301,7 @@ This document breaks down the NimsForest prototype into discrete tasks that can 
 - [ ] Integration test with river
 
 **Acceptance Criteria**:
+
 - Parses Stripe webhooks correctly
 - Emits structured leaves
 - Tests pass with sample webhook data
@@ -273,11 +309,13 @@ This document breaks down the NimsForest prototype into discrete tasks that can 
 ---
 
 ### Task 4.3: AfterSales Nim Example
+
 **Agent**: AfterSales Agent
 **Estimated Complexity**: Medium
 **Dependencies**: Task 3.2, Task 4.1
 
 **Deliverables**:
+
 - [ ] Implement `internal/nims/aftersales.go`
   - `AfterSalesNim` struct
   - `NewAfterSalesNim(base *core.BaseNim) *AfterSalesNim`
@@ -289,6 +327,7 @@ This document breaks down the NimsForest prototype into discrete tasks that can 
 - [ ] Integration test with wind, humus, soil
 
 **Acceptance Criteria**:
+
 - Catches payment leaves
 - Creates followup tasks in soil via humus
 - Emits communication leaves
@@ -299,11 +338,13 @@ This document breaks down the NimsForest prototype into discrete tasks that can 
 ## Phase 5: Main Application (Depends on everything)
 
 ### Task 5.1: Main Entry Point
+
 **Agent**: Main Application Agent
 **Estimated Complexity**: Medium
 **Dependencies**: All previous tasks
 
 **Deliverables**:
+
 - [ ] Implement `cmd/forest/main.go`
   - NATS connection setup
   - JetStream initialization
@@ -318,6 +359,7 @@ This document breaks down the NimsForest prototype into discrete tasks that can 
 - [ ] Integration test
 
 **Acceptance Criteria**:
+
 - Application starts all components
 - Handles SIGINT/SIGTERM gracefully
 - All components shut down cleanly
@@ -328,11 +370,13 @@ This document breaks down the NimsForest prototype into discrete tasks that can 
 ## Phase 6: Testing & Documentation
 
 ### Task 6.1: End-to-End Testing
+
 **Agent**: E2E Testing Agent
 **Estimated Complexity**: High
 **Dependencies**: Task 5.1
 
 **Deliverables**:
+
 - [ ] Create `test/e2e/` directory
 - [ ] Implement end-to-end test:
   - Start NATS with `make start`
@@ -346,6 +390,7 @@ This document breaks down the NimsForest prototype into discrete tasks that can 
 - [ ] Create sample webhook payloads
 
 **Acceptance Criteria**:
+
 - Complete flow from river to soil works
 - Tests are repeatable and isolated
 - Tests pass consistently
@@ -353,11 +398,13 @@ This document breaks down the NimsForest prototype into discrete tasks that can 
 ---
 
 ### Task 6.2: Documentation & README
+
 **Agent**: Documentation Agent
 **Estimated Complexity**: Low
 **Dependencies**: Task 5.1
 
 **Deliverables**:
+
 - [ ] Update `README.md` with:
   - Architecture overview
   - Quick start guide
@@ -370,6 +417,7 @@ This document breaks down the NimsForest prototype into discrete tasks that can 
 - [ ] Add troubleshooting guide
 
 **Acceptance Criteria**:
+
 - A new developer can set up and run the project
 - All public APIs are documented
 - Examples are clear and working
@@ -379,11 +427,13 @@ This document breaks down the NimsForest prototype into discrete tasks that can 
 ## Phase 7: Optional Enhancements
 
 ### Task 7.1: Additional Examples
+
 **Agent**: Examples Agent
 **Estimated Complexity**: Medium
 **Dependencies**: Task 5.1
 
 **Deliverables**:
+
 - [ ] Implement `internal/trees/crm.go` - CRM event parser
 - [ ] Implement `internal/nims/inventory.go` - Stock management
 - [ ] Implement `internal/nims/comms.go` - Communication handler
@@ -391,6 +441,7 @@ This document breaks down the NimsForest prototype into discrete tasks that can 
 - [ ] Tests for each
 
 **Acceptance Criteria**:
+
 - Multiple trees and nims demonstrate flexibility
 - Different patterns of usage are shown
 - Tests pass
@@ -398,11 +449,13 @@ This document breaks down the NimsForest prototype into discrete tasks that can 
 ---
 
 ### Task 7.2: Monitoring & Observability
+
 **Agent**: Observability Agent
 **Estimated Complexity**: Medium
 **Dependencies**: Task 5.1
 
 **Deliverables**:
+
 - [ ] Add structured logging throughout
 - [ ] Add metrics collection (Prometheus format)
 - [ ] Add tracing support (OpenTelemetry)
@@ -410,6 +463,7 @@ This document breaks down the NimsForest prototype into discrete tasks that can 
 - [ ] Health check endpoints
 
 **Acceptance Criteria**:
+
 - Key metrics are exposed
 - Logs are structured and searchable
 - Can trace requests end-to-end
@@ -417,11 +471,13 @@ This document breaks down the NimsForest prototype into discrete tasks that can 
 ---
 
 ### Task 7.3: Performance & Scalability
+
 **Agent**: Performance Agent
 **Estimated Complexity**: High
 **Dependencies**: Task 6.1
 
 **Deliverables**:
+
 - [ ] Load testing suite
 - [ ] Benchmarking tests
 - [ ] Concurrency stress tests
@@ -429,6 +485,7 @@ This document breaks down the NimsForest prototype into discrete tasks that can 
 - [ ] Optimization recommendations
 
 **Acceptance Criteria**:
+
 - System handles high throughput
 - Resource usage is reasonable
 - Bottlenecks are identified
@@ -475,36 +532,44 @@ Phase 7: Optional enhancements
 ## Parallel Execution Strategy
 
 ### Batch 1 (No dependencies)
+
 - Task 1.1: Infrastructure Setup
 
 ### Batch 2 (After infrastructure)
+
 - Task 2.1: Leaf Types (low complexity)
 - Task 2.3: River (independent)
 - Task 2.4: Soil (independent)
 - Task 2.5: Humus (independent)
 
 ### Batch 3 (After Batch 2)
+
 - Task 2.2: Wind (needs 2.1)
 - Task 3.3: Decomposer (needs 2.4, 2.5)
 - Task 4.1: Leaf Type Definitions (needs 2.1)
 
 ### Batch 4 (After Batch 3)
+
 - Task 3.1: Base Tree (needs 2.1, 2.2, 2.3)
 - Task 3.2: Base Nim (needs 2.1, 2.2, 2.4, 2.5)
 
 ### Batch 5 (After Batch 4)
+
 - Task 4.2: Payment Tree (needs 3.1, 4.1)
 - Task 4.3: AfterSales Nim (needs 3.2, 4.1)
 
 ### Batch 6 (After Batch 5)
+
 - Task 5.1: Main Application (needs all)
 
 ### Batch 7 (After working application)
+
 - Task 6.1: E2E Testing
 - Task 6.2: Documentation
 (Can run in parallel)
 
 ### Batch 8 (Optional)
+
 - Task 7.1: Additional Examples
 - Task 7.2: Monitoring
 - Task 7.3: Performance

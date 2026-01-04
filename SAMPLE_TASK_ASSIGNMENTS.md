@@ -15,20 +15,24 @@ Copy-paste ready task assignments for cloud agents. Coordinators can use these t
 **Dependencies**: None - **START HERE**
 
 ### Objective
+
 Set up the foundational project structure, dependency management, and NATS infrastructure.
 
 ### References
+
 - **Task Details**: `TASK_BREAKDOWN.md` - Phase 1, Task 1.1
 - **Agent Guide**: `AGENT_INSTRUCTIONS.md`
 - **Spec**: `Cursorinstructions.md` - Tech Stack & Project Structure sections
 
 ### Deliverables
+
 1. Create `go.mod` with Go 1.22+ and dependencies:
    - github.com/nats-io/nats.go
 2. Setup NATS server via Makefile:
    - Use `make setup` to install NATS server binary
    - Configure automatic installation for different platforms
 3. Create project directory structure:
+
    ```
    nimsforest/
    ├── cmd/forest/
@@ -37,11 +41,13 @@ Set up the foundational project structure, dependency management, and NATS infra
    ├── internal/nims/
    └── internal/leaves/
    ```
+
 5. Create `.gitignore` for Go projects
 6. Create comprehensive `README.md` with setup instructions
 7. Create test program to verify NATS connectivity
 
 ### Acceptance Criteria
+
 - [ ] `go mod init` runs successfully
 - [ ] NATS server binary installed and accessible
 - [ ] `make start` starts NATS with JetStream enabled
@@ -51,6 +57,7 @@ Set up the foundational project structure, dependency management, and NATS infra
 - [ ] Test program verifies full connectivity (pub/sub, JetStream, KV)
 
 ### Commands to Verify
+
 ```bash
 # Setup environment
 make setup
@@ -71,6 +78,7 @@ make stop
 ```
 
 ### Update Progress
+
 Mark task as 🏃 when starting and ✅ when complete in `PROGRESS.md`
 
 ---
@@ -86,13 +94,16 @@ Mark task as 🏃 when starting and ✅ when complete in `PROGRESS.md`
 **Dependencies**: Task 1.1 ✅
 
 ### Objective
+
 Implement the core `Leaf` data structure representing structured events in the system.
 
 ### References
+
 - **Task Details**: `TASK_BREAKDOWN.md` - Phase 2, Task 2.1
 - **Spec**: `Cursorinstructions.md` - Section "1. Leaf Types"
 
 ### Deliverables
+
 1. Create `internal/core/leaf.go`
 2. Implement `Leaf` struct:
    - Subject string (event name)
@@ -104,6 +115,7 @@ Implement the core `Leaf` data structure representing structured events in the s
 5. Create `internal/core/leaf_test.go` with unit tests
 
 ### Implementation Template
+
 ```go
 // internal/core/leaf.go
 package core
@@ -124,6 +136,7 @@ type Leaf struct {
 ```
 
 ### Acceptance Criteria
+
 - [ ] Leaf struct defined with all fields
 - [ ] Can marshal to JSON
 - [ ] Can unmarshal from JSON
@@ -131,12 +144,14 @@ type Leaf struct {
 - [ ] Coverage ≥ 80%
 
 ### Testing Requirements
+
 ```bash
 go test ./internal/core/leaf_test.go -v
 go test ./internal/core/leaf_test.go -cover
 ```
 
 ### Update Progress
+
 Mark in `PROGRESS.md` as 🏃 → ✅
 
 ---
@@ -152,13 +167,16 @@ Mark in `PROGRESS.md` as 🏃 → ✅
 **Dependencies**: Task 1.1 ✅, Task 2.1 ✅
 
 ### Objective
+
 Implement the Wind component that wraps NATS Core pub/sub for leaf distribution.
 
 ### References
+
 - **Task Details**: `TASK_BREAKDOWN.md` - Phase 2, Task 2.2
 - **Spec**: `Cursorinstructions.md` - Section "4. Wind (NATS Core)"
 
 ### Deliverables
+
 1. Create `internal/core/wind.go`
 2. Implement `Wind` struct with NATS connection
 3. Implement `NewWind(nc *nats.Conn) *Wind`
@@ -170,6 +188,7 @@ Implement the Wind component that wraps NATS Core pub/sub for leaf distribution.
 9. Create integration tests with real NATS
 
 ### Implementation Template
+
 ```go
 // internal/core/wind.go
 package core
@@ -202,6 +221,7 @@ func (w *Wind) Catch(subject string, handler func(leaf Leaf)) (*nats.Subscriptio
 ```
 
 ### Acceptance Criteria
+
 - [ ] Wind struct implemented
 - [ ] Drop publishes correctly
 - [ ] Catch receives and deserializes
@@ -211,6 +231,7 @@ func (w *Wind) Catch(subject string, handler func(leaf Leaf)) (*nats.Subscriptio
 - [ ] Coverage ≥ 80%
 
 ### Testing Requirements
+
 ```bash
 # Unit tests
 go test ./internal/core/wind_test.go -v
@@ -221,6 +242,7 @@ go test ./internal/core/wind_test.go -tags=integration -v
 ```
 
 ### Update Progress
+
 Mark in `PROGRESS.md` as 🏃 → ✅
 
 ---
@@ -236,13 +258,16 @@ Mark in `PROGRESS.md` as 🏃 → ✅
 **Dependencies**: Task 1.1 ✅
 
 ### Objective
+
 Implement the River component - a JetStream stream for receiving unstructured external data.
 
 ### References
+
 - **Task Details**: `TASK_BREAKDOWN.md` - Phase 2, Task 2.3
 - **Spec**: `Cursorinstructions.md` - Section "5. River (JetStream Stream)"
 
 ### Deliverables
+
 1. Create `internal/core/river.go`
 2. Implement `RiverData` struct
 3. Implement `River` struct with JetStream context
@@ -254,6 +279,7 @@ Implement the River component - a JetStream stream for receiving unstructured ex
 9. Unit and integration tests
 
 ### Stream Configuration
+
 ```go
 streamConfig := &nats.StreamConfig{
     Name:     "RIVER",
@@ -264,6 +290,7 @@ streamConfig := &nats.StreamConfig{
 ```
 
 ### Acceptance Criteria
+
 - [ ] Stream "RIVER" is created automatically
 - [ ] Data can be added via Flow
 - [ ] Observers receive data via Observe
@@ -273,6 +300,7 @@ streamConfig := &nats.StreamConfig{
 - [ ] Coverage ≥ 80%
 
 ### Testing Requirements
+
 ```bash
 make start
 go test ./internal/core/river_test.go -v
@@ -280,6 +308,7 @@ go test ./internal/core/river_test.go -tags=integration -v
 ```
 
 ### Update Progress
+
 Mark in `PROGRESS.md` as 🏃 → ✅
 
 ---
@@ -295,13 +324,16 @@ Mark in `PROGRESS.md` as 🏃 → ✅
 **Dependencies**: Task 3.1 ✅, Task 4.1 ✅
 
 ### Objective
+
 Implement an example Tree that parses Stripe webhooks into structured leaves.
 
 ### References
+
 - **Task Details**: `TASK_BREAKDOWN.md` - Phase 4, Task 4.2
 - **Spec**: `Cursorinstructions.md` - Section "8. Example Tree"
 
 ### Deliverables
+
 1. Create `internal/trees/payment.go`
 2. Implement `PaymentTree` struct embedding `*core.BaseTree`
 3. Implement `NewPaymentTree(base *core.BaseTree, river *core.River) *PaymentTree`
@@ -315,6 +347,7 @@ Implement an example Tree that parses Stripe webhooks into structured leaves.
 9. Integration test with river
 
 ### Implementation Pattern
+
 ```go
 // internal/trees/payment.go
 package trees
@@ -355,7 +388,9 @@ func (t *PaymentTree) parseStripe(data core.RiverData) *core.Leaf {
 ```
 
 ### Test Data Needed
+
 Create sample Stripe webhook payloads in test file:
+
 ```json
 {
   "type": "charge.succeeded",
@@ -370,6 +405,7 @@ Create sample Stripe webhook payloads in test file:
 ```
 
 ### Acceptance Criteria
+
 - [ ] PaymentTree implements Tree interface
 - [ ] Parses Stripe webhooks correctly
 - [ ] Emits structured leaves
@@ -378,12 +414,14 @@ Create sample Stripe webhook payloads in test file:
 - [ ] Coverage ≥ 80%
 
 ### Testing Requirements
+
 ```bash
 go test ./internal/trees/payment_test.go -v
 go test ./internal/trees/payment_test.go -tags=integration -v
 ```
 
 ### Update Progress
+
 Mark in `PROGRESS.md` as 🏃 → ✅
 
 ---
@@ -399,13 +437,16 @@ Mark in `PROGRESS.md` as 🏃 → ✅
 **Dependencies**: Task 3.3 ✅, Task 4.2 ✅, Task 4.3 ✅
 
 ### Objective
+
 Create the main application entry point that wires up all components and starts the forest.
 
 ### References
+
 - **Task Details**: `TASK_BREAKDOWN.md` - Phase 5, Task 5.1
 - **Spec**: `Cursorinstructions.md` - Section "12. Main Entry Point"
 
 ### Deliverables
+
 1. Create `cmd/forest/main.go`
 2. NATS connection setup
 3. JetStream initialization
@@ -420,6 +461,7 @@ Create the main application entry point that wires up all components and starts 
 12. Integration test
 
 ### Implementation Structure
+
 ```go
 // cmd/forest/main.go
 package main
@@ -429,7 +471,7 @@ import (
     "log"
     "os"
     "os/signal"
-    
+
     "github.com/nats-io/nats.go"
     "nimsforest/internal/core"
     "nimsforest/internal/trees"
@@ -443,43 +485,43 @@ func main() {
         log.Fatal(err)
     }
     defer nc.Close()
-    
+
     js, err := nc.JetStream()
     if err != nil {
         log.Fatal(err)
     }
-    
+
     // Initialize core components
     wind := core.NewWind(nc)
     river, _ := core.NewRiver(js)
     humus, _ := core.NewHumus(js)
     soil, _ := core.NewSoil(js)
-    
+
     // Start decomposer
     go core.RunDecomposer(humus, soil)
-    
+
     // Initialize trees
     paymentTreeBase := core.NewBaseTree("payment", wind)
     paymentTree := trees.NewPaymentTree(paymentTreeBase, river)
-    
+
     // Initialize nims
     afterSalesBase := core.NewBaseNim("aftersales", wind, humus, soil)
     afterSalesNim := nims.NewAfterSalesNim(afterSalesBase)
-    
+
     // Start everything
     ctx := context.Background()
     paymentTree.Start(ctx)
     afterSalesNim.Start(ctx)
-    
+
     log.Println("Forest started...")
-    
+
     // Wait for shutdown signal
     sigCh := make(chan os.Signal, 1)
     signal.Notify(sigCh, os.Interrupt)
     <-sigCh
-    
+
     log.Println("Forest shutting down...")
-    
+
     // Cleanup
     paymentTree.Stop()
     afterSalesNim.Stop()
@@ -487,11 +529,14 @@ func main() {
 ```
 
 ### Configuration
+
 Allow configuration via environment variables:
+
 - `NATS_URL` - NATS server URL (default: nats://localhost:4222)
 - `LOG_LEVEL` - Logging level (default: info)
 
 ### Acceptance Criteria
+
 - [ ] Application compiles and runs
 - [ ] All components initialize successfully
 - [ ] Decomposer runs in background
@@ -502,6 +547,7 @@ Allow configuration via environment variables:
 - [ ] Integration test passes
 
 ### Testing Requirements
+
 ```bash
 # Build
 go build -o forest ./cmd/forest
@@ -515,6 +561,7 @@ make start
 ```
 
 ### Update Progress
+
 Mark in `PROGRESS.md` as 🏃 → ✅
 
 ---
@@ -530,13 +577,16 @@ Mark in `PROGRESS.md` as 🏃 → ✅
 **Dependencies**: Task 5.1 ✅
 
 ### Objective
+
 Create comprehensive end-to-end tests that verify the complete flow from webhook to state storage.
 
 ### References
+
 - **Task Details**: `TASK_BREAKDOWN.md` - Phase 6, Task 6.1
 - **Spec**: `Cursorinstructions.md` - Section "Example Flow"
 
 ### Deliverables
+
 1. Create `test/e2e/` directory
 2. Implement E2E test that verifies:
    - NATS starts successfully
@@ -554,6 +604,7 @@ Create comprehensive end-to-end tests that verify the complete flow from webhook
 6. Ensure test is repeatable and isolated
 
 ### Test Flow
+
 ```go
 // test/e2e/forest_test.go
 // +build integration,e2e
@@ -571,6 +622,7 @@ func TestCompletePaymentFlow(t *testing.T) {
 ```
 
 ### Acceptance Criteria
+
 - [ ] E2E test demonstrates complete flow
 - [ ] Test is repeatable
 - [ ] Test is isolated (cleanup between runs)
@@ -580,6 +632,7 @@ func TestCompletePaymentFlow(t *testing.T) {
 - [ ] Documentation for running test
 
 ### Testing Requirements
+
 ```bash
 # Start dependencies
 make start
@@ -592,7 +645,9 @@ make stop
 ```
 
 ### Success Indicator
+
 Test output shows:
+
 ```
 ✅ Webhook received in river
 ✅ Tree parsed webhook
@@ -604,6 +659,7 @@ Test output shows:
 ```
 
 ### Update Progress
+
 Mark in `PROGRESS.md` as 🏃 → ✅
 
 ---
@@ -626,6 +682,7 @@ Mark in `PROGRESS.md` as 🏃 → ✅
 ### Quality Control
 
 Before accepting task completion:
+
 - [ ] All tests pass
 - [ ] Code formatted
 - [ ] Coverage meets requirements

@@ -1,25 +1,44 @@
-# NimsForest Task Breakdown - Document Index
+# NimsForest Document Index
 
-**Created**: 2025-12-23  
-**Purpose**: Structured task breakdown for multi-agent execution  
-**Status**: Ready for task assignment
+**Purpose**: Automate the route to $1M ARR with 10 FTEs  
+**Status**: Implementation ready
 
 ---
 
 ## 📋 Document Overview
 
-This repository contains a complete task breakdown of the NimsForest prototype specification, organized for efficient execution by multiple cloud agents working in parallel.
+NimsForest is an event-driven automation system that lets a small team operate at the scale of a much larger company.
 
 ---
 
 ## 🎯 Start Here
 
-| If you are... | Read this first | Then read... |
-|---------------|-----------------|--------------|
-| **Coordinator** | `README.md` → `COORDINATOR_GUIDE.md` | `TASK_BREAKDOWN.md`, `SAMPLE_TASK_ASSIGNMENTS.md` |
-| **Cloud Agent** | `README.md` → `AGENT_INSTRUCTIONS.md` | Your task assignment, `Cursorinstructions.md` |
-| **Reviewer** | `README.md` → `PROGRESS.md` | Individual task files as needed |
-| **New Team Member** | `README.md` → `QUICK_REFERENCE.md` | All other docs as needed |
+| If you want to... | Read this |
+|-------------------|-----------|
+| **Understand the vision** | [VISION.md](./VISION.md) |
+| **See the implementation plan** | [IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md) |
+| **Understand the architecture** | [README.md](./README.md) |
+| **See technical specs** | [Cursorinstructions.md](./Cursorinstructions.md) |
+| **Start implementing** | [IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md) → Phase 1 |
+
+---
+
+## 📚 Key Documents
+
+### Strategic
+
+| Document | Purpose |
+|----------|---------|
+| [VISION.md](./VISION.md) | Why we're building this. The goal, the problem, the solution. |
+| [IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md) | Ordered task list. What to build, in what order. |
+
+### Technical
+
+| Document | Purpose |
+|----------|---------|
+| [README.md](./README.md) | Project overview, architecture, quick start. |
+| [Cursorinstructions.md](./Cursorinstructions.md) | Detailed technical specification. |
+| [EXTENSIBILITY_GUIDE.md](./EXTENSIBILITY_GUIDE.md) | How to add new trees and nims. |
 
 ---
 

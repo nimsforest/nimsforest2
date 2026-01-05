@@ -43,7 +43,6 @@ func (w *Wind) Drop(leaf Leaf) error {
 		return fmt.Errorf("failed to publish leaf to subject %s: %w", leaf.Subject, err)
 	}
 
-	log.Printf("[Wind] Dropped leaf: subject=%s, source=%s", leaf.Subject, leaf.Source)
 	return nil
 }
 
@@ -78,7 +77,6 @@ func (w *Wind) Catch(subject string, handler func(leaf Leaf)) (*nats.Subscriptio
 		return nil, fmt.Errorf("failed to subscribe to subject %s: %w", subject, err)
 	}
 
-	log.Printf("[Wind] Catching leaves on subject: %s", subject)
 	return sub, nil
 }
 
@@ -108,7 +106,6 @@ func (w *Wind) CatchWithQueue(subject, queue string, handler func(leaf Leaf)) (*
 		return nil, fmt.Errorf("failed to queue subscribe to subject %s with queue %s: %w", subject, queue, err)
 	}
 
-	log.Printf("[Wind] Catching leaves on subject %s with queue %s", subject, queue)
 	return sub, nil
 }
 

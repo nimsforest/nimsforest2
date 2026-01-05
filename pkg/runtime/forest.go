@@ -10,13 +10,15 @@ import (
 	"github.com/yourusername/nimsforest/pkg/brain"
 )
 
-// Forest is the main runtime that manages all TreeHouses and Nims.
+// Forest is the main runtime that manages all Trees, TreeHouses and Nims.
 // It uses Wind for all pub/sub operations.
 type Forest struct {
 	config     *Config
 	wind       *core.Wind
+	river      *core.River // Optional: for Trees (requires JetStream)
 	humus      *core.Humus // Optional: for state tracking
 	brain      brain.Brain
+	trees      map[string]*TreeInstance
 	treehouses map[string]*TreeHouse
 	nims       map[string]*Nim
 
@@ -47,6 +49,7 @@ func NewForestFromConfig(cfg *Config, wind *core.Wind, b brain.Brain) (*Forest, 
 		config:     cfg,
 		wind:       wind,
 		brain:      b,
+		trees:      make(map[string]*TreeInstance),
 		treehouses: make(map[string]*TreeHouse),
 		nims:       make(map[string]*Nim),
 	}
@@ -88,6 +91,7 @@ func NewForestWithHumus(cfg *Config, wind *core.Wind, humus *core.Humus, b brain
 		wind:       wind,
 		humus:      humus,
 		brain:      b,
+		trees:      make(map[string]*TreeInstance),
 		treehouses: make(map[string]*TreeHouse),
 		nims:       make(map[string]*Nim),
 	}
@@ -123,13 +127,22 @@ func NewForestWithHumus(cfg *Config, wind *core.Wind, humus *core.Humus, b brain
 	return f, nil
 }
 
-// Start starts all TreeHouses and Nims.
+// Start starts all Trees, TreeHouses and Nims.
 func (f *Forest) Start(ctx context.Context) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
 	if f.running {
 		return fmt.Errorf("forest already running")
+	}
+
+	// Start Trees
+	for name, instance := range f.trees {
+		if err := instance.Tree.Start(ctx); err != nil {
+			f.stopAll()
+			return fmt.Errorf("failed to start tree %s: %w", name, err)
+		}
+		instance.Running = true
 	}
 
 	// Start TreeHouses
@@ -151,8 +164,8 @@ func (f *Forest) Start(ctx context.Context) error {
 	}
 
 	f.running = true
-	log.Printf("[Forest] Started with %d treehouses and %d nims",
-		len(f.treehouses), len(f.nims))
+	log.Printf("[Forest] Started with %d trees, %d treehouses and %d nims",
+		len(f.trees), len(f.treehouses), len(f.nims))
 	return nil
 }
 
@@ -173,6 +186,10 @@ func (f *Forest) Stop() error {
 
 // stopAll stops all components without locking (internal use).
 func (f *Forest) stopAll() {
+	for _, instance := range f.trees {
+		instance.Tree.Stop()
+		instance.Running = false
+	}
 	for _, th := range f.treehouses {
 		th.Stop()
 	}
@@ -203,6 +220,14 @@ func (f *Forest) IsRunning() bool {
 	return f.running
 }
 
+// SetRiver sets the River connection for tree support.
+// Must be called before adding trees.
+func (f *Forest) SetRiver(river *core.River) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.river = river
+}
+
 // =============================================================================
 // Runtime Component Management
 // =============================================================================
@@ -220,10 +245,11 @@ type ComponentInfo struct {
 
 // ForestStatus provides a snapshot of the forest state.
 type ForestStatus struct {
-	Running     bool            `json:"running"`
-	TreeHouses  []ComponentInfo `json:"treehouses"`
-	Nims        []ComponentInfo `json:"nims"`
-	ConfigPath  string          `json:"config_path,omitempty"`
+	Running     bool               `json:"running"`
+	Trees       []TreeInstanceInfo `json:"trees"`
+	TreeHouses  []ComponentInfo    `json:"treehouses"`
+	Nims        []ComponentInfo    `json:"nims"`
+	ConfigPath  string             `json:"config_path,omitempty"`
 }
 
 // Status returns the current status of the forest.
@@ -233,8 +259,18 @@ func (f *Forest) Status() ForestStatus {
 
 	status := ForestStatus{
 		Running:    f.running,
+		Trees:      make([]TreeInstanceInfo, 0, len(f.trees)),
 		TreeHouses: make([]ComponentInfo, 0, len(f.treehouses)),
 		Nims:       make([]ComponentInfo, 0, len(f.nims)),
+	}
+
+	for name, instance := range f.trees {
+		status.Trees = append(status.Trees, TreeInstanceInfo{
+			Name:     name,
+			Type:     instance.Config.Type,
+			Patterns: instance.Tree.Patterns(),
+			Running:  instance.Running,
+		})
 	}
 
 	for name, th := range f.treehouses {

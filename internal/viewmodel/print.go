@@ -128,14 +128,9 @@ func (p *Printer) PrintWorld(territory *World) {
 	fmt.Fprintf(p.writer, "World: %d land\n", totalLand)
 
 	lands := territory.Lands()
-	for i, land := range lands {
+	for _, land := range lands {
 		fmt.Fprintln(p.writer)
 		p.printLand(land)
-
-		// Add extra newline between lands (but not after the last one)
-		if i < len(lands)-1 {
-			// Space is already added by the blank line between lands
-		}
 	}
 }
 

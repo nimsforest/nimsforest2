@@ -705,12 +705,11 @@ func BenchmarkWorldPrint(b *testing.B) {
 		territory.AddLand(land)
 	}
 
-	printer := viewmodel.NewPrinter(&bytes.Buffer{})
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
 		var buf bytes.Buffer
-		printer = viewmodel.NewPrinter(&buf)
+		printer := viewmodel.NewPrinter(&buf)
 		printer.PrintWorld(territory)
 	}
 }

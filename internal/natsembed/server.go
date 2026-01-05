@@ -254,3 +254,9 @@ func getLocalIPv6() string {
 func GetLocalIPv6() string {
 	return getLocalIPv6()
 }
+
+// InternalServer returns the underlying *server.Server for advanced usage.
+// This is primarily used by the viewmodel package to access server monitoring APIs.
+func (s *Server) InternalServer() *server.Server {
+	return s.ns
+}

@@ -30,7 +30,7 @@ func NewPrinter(w io.Writer) *Printer {
 //	  Treehouses: 1 (ram: 1GB)
 //	  Nims: 1 (ram: 2GB)
 //	  Total: 4 processes (ram: 11GB, 17% of capacity)
-func (p *Printer) PrintSummary(territory *TerritoryViewModel) {
+func (p *Printer) PrintSummary(territory *Territory) {
 	summary := territory.GetSummary()
 	
 	// Calculate regular land stats
@@ -123,7 +123,7 @@ func (p *Printer) PrintSummary(territory *TerritoryViewModel) {
 //	    - router (ram: 4GB)
 //	  Treehouses: (none)
 //	  Nims: (none)
-func (p *Printer) PrintTerritory(territory *TerritoryViewModel) {
+func (p *Printer) PrintTerritory(territory *Territory) {
 	totalLand := territory.LandCount()
 	fmt.Fprintf(p.writer, "Territory: %d land\n", totalLand)
 	
@@ -196,7 +196,7 @@ func (p *Printer) printLand(land *LandViewModel) {
 }
 
 // PrintCompact prints a compact single-line summary.
-func (p *Printer) PrintCompact(territory *TerritoryViewModel) {
+func (p *Printer) PrintCompact(territory *Territory) {
 	summary := territory.GetSummary()
 	totalLand := summary.LandCount + summary.ManalandCount
 	
@@ -206,7 +206,7 @@ func (p *Printer) PrintCompact(territory *TerritoryViewModel) {
 }
 
 // PrintJSON prints the territory as JSON (for machine consumption).
-func (p *Printer) PrintJSON(territory *TerritoryViewModel) error {
+func (p *Printer) PrintJSON(territory *Territory) error {
 	// For now, just use the built-in JSON marshaling
 	// In a production implementation, you'd use encoding/json
 	lands := territory.Lands()

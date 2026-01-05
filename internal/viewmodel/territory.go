@@ -7,24 +7,24 @@ import (
 	"time"
 )
 
-// TerritoryViewModel represents the collection of all LandViewModel in the cluster.
+// Territory represents the collection of all LandViewModel in the cluster.
 // It provides methods for querying and managing the cluster state.
-type TerritoryViewModel struct {
+type Territory struct {
 	mu        sync.RWMutex
 	lands     map[string]*LandViewModel // Map of LandViewModel ID to LandViewModel
 	updatedAt time.Time                 // Last update time
 }
 
-// NewTerritoryViewModel creates a new empty TerritoryViewModel.
-func NewTerritoryViewModel() *TerritoryViewModel {
-	return &TerritoryViewModel{
+// NewTerritory creates a new empty Territory.
+func NewTerritory() *Territory {
+	return &Territory{
 		lands:     make(map[string]*LandViewModel),
 		updatedAt: time.Now(),
 	}
 }
 
 // AddLand adds a LandViewModel to the territory.
-func (t *TerritoryViewModel) AddLand(land *LandViewModel) {
+func (t *Territory) AddLand(land *LandViewModel) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.lands[land.ID] = land
@@ -32,7 +32,7 @@ func (t *TerritoryViewModel) AddLand(land *LandViewModel) {
 }
 
 // RemoveLand removes a LandViewModel from the territory.
-func (t *TerritoryViewModel) RemoveLand(landID string) bool {
+func (t *Territory) RemoveLand(landID string) bool {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if _, exists := t.lands[landID]; exists {
@@ -44,14 +44,14 @@ func (t *TerritoryViewModel) RemoveLand(landID string) bool {
 }
 
 // GetLand returns a LandViewModel by ID.
-func (t *TerritoryViewModel) GetLand(landID string) *LandViewModel {
+func (t *Territory) GetLand(landID string) *LandViewModel {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	return t.lands[landID]
 }
 
 // Lands returns all LandViewModel in the territory, sorted by ID.
-func (t *TerritoryViewModel) Lands() []*LandViewModel {
+func (t *Territory) Lands() []*LandViewModel {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	
@@ -68,14 +68,14 @@ func (t *TerritoryViewModel) Lands() []*LandViewModel {
 }
 
 // LandCount returns the total number of LandViewModel.
-func (t *TerritoryViewModel) LandCount() int {
+func (t *Territory) LandCount() int {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	return len(t.lands)
 }
 
 // ManalandCount returns the number of GPU-enabled LandViewModel (Manaland).
-func (t *TerritoryViewModel) ManalandCount() int {
+func (t *Territory) ManalandCount() int {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	
@@ -89,12 +89,12 @@ func (t *TerritoryViewModel) ManalandCount() int {
 }
 
 // RegularLandCount returns the number of non-GPU LandViewModel.
-func (t *TerritoryViewModel) RegularLandCount() int {
+func (t *Territory) RegularLandCount() int {
 	return t.LandCount() - t.ManalandCount()
 }
 
 // TotalRAM returns the total RAM across all LandViewModel.
-func (t *TerritoryViewModel) TotalRAM() uint64 {
+func (t *Territory) TotalRAM() uint64 {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	
@@ -106,7 +106,7 @@ func (t *TerritoryViewModel) TotalRAM() uint64 {
 }
 
 // TotalRAMAllocated returns the total allocated RAM across all LandViewModel.
-func (t *TerritoryViewModel) TotalRAMAllocated() uint64 {
+func (t *Territory) TotalRAMAllocated() uint64 {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	
@@ -118,7 +118,7 @@ func (t *TerritoryViewModel) TotalRAMAllocated() uint64 {
 }
 
 // TotalCPUCores returns the total CPU cores across all LandViewModel.
-func (t *TerritoryViewModel) TotalCPUCores() int {
+func (t *Territory) TotalCPUCores() int {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	
@@ -130,7 +130,7 @@ func (t *TerritoryViewModel) TotalCPUCores() int {
 }
 
 // TotalGPUVram returns the total GPU VRAM across all Manaland.
-func (t *TerritoryViewModel) TotalGPUVram() uint64 {
+func (t *Territory) TotalGPUVram() uint64 {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	
@@ -142,7 +142,7 @@ func (t *TerritoryViewModel) TotalGPUVram() uint64 {
 }
 
 // TreeCount returns the total number of Trees across all LandViewModel.
-func (t *TerritoryViewModel) TreeCount() int {
+func (t *Territory) TreeCount() int {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	
@@ -154,7 +154,7 @@ func (t *TerritoryViewModel) TreeCount() int {
 }
 
 // TreehouseCount returns the total number of Treehouses across all LandViewModel.
-func (t *TerritoryViewModel) TreehouseCount() int {
+func (t *Territory) TreehouseCount() int {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	
@@ -166,7 +166,7 @@ func (t *TerritoryViewModel) TreehouseCount() int {
 }
 
 // NimCount returns the total number of Nims across all LandViewModel.
-func (t *TerritoryViewModel) NimCount() int {
+func (t *Territory) NimCount() int {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	
@@ -178,12 +178,12 @@ func (t *TerritoryViewModel) NimCount() int {
 }
 
 // TotalProcessCount returns the total number of all processes.
-func (t *TerritoryViewModel) TotalProcessCount() int {
+func (t *Territory) TotalProcessCount() int {
 	return t.TreeCount() + t.TreehouseCount() + t.NimCount()
 }
 
 // TreeRAM returns the total RAM used by Trees.
-func (t *TerritoryViewModel) TreeRAM() uint64 {
+func (t *Territory) TreeRAM() uint64 {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	
@@ -197,7 +197,7 @@ func (t *TerritoryViewModel) TreeRAM() uint64 {
 }
 
 // TreehouseRAM returns the total RAM used by Treehouses.
-func (t *TerritoryViewModel) TreehouseRAM() uint64 {
+func (t *Territory) TreehouseRAM() uint64 {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	
@@ -211,7 +211,7 @@ func (t *TerritoryViewModel) TreehouseRAM() uint64 {
 }
 
 // NimRAM returns the total RAM used by Nims.
-func (t *TerritoryViewModel) NimRAM() uint64 {
+func (t *Territory) NimRAM() uint64 {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	
@@ -225,7 +225,7 @@ func (t *TerritoryViewModel) NimRAM() uint64 {
 }
 
 // Occupancy returns the overall RAM occupancy percentage.
-func (t *TerritoryViewModel) Occupancy() float64 {
+func (t *Territory) Occupancy() float64 {
 	totalRAM := t.TotalRAM()
 	if totalRAM == 0 {
 		return 0
@@ -234,7 +234,7 @@ func (t *TerritoryViewModel) Occupancy() float64 {
 }
 
 // FindProcess finds a process by ID across all LandViewModel.
-func (t *TerritoryViewModel) FindProcess(processID string) (*ProcessViewModel, *LandViewModel) {
+func (t *Territory) FindProcess(processID string) (*Process, *LandViewModel) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	
@@ -247,7 +247,7 @@ func (t *TerritoryViewModel) FindProcess(processID string) (*ProcessViewModel, *
 }
 
 // AllTrees returns all Trees across all LandViewModel.
-func (t *TerritoryViewModel) AllTrees() []TreeViewModel {
+func (t *Territory) AllTrees() []TreeViewModel {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	
@@ -259,7 +259,7 @@ func (t *TerritoryViewModel) AllTrees() []TreeViewModel {
 }
 
 // AllTreehouses returns all Treehouses across all LandViewModel.
-func (t *TerritoryViewModel) AllTreehouses() []TreehouseViewModel {
+func (t *Territory) AllTreehouses() []TreehouseViewModel {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	
@@ -271,7 +271,7 @@ func (t *TerritoryViewModel) AllTreehouses() []TreehouseViewModel {
 }
 
 // AllNims returns all Nims across all LandViewModel.
-func (t *TerritoryViewModel) AllNims() []NimViewModel {
+func (t *Territory) AllNims() []NimViewModel {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	
@@ -283,20 +283,20 @@ func (t *TerritoryViewModel) AllNims() []NimViewModel {
 }
 
 // UpdatedAt returns the last update time.
-func (t *TerritoryViewModel) UpdatedAt() time.Time {
+func (t *Territory) UpdatedAt() time.Time {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	return t.updatedAt
 }
 
 // String returns a summary string of the territory.
-func (t *TerritoryViewModel) String() string {
+func (t *Territory) String() string {
 	return fmt.Sprintf("Territory: %d land (%d regular, %d manaland), %d processes",
 		t.LandCount(), t.RegularLandCount(), t.ManalandCount(), t.TotalProcessCount())
 }
 
-// SummaryViewModel holds summary statistics for the territory.
-type SummaryViewModel struct {
+// Summary holds summary statistics for the territory.
+type Summary struct {
 	// Capacity
 	LandCount         int
 	ManalandCount     int
@@ -315,9 +315,9 @@ type SummaryViewModel struct {
 	Occupancy         float64
 }
 
-// GetSummary returns a SummaryViewModel of the territory.
-func (t *TerritoryViewModel) GetSummary() SummaryViewModel {
-	return SummaryViewModel{
+// GetSummary returns a Summary of the territory.
+func (t *Territory) GetSummary() Summary {
+	return Summary{
 		LandCount:         t.RegularLandCount(),
 		ManalandCount:     t.ManalandCount(),
 		TotalRAM:          t.TotalRAM(),

@@ -20,8 +20,8 @@ const (
 	ProcessTypeNim       ProcessType = "nim"
 )
 
-// ProcessViewModel represents a running process (Tree, Treehouse, or Nim) on a LandViewModel.
-type ProcessViewModel struct {
+// Process represents a running process (Tree, Treehouse, or Nim) on a LandViewModel.
+type Process struct {
 	ID           string      `json:"id"`            // Unique identifier
 	Name         string      `json:"name"`          // Display name
 	Type         ProcessType `json:"type"`          // tree, treehouse, or nim
@@ -33,18 +33,18 @@ type ProcessViewModel struct {
 
 // TreeViewModel represents a tree process (parses river data into leaves).
 type TreeViewModel struct {
-	ProcessViewModel
+	Process
 }
 
 // TreehouseViewModel represents a treehouse process (Lua script processor).
 type TreehouseViewModel struct {
-	ProcessViewModel
+	Process
 	ScriptPath string `json:"script_path"` // Path to the Lua script
 }
 
 // NimViewModel represents a nim process (business logic handler).
 type NimViewModel struct {
-	ProcessViewModel
+	Process
 	AIEnabled bool   `json:"ai_enabled"` // Whether AI-powered
 	Model     string `json:"model"`      // AI model if enabled
 }
@@ -162,20 +162,20 @@ func (l *LandViewModel) RemoveProcess(processID string) bool {
 }
 
 // FindProcess finds a process by ID on this LandViewModel.
-func (l *LandViewModel) FindProcess(processID string) *ProcessViewModel {
+func (l *LandViewModel) FindProcess(processID string) *Process {
 	for i := range l.Trees {
 		if l.Trees[i].ID == processID {
-			return &l.Trees[i].ProcessViewModel
+			return &l.Trees[i].Process
 		}
 	}
 	for i := range l.Treehouses {
 		if l.Treehouses[i].ID == processID {
-			return &l.Treehouses[i].ProcessViewModel
+			return &l.Treehouses[i].Process
 		}
 	}
 	for i := range l.Nims {
 		if l.Nims[i].ID == processID {
-			return &l.Nims[i].ProcessViewModel
+			return &l.Nims[i].Process
 		}
 	}
 	return nil
@@ -226,9 +226,9 @@ func NewLandViewModel(id string) *LandViewModel {
 	}
 }
 
-// NewProcessViewModel creates a new ProcessViewModel with the given parameters.
-func NewProcessViewModel(id, name string, processType ProcessType, ramAllocated uint64) ProcessViewModel {
-	return ProcessViewModel{
+// NewProcess creates a new Process with the given parameters.
+func NewProcess(id, name string, processType ProcessType, ramAllocated uint64) Process {
+	return Process{
 		ID:           id,
 		Name:         name,
 		Type:         processType,
@@ -240,7 +240,7 @@ func NewProcessViewModel(id, name string, processType ProcessType, ramAllocated 
 // NewTreeViewModel creates a new TreeViewModel process.
 func NewTreeViewModel(id, name string, ramAllocated uint64, subjects []string) TreeViewModel {
 	return TreeViewModel{
-		ProcessViewModel: ProcessViewModel{
+		Process: Process{
 			ID:           id,
 			Name:         name,
 			Type:         ProcessTypeTree,
@@ -254,7 +254,7 @@ func NewTreeViewModel(id, name string, ramAllocated uint64, subjects []string) T
 // NewTreehouseViewModel creates a new TreehouseViewModel process.
 func NewTreehouseViewModel(id, name string, ramAllocated uint64, scriptPath string) TreehouseViewModel {
 	return TreehouseViewModel{
-		ProcessViewModel: ProcessViewModel{
+		Process: Process{
 			ID:           id,
 			Name:         name,
 			Type:         ProcessTypeTreehouse,
@@ -268,7 +268,7 @@ func NewTreehouseViewModel(id, name string, ramAllocated uint64, scriptPath stri
 // NewNimViewModel creates a new NimViewModel process.
 func NewNimViewModel(id, name string, ramAllocated uint64, subjects []string, aiEnabled bool) NimViewModel {
 	return NimViewModel{
-		ProcessViewModel: ProcessViewModel{
+		Process: Process{
 			ID:           id,
 			Name:         name,
 			Type:         ProcessTypeNim,

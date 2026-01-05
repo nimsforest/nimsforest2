@@ -20,7 +20,7 @@ import (
 // TestViewmodelTerritory tests basic territory model functionality.
 func TestViewmodelTerritory(t *testing.T) {
 	// Create a territory manually
-	territory := viewmodel.NewTerritoryViewModel()
+	territory := viewmodel.NewTerritory()
 
 	// Add a LandViewModel
 	land1 := viewmodel.NewLandViewModel("node-1")
@@ -71,7 +71,7 @@ func TestViewmodelTerritory(t *testing.T) {
 
 // TestViewmodelProcesses tests adding processes to LandViewModel.
 func TestViewmodelProcesses(t *testing.T) {
-	territory := viewmodel.NewTerritoryViewModel()
+	territory := viewmodel.NewTerritory()
 
 	// Create LandViewModel
 	land := viewmodel.NewLandViewModel("node-1")
@@ -138,7 +138,7 @@ func TestViewmodelProcesses(t *testing.T) {
 
 // TestViewmodelOccupancy tests occupancy calculations.
 func TestViewmodelOccupancy(t *testing.T) {
-	territory := viewmodel.NewTerritoryViewModel()
+	territory := viewmodel.NewTerritory()
 
 	// Create two lands with different usage
 	land1 := viewmodel.NewLandViewModel("node-1")
@@ -179,7 +179,7 @@ func TestViewmodelOccupancy(t *testing.T) {
 
 // TestViewmodelPrint tests the print output format.
 func TestViewmodelPrint(t *testing.T) {
-	territory := viewmodel.NewTerritoryViewModel()
+	territory := viewmodel.NewTerritory()
 
 	// Create LandViewModel with processes
 	land := viewmodel.NewLandViewModel("node-abc")
@@ -228,7 +228,7 @@ func TestViewmodelPrint(t *testing.T) {
 
 // TestViewmodelSummary tests the summary output format.
 func TestViewmodelSummary(t *testing.T) {
-	territory := viewmodel.NewTerritoryViewModel()
+	territory := viewmodel.NewTerritory()
 
 	// Create regular LandViewModel
 	land1 := viewmodel.NewLandViewModel("node-1")
@@ -414,7 +414,7 @@ func TestViewmodelDetection(t *testing.T) {
 
 // TestViewmodelUpdater tests incremental updates.
 func TestViewmodelUpdater(t *testing.T) {
-	territory := viewmodel.NewTerritoryViewModel()
+	territory := viewmodel.NewTerritory()
 	updater := viewmodel.NewUpdater(territory)
 
 	// Track events
@@ -485,7 +485,7 @@ func TestViewmodelUpdater(t *testing.T) {
 
 // TestViewmodelGPULand tests GPU/Manaland functionality.
 func TestViewmodelGPULand(t *testing.T) {
-	territory := viewmodel.NewTerritoryViewModel()
+	territory := viewmodel.NewTerritory()
 
 	// Create GPU-enabled land (Manaland)
 	land := viewmodel.NewLandViewModel("gpu-node")
@@ -675,7 +675,7 @@ func TestInferProcessType(t *testing.T) {
 // Benchmark for territory operations
 func BenchmarkTerritoryAddLand(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		territory := viewmodel.NewTerritoryViewModel()
+		territory := viewmodel.NewTerritory()
 		for j := 0; j < 100; j++ {
 			land := viewmodel.NewLandViewModel(fmt.Sprintf("node-%d", j))
 			land.RAMTotal = 16 * 1024 * 1024 * 1024
@@ -686,7 +686,7 @@ func BenchmarkTerritoryAddLand(b *testing.B) {
 }
 
 func BenchmarkTerritoryPrint(b *testing.B) {
-	territory := viewmodel.NewTerritoryViewModel()
+	territory := viewmodel.NewTerritory()
 	for i := 0; i < 10; i++ {
 		land := viewmodel.NewLandViewModel(fmt.Sprintf("node-%d", i))
 		land.RAMTotal = 16 * 1024 * 1024 * 1024

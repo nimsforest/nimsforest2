@@ -227,7 +227,7 @@ func TestWindWakerDoubleStart(t *testing.T) {
 	defer cleanup()
 
 	ww := New(wind, 100)
-	
+
 	if err := ww.Start(); err != nil {
 		t.Fatalf("First start failed: %v", err)
 	}
@@ -242,7 +242,7 @@ func TestWindWakerDoubleStart(t *testing.T) {
 
 func TestDefaultConfig(t *testing.T) {
 	cfg := DefaultConfig()
-	
+
 	if cfg.Hz != 90 {
 		t.Errorf("Default Hz should be 90, got %d", cfg.Hz)
 	}

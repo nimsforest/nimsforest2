@@ -38,8 +38,8 @@ type WindWaker struct {
 	wg      sync.WaitGroup
 
 	// Stats
-	seq      uint64
-	started  time.Time
+	seq       uint64
+	started   time.Time
 	beatsSent atomic.Uint64
 }
 

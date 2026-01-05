@@ -12,12 +12,14 @@ import (
 
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
+	"github.com/yourusername/nimsforest/internal/cliview"
 	"github.com/yourusername/nimsforest/internal/core"
 	"github.com/yourusername/nimsforest/internal/natsclusterconfig"
 	"github.com/yourusername/nimsforest/internal/natsembed"
 	"github.com/yourusername/nimsforest/internal/nims"
 	"github.com/yourusername/nimsforest/internal/trees"
 	"github.com/yourusername/nimsforest/internal/updater"
+	"github.com/yourusername/nimsforest/internal/viewmodel"
 	"github.com/yourusername/nimsforest/internal/windwaker"
 	"github.com/yourusername/nimsforest/pkg/brain"
 	aifactory "github.com/yourusername/nimsforest/pkg/integrations/aiservice"
@@ -672,6 +674,17 @@ func runStandalone() {
 	}
 	defer waker.Stop()
 	fmt.Println("✅ WindWaker conducting at 90Hz")
+
+	// 3.6. Create CLI view and register as dancer (prints every 5 seconds)
+	vm := viewmodel.New(ns)
+	view := cliview.New(vm, 450) // 90Hz * 5s = 450 beats
+	viewSub, err := windwaker.CatchBeat(wind, view)
+	if err != nil {
+		log.Printf("⚠️  Failed to register CLI view: %v\n", err)
+	} else {
+		defer viewSub.Unsubscribe()
+		fmt.Println("✅ CLI View registered (prints every 5s)")
+	}
 
 	// 4. Load config
 	configPath := getConfigPath()

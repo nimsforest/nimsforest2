@@ -12,14 +12,12 @@ import (
 
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
-	"github.com/yourusername/nimsforest/internal/cliview"
 	"github.com/yourusername/nimsforest/internal/core"
 	"github.com/yourusername/nimsforest/internal/natsclusterconfig"
 	"github.com/yourusername/nimsforest/internal/natsembed"
 	"github.com/yourusername/nimsforest/internal/nims"
 	"github.com/yourusername/nimsforest/internal/trees"
 	"github.com/yourusername/nimsforest/internal/updater"
-	"github.com/yourusername/nimsforest/internal/viewmodel"
 	"github.com/yourusername/nimsforest/internal/windwaker"
 	"github.com/yourusername/nimsforest/pkg/brain"
 	aifactory "github.com/yourusername/nimsforest/pkg/integrations/aiservice"
@@ -372,6 +370,9 @@ func runForest() {
 			}
 
 			if runtimeForest != nil {
+				// Set River so Trees can be added at runtime
+				runtimeForest.SetRiver(river)
+
 				if err := runtimeForest.Start(ctx); err != nil {
 					log.Printf("⚠️  Failed to start runtime forest: %v\n", err)
 				} else {
@@ -672,142 +673,67 @@ func sendDemoData(river *core.River) {
 	fmt.Println()
 }
 
-// runStandalone runs the forest in standalone mode with embedded NATS
+// runStandalone runs the forest in standalone mode.
+// It creates temporary cluster config files and then calls runForest() -
+// ensuring 100% identical code path to production, just with auto-generated config.
 func runStandalone() {
-	fmt.Println("🌲 NimsForest Standalone Mode")
-	fmt.Println("=============================")
+	fmt.Println("🔬 STANDALONE MODE - Setting up local cluster config...")
+
+	// Create temp directory for cluster config
+	tmpDir, err := os.MkdirTemp("", "nimsforest-standalone-*")
+	if err != nil {
+		log.Fatalf("❌ Failed to create temp directory: %v\n", err)
+	}
+
+	// Create node-info.json
+	nodeInfoPath := tmpDir + "/node-info.json"
+	nodeInfo := map[string]string{
+		"forest_id": "standalone",
+		"node_id":   "standalone-node-1",
+	}
+	nodeInfoData, _ := json.MarshalIndent(nodeInfo, "", "  ")
+	if err := os.WriteFile(nodeInfoPath, nodeInfoData, 0644); err != nil {
+		log.Fatalf("❌ Failed to write node-info.json: %v\n", err)
+	}
+
+	// Create empty registry.json (no peers for standalone)
+	registryPath := tmpDir + "/registry.json"
+	registry := map[string]interface{}{
+		"nodes": map[string]interface{}{},
+	}
+	registryData, _ := json.MarshalIndent(registry, "", "  ")
+	if err := os.WriteFile(registryPath, registryData, 0644); err != nil {
+		log.Fatalf("❌ Failed to write registry.json: %v\n", err)
+	}
+
+	// Create JetStream data directory
+	jetStreamDir := tmpDir + "/jetstream"
+	if err := os.MkdirAll(jetStreamDir, 0755); err != nil {
+		log.Fatalf("❌ Failed to create jetstream directory: %v\n", err)
+	}
+
+	// Set environment variables to use our temp config
+	os.Setenv("NATS_CLUSTER_NODE_INFO", nodeInfoPath)
+	os.Setenv("NATS_CLUSTER_REGISTRY", registryPath)
+	os.Setenv("JETSTREAM_DIR", jetStreamDir)
+
+	fmt.Printf("   Node info: %s\n", nodeInfoPath)
+	fmt.Printf("   Registry:  %s\n", registryPath)
+	fmt.Printf("   JetStream: %s\n", jetStreamDir)
 	fmt.Println()
 
-	// 1. Start embedded NATS server
-	fmt.Println("📡 Starting embedded NATS server...")
-	opts := &server.Options{
-		Host: "127.0.0.1",
-		Port: 4222,
-	}
-	ns, err := server.NewServer(opts)
-	if err != nil {
-		log.Fatalf("❌ Failed to create NATS server: %v\n", err)
-	}
-	go ns.Start()
-	if !ns.ReadyForConnections(5 * time.Second) {
-		log.Fatal("❌ NATS server not ready")
-	}
-	defer ns.Shutdown()
-	fmt.Printf("✅ NATS server at %s\n", ns.ClientURL())
+	// Clean up temp dir on exit (deferred in runForest won't work, so we use a goroutine)
+	go func() {
+		sigChan := make(chan os.Signal, 1)
+		signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+		<-sigChan
+		// Give runForest time to handle signal first
+		time.Sleep(2 * time.Second)
+		os.RemoveAll(tmpDir)
+	}()
 
-	// 2. Connect to NATS
-	nc, err := nats.Connect(ns.ClientURL())
-	if err != nil {
-		log.Fatalf("❌ Failed to connect: %v\n", err)
-	}
-	defer nc.Close()
-
-	// 3. Create Wind
-	wind := core.NewWind(nc)
-	fmt.Println("✅ Wind initialized")
-
-	// 3.5. Start WindWaker ceremony
-	waker := windwaker.New(wind, 90)
-	if err := waker.Start(); err != nil {
-		log.Fatalf("❌ Failed to start windwaker: %v\n", err)
-	}
-	defer waker.Stop()
-	fmt.Println("✅ WindWaker conducting at 90Hz")
-
-	// 3.6. Create CLI view and register as dancer (prints every 5 seconds)
-	vm := viewmodel.New(ns)
-	view := cliview.New(vm, 450) // 90Hz * 5s = 450 beats
-	viewSub, err := windwaker.CatchBeat(wind, view)
-	if err != nil {
-		log.Printf("⚠️  Failed to register CLI view: %v\n", err)
-	} else {
-		defer viewSub.Unsubscribe()
-		fmt.Println("✅ CLI View registered (prints every 5s)")
-	}
-
-	// 4. Load config
-	configPath := getConfigPath()
-	if configPath == "" {
-		log.Fatal("❌ No config/forest.yaml found")
-	}
-	fmt.Printf("📄 Config: %s\n", configPath)
-
-	cfg, err := runtime.LoadConfig(configPath)
-	if err != nil {
-		log.Fatalf("❌ Failed to load config: %v\n", err)
-	}
-
-	// 5. Create brain
-	ctx := context.Background()
-	nimBrain, brainType := createBrainWithFallback(ctx)
-	fmt.Printf("🧠 Brain: %s\n", brainType)
-
-	// 6. Create and start forest
-	forest, err := runtime.NewForestFromConfig(cfg, wind, nimBrain)
-	if err != nil {
-		log.Fatalf("❌ Failed to create forest: %v\n", err)
-	}
-
-	if err := forest.Start(ctx); err != nil {
-		log.Fatalf("❌ Failed to start forest: %v\n", err)
-	}
-	defer forest.Stop()
-
-	// 7. Start Management API
-	apiAddr := runtime.GetAPIAddress()
-	api := runtime.NewAPI(runtime.APIConfig{
-		Address:    apiAddr,
-		Forest:     forest,
-		ConfigPath: configPath,
-	})
-	if err := api.Start(); err != nil {
-		log.Printf("⚠️  Failed to start management API: %v\n", err)
-	} else {
-		defer api.Stop()
-		fmt.Printf("🔧 Management API at http://%s\n", apiAddr)
-	}
-
-	fmt.Println()
-	fmt.Println("🌲 Forest running!")
-	for name := range cfg.TreeHouses {
-		fmt.Printf("   🏠 TreeHouse:%s\n", name)
-	}
-	for name := range cfg.Nims {
-		fmt.Printf("   🧚 Nim:%s\n", name)
-	}
-
-	// 7. Subscribe to outputs to display results
-	wind.Catch("lead.scored", func(leaf core.Leaf) {
-		var data map[string]interface{}
-		json.Unmarshal(leaf.Data, &data)
-		fmt.Printf("\n📊 SCORED: %v → score=%v signals=%v\n",
-			data["contact_id"], data["score"], data["signals"])
-	})
-
-	wind.Catch("lead.qualified", func(leaf core.Leaf) {
-		var data map[string]interface{}
-		json.Unmarshal(leaf.Data, &data)
-		pursue := data["pursue"]
-		if pursue == true {
-			fmt.Printf("🎯 QUALIFIED: ✅ PURSUE - %v\n", data["reason"])
-		} else {
-			fmt.Printf("🎯 QUALIFIED: ❌ PASS - %v\n", data["reason"])
-		}
-	})
-
-	fmt.Println()
-	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-	fmt.Println("Send test leads with:")
-	fmt.Println(`  nats pub contact.created '{"subject":"contact.created","data":{"id":"test","email":"cto@corp.com","title":"CTO","company_size":500,"industry":"technology"},"source":"cli","ts":"2026-01-01T00:00:00Z"}'`)
-	fmt.Println()
-	fmt.Println("Press Ctrl+C to exit...")
-	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-
-	// Wait for shutdown
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-	<-sigChan
-	fmt.Println("\n👋 Shutting down...")
+	// Now run the standard forest - identical code path to production!
+	runForest()
 }
 
 // runTest runs E2E tests with sample leads

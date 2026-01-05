@@ -234,3 +234,56 @@ func QuickSummary(ns *server.Server, w io.Writer) error {
 	vm.PrintSummary(w)
 	return nil
 }
+
+// ViewModelDancer is a Dancer that refreshes and prints the viewmodel on a schedule.
+// It prints every N beats (at 90Hz, 450 beats = 5 seconds).
+type ViewModelDancer struct {
+	vm            *ViewModel
+	printInterval uint64
+	beatCount     uint64
+}
+
+// NewViewModelDancer creates a dancer that prints every printInterval beats.
+func NewViewModelDancer(vm *ViewModel, printInterval uint64) *ViewModelDancer {
+	return &ViewModelDancer{
+		vm:            vm,
+		printInterval: printInterval,
+		beatCount:     0,
+	}
+}
+
+// ID returns the dancer's identifier.
+func (d *ViewModelDancer) ID() string {
+	return "viewmodel-watcher"
+}
+
+// Beat represents a dance beat from WindWaker.
+type Beat struct {
+	Seq uint64 `json:"seq"`
+	Ts  int64  `json:"ts"`
+	Hz  int    `json:"hz"`
+}
+
+// Dance is called on each beat. It prints every printInterval beats.
+func (d *ViewModelDancer) Dance(beat Beat) error {
+	d.beatCount++
+
+	if d.beatCount >= d.printInterval {
+		d.beatCount = 0
+
+		// Refresh and print
+		if err := d.vm.Refresh(); err != nil {
+			return fmt.Errorf("refresh failed: %w", err)
+		}
+
+		// Print with timestamp header
+		fmt.Println()
+		fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+		fmt.Printf("📊 Update at %s (beat #%d)\n",
+			time.Now().Format("15:04:05"), beat.Seq)
+		fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+		d.vm.PrintSummary(os.Stdout)
+	}
+
+	return nil
+}

@@ -12,9 +12,12 @@
 - Assert: Occupancy calculations are correct
 
 ### Test: Event Updates
-- With viewmodel running, deploy another tree
+- With viewmodel running, start a new tree (creates subscriber)
+- Assert: Viewmodel detects new subscription via Wind
 - Assert: Territory updates without full rebuild
 - Assert: New tree appears on correct Land
+- Stop a tree (subscriber disappears)
+- Assert: Tree removed from Land
 - Remove a node from cluster
 - Assert: Land removed from Territory
 
@@ -58,17 +61,20 @@ This test defines the contract. Implementation is complete when it passes.
 ### Internal Event Hooks
 - Register callbacks on embedded NATS server for cluster events
 - Use server's internal event system (route connect/disconnect)
-- Subscribe via internal client to JetStream for process lifecycle events
-- Event types to handle:
-  - `node.joined` / `node.left` (route events)
-  - `tree.deployed` / `tree.removed`
-  - `treehouse.deployed` / `treehouse.removed`
-  - `nim.deployed` / `nim.removed`
+
+### Process Detection via Wind/River
+- No reserved subjects codex - detect organically
+- Monitor Wind for new subscriptions appearing (subscriber count changes)
+- Monitor River for new streams/consumers being created
+- When new subscriber detected → infer tree/treehouse/nim from subject pattern
+- When subscriber disappears → process removed
+- Subject patterns already encode process type (trees/, nims/, etc.)
 
 ### Model Updater
 - `ApplyEvent(territory, event) → updated territory`
 - Incremental updates, no full rebuild
 - Track which Land changed for partial re-render
+- Infer process metadata (ram_allocated) from subject/stream config
 
 ## Phase 4: View Layer
 

@@ -26,6 +26,12 @@
 - Assert: Land.HasGPU() returns true
 - Assert: gpu_vram and gpu_tflops populated
 
+### Test: CLI Print
+- Run `nimsforest viewmodel print` against running cluster
+- Assert: Output contains ASCII grid
+- Assert: Land squares rendered with correct relative sizes
+- Assert: GPU land shows mana tube indicator
+
 This test defines the contract. Implementation is complete when it passes.
 
 ## Phase 1: Model Layer
@@ -98,7 +104,22 @@ This test defines the contract. Implementation is complete when it passes.
 - Small markers on land squares for trees/treehouses/nims
 - Position around mana tube if GPU land, else distributed on square
 
-## Phase 5: Runtime Integration
+## Phase 5: CLI Integration
+
+### Command: `nimsforest viewmodel print`
+- Connects to running nimsforest instance (or uses embedded server if same process)
+- Reads current Territory state
+- Renders grid to console (ASCII/Unicode)
+- Prints once and exits (no live updates)
+
+### Console Renderer
+- ASCII grid layout for Land squares
+- Use box-drawing characters for squares
+- Shade via ASCII density (░▒▓█) for CPU cores
+- Fill percentage shown inside square
+- Vertical bars for mana tubes on GPU land
+
+## Phase 6: Runtime Integration
 
 ### Viewmodel Controller
 - Initialize: read embedded server state → build Territory → render
@@ -129,17 +150,21 @@ This test defines the contract. Implementation is complete when it passes.
 ## File Structure
 
 ```
+cmd/forest/
+  viewmodel.go      # CLI: nimsforest viewmodel print
+
 internal/viewmodel/
   model.go          # Land, Tree, Treehouse, Nim structs
   territory.go      # Territory collection + methods
-  mapper.go         # NATS response → Territory
+  mapper.go         # Cluster state → Territory
   updater.go        # Apply events to Territory
-  events.go         # Event type definitions
+  detector.go       # Wind/River subscription detection
 
 internal/viewrender/
   grid.go           # Grid layout algorithm
   land.go           # Land square rendering
   tube.go           # Mana tube rendering
+  console.go        # ASCII/Unicode console output
   renderer.go       # Main render orchestration
 ```
 

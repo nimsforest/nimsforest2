@@ -53,6 +53,9 @@ func main() {
 		case "test":
 			runTest()
 			return
+		case "viewmodel":
+			handleViewmodel(os.Args[2:])
+			return
 		default:
 			fmt.Fprintf(os.Stderr, "Unknown command: %s\n\n", command)
 			printHelp()
@@ -121,6 +124,7 @@ func printHelp() {
 	fmt.Println("  run, start      Start the NimsForest event processor (requires cluster config)")
 	fmt.Println("  standalone      Start standalone mode (embedded NATS, no cluster config needed)")
 	fmt.Println("  test            Run E2E tests with sample leads")
+	fmt.Println("  viewmodel       View cluster state (print, summary)")
 	fmt.Println("  version         Show version information")
 	fmt.Println("  update          Check for updates and install if available")
 	fmt.Println("  check-update    Check for updates without installing")

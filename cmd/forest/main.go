@@ -12,6 +12,7 @@ import (
 
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
+	"github.com/yourusername/nimsforest/internal/cliview"
 	"github.com/yourusername/nimsforest/internal/core"
 	"github.com/yourusername/nimsforest/internal/natsclusterconfig"
 	"github.com/yourusername/nimsforest/internal/natsembed"
@@ -674,15 +675,15 @@ func runStandalone() {
 	defer waker.Stop()
 	fmt.Println("✅ WindWaker conducting at 90Hz")
 
-	// 3.6. Register viewmodel as a dancer (prints every 5 seconds)
+	// 3.6. Create CLI view and register as dancer (prints every 5 seconds)
 	vm := viewmodel.New(ns)
-	vmDancer := newViewModelDancer(vm, 450) // 90Hz * 5s = 450 beats
-	vmSub, err := windwaker.CatchBeat(wind, vmDancer)
+	view := cliview.New(vm, 450) // 90Hz * 5s = 450 beats
+	viewSub, err := windwaker.CatchBeat(wind, view)
 	if err != nil {
-		log.Printf("⚠️  Failed to register viewmodel dancer: %v\n", err)
+		log.Printf("⚠️  Failed to register CLI view: %v\n", err)
 	} else {
-		defer vmSub.Unsubscribe()
-		fmt.Println("✅ ViewModel registered (prints every 5s)")
+		defer viewSub.Unsubscribe()
+		fmt.Println("✅ CLI View registered (prints every 5s)")
 	}
 
 	// 4. Load config
@@ -975,48 +976,4 @@ func createBrainWithFallback(ctx context.Context) (brain.Brain, string) {
 	b := runtime.NewSimpleBrain()
 	b.Initialize(ctx)
 	return b, "SimpleBrain (rule-based fallback)"
-}
-
-// viewModelDancer is a Dancer that refreshes and prints the viewmodel periodically.
-type viewModelDancer struct {
-	vm            *viewmodel.ViewModel
-	printInterval uint64
-	beatCount     uint64
-}
-
-// newViewModelDancer creates a dancer that prints every printInterval beats.
-func newViewModelDancer(vm *viewmodel.ViewModel, printInterval uint64) *viewModelDancer {
-	return &viewModelDancer{
-		vm:            vm,
-		printInterval: printInterval,
-		beatCount:     0,
-	}
-}
-
-// ID returns the dancer's identifier.
-func (d *viewModelDancer) ID() string {
-	return "viewmodel"
-}
-
-// Dance is called on each beat. It prints every printInterval beats.
-func (d *viewModelDancer) Dance(beat windwaker.Beat) error {
-	d.beatCount++
-
-	if d.beatCount >= d.printInterval {
-		d.beatCount = 0
-
-		// Refresh the viewmodel
-		if err := d.vm.Refresh(); err != nil {
-			return fmt.Errorf("refresh failed: %w", err)
-		}
-
-		// Print with timestamp header
-		fmt.Println()
-		fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-		fmt.Printf("📊 Cluster State at %s\n", time.Now().Format("15:04:05"))
-		fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-		d.vm.PrintSummary(os.Stdout)
-	}
-
-	return nil
 }

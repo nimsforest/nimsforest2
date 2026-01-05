@@ -58,9 +58,11 @@ func (n *GeneralNim) Subjects() []string {
 func (n *GeneralNim) Start(ctx context.Context) error {
 	n.ctx, n.cancel = context.WithCancel(ctx)
 
-	log.Printf("[GeneralNim] 🧚 Starting general nim")
-	log.Printf("[GeneralNim] 💡 TIP: Create your own nim by copying this file!")
-	log.Printf("[GeneralNim]     Catching: %v", n.Subjects())
+	if core.Verbose {
+		log.Printf("[GeneralNim] 🧚 Starting general nim")
+		log.Printf("[GeneralNim] 💡 TIP: Create your own nim by copying this file!")
+		log.Printf("[GeneralNim]     Catching: %v", n.Subjects())
+	}
 
 	// Register handlers for each subject
 	for _, subject := range n.Subjects() {

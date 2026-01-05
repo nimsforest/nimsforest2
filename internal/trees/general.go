@@ -50,9 +50,10 @@ func (t *GeneralTree) Patterns() []string {
 func (t *GeneralTree) Start(ctx context.Context) error {
 	t.ctx, t.cancel = context.WithCancel(ctx)
 
-	log.Printf("[GeneralTree] 🌳 Starting general tree - watching for river.general.>")
-	log.Printf("[GeneralTree] 💡 TIP: Create your own tree by copying this file!")
-	log.Printf("[GeneralTree]     Example patterns: river.api.>, river.crm.>, river.iot.>")
+	if core.Verbose {
+		log.Printf("[GeneralTree] 🌳 Starting general tree - watching for river.general.>")
+		log.Printf("[GeneralTree] 💡 TIP: Create your own tree by copying this file!")
+	}
 
 	// Watch the river for data matching our patterns
 	err := t.Watch("river.general.>", func(data core.RiverData) {

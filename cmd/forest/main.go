@@ -145,6 +145,7 @@ func printHelp() {
 	fmt.Println("  ANTHROPIC_API_KEY       Claude API key for AI-powered Nims")
 	fmt.Println("  OPENAI_API_KEY          OpenAI API key (alternative to Claude)")
 	fmt.Println("  FOREST_CONFIG           Path to forest.yaml config file")
+	fmt.Println("  FOREST_VERBOSE          Enable verbose logging (true/1/yes)")
 	fmt.Println("  NATS_CLUSTER_NODE_INFO  Override node info path")
 	fmt.Println("  NATS_CLUSTER_REGISTRY   Override registry path")
 	fmt.Println("  JETSTREAM_DIR           JetStream data directory")
@@ -283,14 +284,6 @@ func runForest() {
 	defer paymentTree.Stop()
 	fmt.Println("  🌳 PaymentTree planted (watches: river.stripe.webhook)")
 
-	// General tree that demonstrates extensibility
-	generalTree := trees.NewGeneralTree(wind, river)
-	if err := generalTree.Start(ctx); err != nil {
-		log.Fatalf("❌ Failed to start general tree: %v\n", err)
-	}
-	defer generalTree.Stop()
-	fmt.Println("  🌳 GeneralTree planted (watches: river.general.>)")
-
 	// Awaken nims
 	fmt.Println("Awakening nims...")
 
@@ -301,14 +294,6 @@ func runForest() {
 	}
 	defer afterSalesNim.Stop()
 	fmt.Println("  🧚 AfterSalesNim awake (catches: payment.completed, payment.failed)")
-
-	// General nim that demonstrates extensibility
-	generalNim := nims.NewGeneralNim(wind, humus, soil)
-	if err := generalNim.Start(ctx); err != nil {
-		log.Fatalf("❌ Failed to start general nim: %v\n", err)
-	}
-	defer generalNim.Stop()
-	fmt.Println("  🧚 GeneralNim awake (catches: data.received, status.update, etc.)")
 
 	// Start YAML-configured runtime (TreeHouses + AI Nims)
 	var runtimeForest *runtime.Forest
@@ -544,92 +529,45 @@ func sendDemoData(river *core.River) {
 	fmt.Println("✅ Payment webhook sent!")
 	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
-	// Demo 2: General data event
+	// Demo 2: Failed payment
 	time.Sleep(3 * time.Second)
 	fmt.Println("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-	fmt.Println("📨 DEMO 2: Sending general data event...")
-	fmt.Println("   Tree: GeneralTree will parse this")
-	fmt.Println("   Nim: GeneralNim will process it")
+	fmt.Println("📨 DEMO 2: Sending failed payment webhook...")
+	fmt.Println("   Tree: PaymentTree will parse this")
+	fmt.Println("   Nim: AfterSalesNim will process it")
 
-	dataEvent := map[string]interface{}{
-		"type":      "data.received",
-		"source":    "demo-api",
-		"data":      "Hello from the forest!",
-		"timestamp": time.Now().Format(time.RFC3339),
+	failedWebhook := map[string]interface{}{
+		"type": "charge.failed",
+		"data": map[string]interface{}{
+			"object": map[string]interface{}{
+				"id":           "ch_demo_456",
+				"amount":       5000,
+				"currency":     "usd",
+				"customer":     "cus_demo_bob",
+				"failure_code": "card_declined",
+				"metadata": map[string]string{
+					"item_id": "basic-shirt",
+				},
+			},
+		},
 	}
 
-	dataJSON, err := json.Marshal(dataEvent)
+	failedData, err := json.Marshal(failedWebhook)
 	if err != nil {
-		log.Printf("❌ Failed to marshal data event: %v\n", err)
+		log.Printf("❌ Failed to marshal webhook: %v\n", err)
 		return
 	}
 
-	if err := river.Flow("river.general.api", dataJSON); err != nil {
+	if err := river.Flow("river.stripe.webhook", failedData); err != nil {
 		log.Printf("❌ Failed to send to river: %v\n", err)
 		return
 	}
 
-	fmt.Println("✅ Data event sent!")
-	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-
-	// Demo 3: Status update
-	time.Sleep(3 * time.Second)
-	fmt.Println("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-	fmt.Println("📨 DEMO 3: Sending status update...")
-	fmt.Println("   Tree: GeneralTree will parse this")
-	fmt.Println("   Nim: GeneralNim will update entity state")
-
-	statusEvent := map[string]interface{}{
-		"type":      "status.update",
-		"entity_id": "user-42",
-		"status":    "premium",
-		"message":   "User upgraded to premium",
-	}
-
-	statusJSON, err := json.Marshal(statusEvent)
-	if err != nil {
-		log.Printf("❌ Failed to marshal status event: %v\n", err)
-		return
-	}
-
-	if err := river.Flow("river.general.system", statusJSON); err != nil {
-		log.Printf("❌ Failed to send to river: %v\n", err)
-		return
-	}
-
-	fmt.Println("✅ Status update sent!")
-	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-
-	// Demo 4: Notification
-	time.Sleep(3 * time.Second)
-	fmt.Println("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-	fmt.Println("📨 DEMO 4: Sending high-priority notification...")
-	fmt.Println("   Tree: GeneralTree will parse this")
-	fmt.Println("   Nim: GeneralNim will route based on priority")
-
-	notifEvent := map[string]interface{}{
-		"type":      "notification",
-		"priority":  "high",
-		"recipient": "admin@example.com",
-		"message":   "System alert: High memory usage detected",
-	}
-
-	notifJSON, err := json.Marshal(notifEvent)
-	if err != nil {
-		log.Printf("❌ Failed to marshal notification: %v\n", err)
-		return
-	}
-
-	if err := river.Flow("river.general.monitoring", notifJSON); err != nil {
-		log.Printf("❌ Failed to send to river: %v\n", err)
-		return
-	}
-
-	fmt.Println("✅ Notification sent!")
+	fmt.Println("✅ Failed payment webhook sent!")
 	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 	fmt.Println()
-	fmt.Println("✨ All demo events sent! See processing above.")
-	fmt.Println("💡 Now YOU can add your own trees and nims!")
+	fmt.Println("✨ Demo events sent! See processing above.")
+	fmt.Println("💡 Create your own trees and nims by copying internal/trees/general.go and internal/nims/general.go!")
 	fmt.Println()
 }
 

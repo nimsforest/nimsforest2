@@ -18,6 +18,7 @@ import (
 	"github.com/yourusername/nimsforest/internal/nims"
 	"github.com/yourusername/nimsforest/internal/trees"
 	"github.com/yourusername/nimsforest/internal/updater"
+	"github.com/yourusername/nimsforest/internal/windwaker"
 	"github.com/yourusername/nimsforest/pkg/brain"
 	aifactory "github.com/yourusername/nimsforest/pkg/integrations/aiservice"
 	_ "github.com/yourusername/nimsforest/pkg/integrations/aiservice/thirdparty/claude"
@@ -229,6 +230,14 @@ func runForest() {
 
 	wind := core.NewWind(nc)
 	fmt.Println("  ✅ Wind (NATS Pub/Sub) ready")
+
+	// Start WindWaker ceremony (90Hz tick conductor)
+	waker := windwaker.New(wind, 90)
+	if err := waker.Start(); err != nil {
+		log.Fatalf("❌ Failed to start windwaker: %v\n", err)
+	}
+	defer waker.Stop()
+	fmt.Println("  ✅ WindWaker conducting at 90Hz")
 
 	river, err := core.NewRiver(js)
 	if err != nil {
@@ -656,6 +665,14 @@ func runStandalone() {
 	wind := core.NewWind(nc)
 	fmt.Println("✅ Wind initialized")
 
+	// 3.5. Start WindWaker ceremony
+	waker := windwaker.New(wind, 90)
+	if err := waker.Start(); err != nil {
+		log.Fatalf("❌ Failed to start windwaker: %v\n", err)
+	}
+	defer waker.Stop()
+	fmt.Println("✅ WindWaker conducting at 90Hz")
+
 	// 4. Load config
 	configPath := getConfigPath()
 	if configPath == "" {
@@ -759,6 +776,13 @@ func runTest() {
 
 	// 3. Create Wind
 	wind := core.NewWind(nc)
+
+	// 3.5. Start WindWaker ceremony
+	waker := windwaker.New(wind, 90)
+	if err := waker.Start(); err != nil {
+		log.Fatalf("❌ Failed to start windwaker: %v\n", err)
+	}
+	defer waker.Stop()
 
 	// 4. Load config
 	configPath := getConfigPath()

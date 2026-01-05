@@ -149,12 +149,14 @@ func (p *Printer) printLand(land *LandViewModel) {
 	
 	// Print land header
 	if land.IsManaland() {
-		fmt.Fprintf(p.writer, "%s: %s (ram: %s, cpu: %d, mana: %s vram, occupancy: %.0f%%)\n",
-			landType, land.ID, FormatBytes(land.RAMTotal), land.CPUCores,
-			FormatBytes(land.GPUVram), land.Occupancy())
+		cpuInfo := formatCPUInfo(land.CPUCores, land.CPUFreqGHz)
+		gpuInfo := formatGPUInfo(land.GPUVram, land.GPUTflops)
+		fmt.Fprintf(p.writer, "%s: %s (ram: %s, %s, %s, occupancy: %.0f%%)\n",
+			landType, land.ID, FormatBytes(land.RAMTotal), cpuInfo, gpuInfo, land.Occupancy())
 	} else {
-		fmt.Fprintf(p.writer, "%s: %s (ram: %s, cpu: %d, occupancy: %.0f%%)\n",
-			landType, land.ID, FormatBytes(land.RAMTotal), land.CPUCores, land.Occupancy())
+		cpuInfo := formatCPUInfo(land.CPUCores, land.CPUFreqGHz)
+		fmt.Fprintf(p.writer, "%s: %s (ram: %s, %s, occupancy: %.0f%%)\n",
+			landType, land.ID, FormatBytes(land.RAMTotal), cpuInfo, land.Occupancy())
 	}
 	
 	// Print Trees
@@ -242,6 +244,22 @@ func (p *Printer) printLandJSON(land *LandViewModel, indent string) {
 	fmt.Fprintf(p.writer, "%s  \"treehouse_count\": %d,\n", indent, len(land.Treehouses))
 	fmt.Fprintf(p.writer, "%s  \"nim_count\": %d\n", indent, len(land.Nims))
 	fmt.Fprintf(p.writer, "%s}", indent)
+}
+
+// formatCPUInfo formats CPU cores and frequency.
+func formatCPUInfo(cores int, freqGHz float64) string {
+	if freqGHz > 0 {
+		return fmt.Sprintf("cpu: %d cores %.1f ghz", cores, freqGHz)
+	}
+	return fmt.Sprintf("cpu: %d cores", cores)
+}
+
+// formatGPUInfo formats GPU VRAM and TFLOPS.
+func formatGPUInfo(vram uint64, tflops float64) string {
+	if tflops > 0 {
+		return fmt.Sprintf("gpu: %s vram, %.0f tflops", FormatBytes(vram), tflops)
+	}
+	return fmt.Sprintf("gpu: %s vram", FormatBytes(vram))
 }
 
 // FormatDuration formats a duration in a human-readable way.

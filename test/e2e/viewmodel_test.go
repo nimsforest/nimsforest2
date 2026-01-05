@@ -488,11 +488,12 @@ func TestViewmodelManaLand(t *testing.T) {
 	territory := viewmodel.NewWorld()
 
 	// Create ManaLand (land with GPU/magical compute resources)
-	land := viewmodel.NewLandViewModel("mana-node")
+	land := viewmodel.NewLandViewModel("gpu-node")
 	land.RAMTotal = 64 * 1024 * 1024 * 1024 // 64GB
 	land.CPUCores = 16
-	land.GPUVram = 48 * 1024 * 1024 * 1024  // 48GB VRAM
-	land.GPUTflops = 100.0                   // 100 TFLOPS
+	land.CPUFreqGHz = 2.4                    // 2.4 GHz
+	land.GPUVram = 48 * 1024 * 1024 * 1024   // 48GB VRAM
+	land.GPUTflops = 43000                    // 43000 TFLOPS
 	territory.AddLand(land)
 
 	// Test IsManaland

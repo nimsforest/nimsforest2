@@ -52,12 +52,13 @@ type NimViewModel struct {
 // LandViewModel represents a node in the cluster.
 // LandViewModel can have regular CPU resources or mana resources (Manaland).
 type LandViewModel struct {
-	ID         string `json:"id"`          // Node identifier (from NATS server name)
-	Hostname   string `json:"hostname"`    // Node hostname
-	RAMTotal   uint64 `json:"ram_total"`   // Total RAM in bytes
-	CPUCores   int    `json:"cpu_cores"`   // Number of CPU cores
-	GPUVram    uint64 `json:"gpu_vram"`    // GPU VRAM in bytes (0 if no GPU)
-	GPUTflops  float64 `json:"gpu_tflops"` // GPU compute power in TFLOPS
+	ID         string  `json:"id"`           // Node identifier (from NATS server name)
+	Hostname   string  `json:"hostname"`     // Node hostname
+	RAMTotal   uint64  `json:"ram_total"`    // Total RAM in bytes
+	CPUCores   int     `json:"cpu_cores"`    // Number of CPU cores
+	CPUFreqGHz float64 `json:"cpu_freq_ghz"` // CPU frequency in GHz
+	GPUVram    uint64  `json:"gpu_vram"`     // GPU VRAM in bytes (0 if no GPU)
+	GPUTflops  float64 `json:"gpu_tflops"`   // GPU compute power in TFLOPS
 	
 	// Processes running on this LandViewModel
 	Trees      []TreeViewModel      `json:"trees"`

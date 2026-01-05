@@ -28,9 +28,9 @@ type Event struct {
 	Data      interface{} `json:"data,omitempty"`
 }
 
-// Updater applies events to a Territory for incremental updates.
+// Updater applies events to a TerritoryViewModel for incremental updates.
 type Updater struct {
-	territory *Territory
+	territory *TerritoryViewModel
 	mu        sync.RWMutex
 	
 	// Event history for debugging/auditing
@@ -41,8 +41,8 @@ type Updater struct {
 	onChange func(event Event)
 }
 
-// NewUpdater creates a new Updater for the given Territory.
-func NewUpdater(territory *Territory) *Updater {
+// NewUpdater creates a new Updater for the given TerritoryViewModel.
+func NewUpdater(territory *TerritoryViewModel) *Updater {
 	return &Updater{
 		territory:    territory,
 		eventHistory: make([]Event, 0),
@@ -99,9 +99,9 @@ func (u *Updater) ApplyEvent(event Event) error {
 	return nil
 }
 
-// applyLandAdded handles adding a new Land.
+// applyLandAdded handles adding a new LandViewModel.
 func (u *Updater) applyLandAdded(event Event) error {
-	land, ok := event.Data.(*Land)
+	land, ok := event.Data.(*LandViewModel)
 	if !ok {
 		// Try to create from NodeInfo
 		if nodeInfo, ok := event.Data.(NodeInfo); ok {
@@ -121,7 +121,7 @@ func (u *Updater) applyLandAdded(event Event) error {
 	return nil
 }
 
-// applyLandRemoved handles removing a Land.
+// applyLandRemoved handles removing a LandViewModel.
 func (u *Updater) applyLandRemoved(event Event) error {
 	if event.LandID == "" {
 		return fmt.Errorf("land_id required for land_removed event")
@@ -135,7 +135,7 @@ func (u *Updater) applyLandRemoved(event Event) error {
 	return nil
 }
 
-// applyLandUpdated handles updating a Land's properties.
+// applyLandUpdated handles updating a LandViewModel's properties.
 func (u *Updater) applyLandUpdated(event Event) error {
 	if event.LandID == "" {
 		return fmt.Errorf("land_id required for land_updated event")
@@ -167,7 +167,7 @@ func (u *Updater) applyLandUpdated(event Event) error {
 	return nil
 }
 
-// applyProcessAdded handles adding a process to a Land.
+// applyProcessAdded handles adding a process to a LandViewModel.
 func (u *Updater) applyProcessAdded(event Event) error {
 	if event.LandID == "" {
 		return fmt.Errorf("land_id required for process_added event")
@@ -180,26 +180,26 @@ func (u *Updater) applyProcessAdded(event Event) error {
 
 	// Handle different process types
 	switch proc := event.Data.(type) {
-	case Tree:
+	case TreeViewModel:
 		land.AddTree(proc)
 		log.Printf("[Updater] Tree added to %s: %s", event.LandID, proc.Name)
-	case Treehouse:
+	case TreehouseViewModel:
 		land.AddTreehouse(proc)
 		log.Printf("[Updater] Treehouse added to %s: %s", event.LandID, proc.Name)
-	case Nim:
+	case NimViewModel:
 		land.AddNim(proc)
 		log.Printf("[Updater] Nim added to %s: %s", event.LandID, proc.Name)
 	case DetectedProcess:
 		// Convert DetectedProcess to appropriate type
 		switch proc.Type {
 		case ProcessTypeTree:
-			tree := NewTree(proc.ID, proc.Name, proc.RAMAllocated, proc.Subjects)
+			tree := NewTreeViewModel(proc.ID, proc.Name, proc.RAMAllocated, proc.Subjects)
 			land.AddTree(tree)
 		case ProcessTypeTreehouse:
-			th := NewTreehouse(proc.ID, proc.Name, proc.RAMAllocated, proc.ScriptPath)
+			th := NewTreehouseViewModel(proc.ID, proc.Name, proc.RAMAllocated, proc.ScriptPath)
 			land.AddTreehouse(th)
 		case ProcessTypeNim:
-			nim := NewNim(proc.ID, proc.Name, proc.RAMAllocated, proc.Subjects, proc.AIEnabled)
+			nim := NewNimViewModel(proc.ID, proc.Name, proc.RAMAllocated, proc.Subjects, proc.AIEnabled)
 			land.AddNim(nim)
 		}
 		log.Printf("[Updater] Process added to %s: %s (%s)", event.LandID, proc.Name, proc.Type)
@@ -210,7 +210,7 @@ func (u *Updater) applyProcessAdded(event Event) error {
 	return nil
 }
 
-// applyProcessRemoved handles removing a process from a Land.
+// applyProcessRemoved handles removing a process from a LandViewModel.
 func (u *Updater) applyProcessRemoved(event Event) error {
 	if event.ProcessID == "" {
 		return fmt.Errorf("process_id required for process_removed event")
@@ -287,7 +287,7 @@ func (u *Updater) GetEventHistory() []Event {
 }
 
 // NewLandAddedEvent creates a land_added event.
-func NewLandAddedEvent(land *Land) Event {
+func NewLandAddedEvent(land *LandViewModel) Event {
 	return Event{
 		Type:      EventLandAdded,
 		Timestamp: time.Now(),
@@ -309,11 +309,11 @@ func NewLandRemovedEvent(landID string) Event {
 func NewProcessAddedEvent(landID string, proc interface{}) Event {
 	var processID string
 	switch p := proc.(type) {
-	case Tree:
+	case TreeViewModel:
 		processID = p.ID
-	case Treehouse:
+	case TreehouseViewModel:
 		processID = p.ID
-	case Nim:
+	case NimViewModel:
 		processID = p.ID
 	case DetectedProcess:
 		processID = p.ID

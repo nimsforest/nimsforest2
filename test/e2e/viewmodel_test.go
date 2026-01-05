@@ -20,16 +20,16 @@ import (
 // TestViewmodelTerritory tests basic territory model functionality.
 func TestViewmodelTerritory(t *testing.T) {
 	// Create a territory manually
-	territory := viewmodel.NewTerritory()
+	territory := viewmodel.NewTerritoryViewModel()
 
-	// Add a Land
-	land1 := viewmodel.NewLand("node-1")
+	// Add a LandViewModel
+	land1 := viewmodel.NewLandViewModel("node-1")
 	land1.RAMTotal = 16 * 1024 * 1024 * 1024 // 16GB
 	land1.CPUCores = 4
 	territory.AddLand(land1)
 
-	// Add another Land with GPU
-	land2 := viewmodel.NewLand("node-gpu")
+	// Add another LandViewModel with GPU
+	land2 := viewmodel.NewLandViewModel("node-gpu")
 	land2.RAMTotal = 32 * 1024 * 1024 * 1024 // 32GB
 	land2.CPUCores = 8
 	land2.GPUVram = 24 * 1024 * 1024 * 1024 // 24GB
@@ -69,26 +69,26 @@ func TestViewmodelTerritory(t *testing.T) {
 	t.Log("✅ Territory model tests passed")
 }
 
-// TestViewmodelProcesses tests adding processes to Land.
+// TestViewmodelProcesses tests adding processes to LandViewModel.
 func TestViewmodelProcesses(t *testing.T) {
-	territory := viewmodel.NewTerritory()
+	territory := viewmodel.NewTerritoryViewModel()
 
-	// Create Land
-	land := viewmodel.NewLand("node-1")
+	// Create LandViewModel
+	land := viewmodel.NewLandViewModel("node-1")
 	land.RAMTotal = 16 * 1024 * 1024 * 1024
 	land.CPUCores = 4
 	territory.AddLand(land)
 
-	// Add a Tree
-	tree := viewmodel.NewTree("tree-payment", "payment-processor", 4*1024*1024*1024, []string{"river.stripe.>"})
+	// Add a TreeViewModel
+	tree := viewmodel.NewTreeViewModel("tree-payment", "payment-processor", 4*1024*1024*1024, []string{"river.stripe.>"})
 	land.AddTree(tree)
 
-	// Add a Treehouse
-	th := viewmodel.NewTreehouse("th-scoring", "scoring", 1*1024*1024*1024, "scripts/scoring.lua")
+	// Add a TreehouseViewModel
+	th := viewmodel.NewTreehouseViewModel("th-scoring", "scoring", 1*1024*1024*1024, "scripts/scoring.lua")
 	land.AddTreehouse(th)
 
-	// Add a Nim
-	nim := viewmodel.NewNim("nim-qualify", "qualify", 2*1024*1024*1024, []string{"lead.scored"}, true)
+	// Add a NimViewModel
+	nim := viewmodel.NewNimViewModel("nim-qualify", "qualify", 2*1024*1024*1024, []string{"lead.scored"}, true)
 	land.AddNim(nim)
 
 	// Test counts
@@ -138,27 +138,27 @@ func TestViewmodelProcesses(t *testing.T) {
 
 // TestViewmodelOccupancy tests occupancy calculations.
 func TestViewmodelOccupancy(t *testing.T) {
-	territory := viewmodel.NewTerritory()
+	territory := viewmodel.NewTerritoryViewModel()
 
 	// Create two lands with different usage
-	land1 := viewmodel.NewLand("node-1")
+	land1 := viewmodel.NewLandViewModel("node-1")
 	land1.RAMTotal = 16 * 1024 * 1024 * 1024
 	land1.CPUCores = 4
 	territory.AddLand(land1)
 
-	land2 := viewmodel.NewLand("node-2")
+	land2 := viewmodel.NewLandViewModel("node-2")
 	land2.RAMTotal = 16 * 1024 * 1024 * 1024
 	land2.CPUCores = 4
 	territory.AddLand(land2)
 
 	// Add processes to land1 (6GB used = 37.5%)
-	tree := viewmodel.NewTree("tree-1", "router", 4*1024*1024*1024, []string{"river.>"})
+	tree := viewmodel.NewTreeViewModel("tree-1", "router", 4*1024*1024*1024, []string{"river.>"})
 	land1.AddTree(tree)
-	nim := viewmodel.NewNim("nim-1", "processor", 2*1024*1024*1024, []string{"data.>"}, false)
+	nim := viewmodel.NewNimViewModel("nim-1", "processor", 2*1024*1024*1024, []string{"data.>"}, false)
 	land1.AddNim(nim)
 
 	// Add process to land2 (4GB used = 25%)
-	tree2 := viewmodel.NewTree("tree-2", "parser", 4*1024*1024*1024, []string{"river.api.>"})
+	tree2 := viewmodel.NewTreeViewModel("tree-2", "parser", 4*1024*1024*1024, []string{"river.api.>"})
 	land2.AddTree(tree2)
 
 	// Test per-land occupancy
@@ -179,21 +179,21 @@ func TestViewmodelOccupancy(t *testing.T) {
 
 // TestViewmodelPrint tests the print output format.
 func TestViewmodelPrint(t *testing.T) {
-	territory := viewmodel.NewTerritory()
+	territory := viewmodel.NewTerritoryViewModel()
 
-	// Create Land with processes
-	land := viewmodel.NewLand("node-abc")
+	// Create LandViewModel with processes
+	land := viewmodel.NewLandViewModel("node-abc")
 	land.RAMTotal = 16 * 1024 * 1024 * 1024
 	land.CPUCores = 4
 	territory.AddLand(land)
 
-	tree := viewmodel.NewTree("tree-1", "payment-processor", 4*1024*1024*1024, []string{"river.stripe.>"})
+	tree := viewmodel.NewTreeViewModel("tree-1", "payment-processor", 4*1024*1024*1024, []string{"river.stripe.>"})
 	land.AddTree(tree)
 
-	th := viewmodel.NewTreehouse("th-1", "scoring", 1*1024*1024*1024, "scoring.lua")
+	th := viewmodel.NewTreehouseViewModel("th-1", "scoring", 1*1024*1024*1024, "scoring.lua")
 	land.AddTreehouse(th)
 
-	nim := viewmodel.NewNim("nim-1", "qualify", 2*1024*1024*1024, []string{"lead.scored"}, false)
+	nim := viewmodel.NewNimViewModel("nim-1", "qualify", 2*1024*1024*1024, []string{"lead.scored"}, false)
 	land.AddNim(nim)
 
 	// Print territory
@@ -228,26 +228,26 @@ func TestViewmodelPrint(t *testing.T) {
 
 // TestViewmodelSummary tests the summary output format.
 func TestViewmodelSummary(t *testing.T) {
-	territory := viewmodel.NewTerritory()
+	territory := viewmodel.NewTerritoryViewModel()
 
-	// Create regular Land
-	land1 := viewmodel.NewLand("node-1")
+	// Create regular LandViewModel
+	land1 := viewmodel.NewLandViewModel("node-1")
 	land1.RAMTotal = 16 * 1024 * 1024 * 1024
 	land1.CPUCores = 4
 	territory.AddLand(land1)
 
 	// Create Manaland (GPU)
-	land2 := viewmodel.NewLand("node-gpu")
+	land2 := viewmodel.NewLandViewModel("node-gpu")
 	land2.RAMTotal = 32 * 1024 * 1024 * 1024
 	land2.CPUCores = 8
 	land2.GPUVram = 24 * 1024 * 1024 * 1024
 	territory.AddLand(land2)
 
 	// Add processes
-	tree := viewmodel.NewTree("tree-1", "router", 4*1024*1024*1024, []string{"river.>"})
+	tree := viewmodel.NewTreeViewModel("tree-1", "router", 4*1024*1024*1024, []string{"river.>"})
 	land1.AddTree(tree)
 
-	nim := viewmodel.NewNim("nim-1", "processor", 2*1024*1024*1024, []string{"data.>"}, false)
+	nim := viewmodel.NewNimViewModel("nim-1", "processor", 2*1024*1024*1024, []string{"data.>"}, false)
 	land1.AddNim(nim)
 
 	// Print summary
@@ -414,7 +414,7 @@ func TestViewmodelDetection(t *testing.T) {
 
 // TestViewmodelUpdater tests incremental updates.
 func TestViewmodelUpdater(t *testing.T) {
-	territory := viewmodel.NewTerritory()
+	territory := viewmodel.NewTerritoryViewModel()
 	updater := viewmodel.NewUpdater(territory)
 
 	// Track events
@@ -424,7 +424,7 @@ func TestViewmodelUpdater(t *testing.T) {
 	})
 
 	// Add a land via event
-	land := viewmodel.NewLand("node-1")
+	land := viewmodel.NewLandViewModel("node-1")
 	land.RAMTotal = 16 * 1024 * 1024 * 1024
 	land.CPUCores = 4
 
@@ -485,10 +485,10 @@ func TestViewmodelUpdater(t *testing.T) {
 
 // TestViewmodelGPULand tests GPU/Manaland functionality.
 func TestViewmodelGPULand(t *testing.T) {
-	territory := viewmodel.NewTerritory()
+	territory := viewmodel.NewTerritoryViewModel()
 
 	// Create GPU-enabled land (Manaland)
-	land := viewmodel.NewLand("gpu-node")
+	land := viewmodel.NewLandViewModel("gpu-node")
 	land.RAMTotal = 64 * 1024 * 1024 * 1024 // 64GB
 	land.CPUCores = 16
 	land.GPUVram = 48 * 1024 * 1024 * 1024  // 48GB VRAM
@@ -675,9 +675,9 @@ func TestInferProcessType(t *testing.T) {
 // Benchmark for territory operations
 func BenchmarkTerritoryAddLand(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		territory := viewmodel.NewTerritory()
+		territory := viewmodel.NewTerritoryViewModel()
 		for j := 0; j < 100; j++ {
-			land := viewmodel.NewLand(fmt.Sprintf("node-%d", j))
+			land := viewmodel.NewLandViewModel(fmt.Sprintf("node-%d", j))
 			land.RAMTotal = 16 * 1024 * 1024 * 1024
 			land.CPUCores = 4
 			territory.AddLand(land)
@@ -686,14 +686,14 @@ func BenchmarkTerritoryAddLand(b *testing.B) {
 }
 
 func BenchmarkTerritoryPrint(b *testing.B) {
-	territory := viewmodel.NewTerritory()
+	territory := viewmodel.NewTerritoryViewModel()
 	for i := 0; i < 10; i++ {
-		land := viewmodel.NewLand(fmt.Sprintf("node-%d", i))
+		land := viewmodel.NewLandViewModel(fmt.Sprintf("node-%d", i))
 		land.RAMTotal = 16 * 1024 * 1024 * 1024
 		land.CPUCores = 4
 		
 		for j := 0; j < 5; j++ {
-			tree := viewmodel.NewTree(
+			tree := viewmodel.NewTreeViewModel(
 				fmt.Sprintf("tree-%d-%d", i, j),
 				fmt.Sprintf("tree-%d", j),
 				1024*1024*1024,

@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-// Mapper builds a Territory from a ClusterSnapshot.
+// Mapper builds a TerritoryViewModel from a ClusterSnapshot.
 type Mapper struct {
 	// Default RAM allocation for processes when not specified
 	DefaultProcessRAM uint64
@@ -18,15 +18,15 @@ func NewMapper() *Mapper {
 	}
 }
 
-// BuildTerritory builds a Territory from a ClusterSnapshot.
-func (m *Mapper) BuildTerritory(snapshot *ClusterSnapshot) *Territory {
-	territory := NewTerritory()
+// BuildTerritory builds a TerritoryViewModel from a ClusterSnapshot.
+func (m *Mapper) BuildTerritory(snapshot *ClusterSnapshot) *TerritoryViewModel {
+	territory := NewTerritoryViewModel()
 
-	// Add local node as a Land
+	// Add local node as a LandViewModel
 	localLand := m.nodeToLand(snapshot.LocalNode)
 	territory.AddLand(localLand)
 
-	// Add peer nodes as Land
+	// Add peer nodes as LandViewModel
 	for _, peer := range snapshot.PeerNodes {
 		peerLand := m.nodeToLand(peer)
 		territory.AddLand(peerLand)
@@ -35,9 +35,9 @@ func (m *Mapper) BuildTerritory(snapshot *ClusterSnapshot) *Territory {
 	return territory
 }
 
-// nodeToLand converts a NodeInfo to a Land.
-func (m *Mapper) nodeToLand(node NodeInfo) *Land {
-	land := NewLand(node.ID)
+// nodeToLand converts a NodeInfo to a LandViewModel.
+func (m *Mapper) nodeToLand(node NodeInfo) *LandViewModel {
+	land := NewLandViewModel(node.ID)
 	land.Hostname = node.Name
 	land.RAMTotal = node.RAMTotal
 	land.CPUCores = node.CPUCores
@@ -50,9 +50,9 @@ func (m *Mapper) nodeToLand(node NodeInfo) *Land {
 	return land
 }
 
-// AttachProcesses attaches detected processes to the appropriate Land.
+// AttachProcesses attaches detected processes to the appropriate LandViewModel.
 // This is called after building the initial territory from the cluster snapshot.
-func (m *Mapper) AttachProcesses(territory *Territory, detectedProcesses []DetectedProcess) {
+func (m *Mapper) AttachProcesses(territory *TerritoryViewModel, detectedProcesses []DetectedProcess) {
 	for _, proc := range detectedProcesses {
 		land := territory.GetLand(proc.LandID)
 		if land == nil {
@@ -67,13 +67,13 @@ func (m *Mapper) AttachProcesses(territory *Territory, detectedProcesses []Detec
 
 		switch proc.Type {
 		case ProcessTypeTree:
-			tree := NewTree(proc.ID, proc.Name, proc.RAMAllocated, proc.Subjects)
+			tree := NewTreeViewModel(proc.ID, proc.Name, proc.RAMAllocated, proc.Subjects)
 			land.AddTree(tree)
 		case ProcessTypeTreehouse:
-			th := NewTreehouse(proc.ID, proc.Name, proc.RAMAllocated, proc.ScriptPath)
+			th := NewTreehouseViewModel(proc.ID, proc.Name, proc.RAMAllocated, proc.ScriptPath)
 			land.AddTreehouse(th)
 		case ProcessTypeNim:
-			nim := NewNim(proc.ID, proc.Name, proc.RAMAllocated, proc.Subjects, proc.AIEnabled)
+			nim := NewNimViewModel(proc.ID, proc.Name, proc.RAMAllocated, proc.Subjects, proc.AIEnabled)
 			land.AddNim(nim)
 		}
 	}
@@ -143,7 +143,7 @@ func InferProcessName(subject string) string {
 
 // BuildTerritoryWithProcesses is a convenience method that builds a territory
 // and attaches processes in one call.
-func (m *Mapper) BuildTerritoryWithProcesses(snapshot *ClusterSnapshot, processes []DetectedProcess) *Territory {
+func (m *Mapper) BuildTerritoryWithProcesses(snapshot *ClusterSnapshot, processes []DetectedProcess) *TerritoryViewModel {
 	territory := m.BuildTerritory(snapshot)
 	m.AttachProcesses(territory, processes)
 	return territory

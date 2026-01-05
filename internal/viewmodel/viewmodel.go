@@ -50,7 +50,7 @@ type ViewModel struct {
 	mapper    *Mapper
 	detector  *Detector
 	updater   *Updater
-	territory *Territory
+	territory *TerritoryViewModel
 	mu        sync.RWMutex
 }
 
@@ -58,7 +58,7 @@ type ViewModel struct {
 func New(ns *server.Server) *ViewModel {
 	reader := NewReader(ns)
 	mapper := NewMapper()
-	territory := NewTerritory()
+	territory := NewTerritoryViewModel()
 	detector := NewDetector(reader)
 	updater := NewUpdater(territory)
 
@@ -115,9 +115,9 @@ func (vm *ViewModel) Refresh() error {
 	return nil
 }
 
-// GetTerritory returns the current Territory.
+// GetTerritory returns the current TerritoryViewModel.
 // Call Refresh() first to ensure the territory is up-to-date.
-func (vm *ViewModel) GetTerritory() *Territory {
+func (vm *ViewModel) GetTerritory() *TerritoryViewModel {
 	vm.mu.RLock()
 	defer vm.mu.RUnlock()
 	return vm.territory
@@ -160,8 +160,8 @@ func (vm *ViewModel) PrintCompact(w io.Writer) {
 	printer.PrintCompact(vm.territory)
 }
 
-// GetSummary returns a Summary of the territory.
-func (vm *ViewModel) GetSummary() Summary {
+// GetSummary returns a SummaryViewModel of the territory.
+func (vm *ViewModel) GetSummary() SummaryViewModel {
 	vm.mu.RLock()
 	defer vm.mu.RUnlock()
 	return vm.territory.GetSummary()
@@ -205,7 +205,7 @@ func (vm *ViewModel) GetUpdater() *Updater {
 
 // QuickView creates a ViewModel, refreshes it, and returns the territory.
 // This is a convenience function for one-shot usage.
-func QuickView(ns *server.Server) (*Territory, error) {
+func QuickView(ns *server.Server) (*TerritoryViewModel, error) {
 	vm := New(ns)
 	if err := vm.Refresh(); err != nil {
 		return nil, err

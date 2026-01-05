@@ -1,6 +1,9 @@
 // Package viewmodel provides a view model for the NimsForest cluster state.
 // It allows querying and displaying the current state of Land (nodes), Trees,
 // Treehouses, and Nims deployed across the cluster.
+//
+// The ViewModel structs are named with a "ViewModel" suffix (e.g., LandViewModel,
+// TreeViewModel) to avoid confusion with the core domain types in internal/core.
 package viewmodel
 
 import (
@@ -8,7 +11,7 @@ import (
 	"time"
 )
 
-// ProcessType identifies the type of process running on a Land.
+// ProcessType identifies the type of process running on a LandViewModel.
 type ProcessType string
 
 const (
@@ -17,38 +20,38 @@ const (
 	ProcessTypeNim       ProcessType = "nim"
 )
 
-// Process represents a running process (Tree, Treehouse, or Nim) on a Land.
-type Process struct {
+// ProcessViewModel represents a running process (Tree, Treehouse, or Nim) on a LandViewModel.
+type ProcessViewModel struct {
 	ID           string      `json:"id"`            // Unique identifier
 	Name         string      `json:"name"`          // Display name
 	Type         ProcessType `json:"type"`          // tree, treehouse, or nim
 	RAMAllocated uint64      `json:"ram_allocated"` // RAM in bytes
-	LandID       string      `json:"land_id"`       // Which Land this process runs on
+	LandID       string      `json:"land_id"`       // Which LandViewModel this process runs on
 	Subjects     []string    `json:"subjects"`      // Subscribed subjects (for detection)
 	StartedAt    time.Time   `json:"started_at"`    // When the process started
 }
 
-// Tree represents a tree process (parses river data into leaves).
-type Tree struct {
-	Process
+// TreeViewModel represents a tree process (parses river data into leaves).
+type TreeViewModel struct {
+	ProcessViewModel
 }
 
-// Treehouse represents a treehouse process (Lua script processor).
-type Treehouse struct {
-	Process
+// TreehouseViewModel represents a treehouse process (Lua script processor).
+type TreehouseViewModel struct {
+	ProcessViewModel
 	ScriptPath string `json:"script_path"` // Path to the Lua script
 }
 
-// Nim represents a nim process (business logic handler).
-type Nim struct {
-	Process
+// NimViewModel represents a nim process (business logic handler).
+type NimViewModel struct {
+	ProcessViewModel
 	AIEnabled bool   `json:"ai_enabled"` // Whether AI-powered
 	Model     string `json:"model"`      // AI model if enabled
 }
 
-// Land represents a node in the cluster.
-// Land can have regular CPU resources or GPU resources (Manaland).
-type Land struct {
+// LandViewModel represents a node in the cluster.
+// LandViewModel can have regular CPU resources or GPU resources (Manaland).
+type LandViewModel struct {
 	ID         string `json:"id"`          // Node identifier (from NATS server name)
 	Hostname   string `json:"hostname"`    // Node hostname
 	RAMTotal   uint64 `json:"ram_total"`   // Total RAM in bytes
@@ -56,10 +59,10 @@ type Land struct {
 	GPUVram    uint64 `json:"gpu_vram"`    // GPU VRAM in bytes (0 if no GPU)
 	GPUTflops  float64 `json:"gpu_tflops"` // GPU compute power in TFLOPS
 	
-	// Processes running on this Land
-	Trees      []Tree      `json:"trees"`
-	Treehouses []Treehouse `json:"treehouses"`
-	Nims       []Nim       `json:"nims"`
+	// Processes running on this LandViewModel
+	Trees      []TreeViewModel      `json:"trees"`
+	Treehouses []TreehouseViewModel `json:"treehouses"`
+	Nims       []NimViewModel       `json:"nims"`
 	
 	// Metadata
 	JoinedAt   time.Time `json:"joined_at"`   // When this node joined the cluster
@@ -67,18 +70,18 @@ type Land struct {
 	ClusterURL string    `json:"cluster_url"` // Cluster route URL
 }
 
-// HasGPU returns true if this Land has GPU resources.
-func (l *Land) HasGPU() bool {
+// HasGPU returns true if this LandViewModel has GPU resources.
+func (l *LandViewModel) HasGPU() bool {
 	return l.GPUVram > 0
 }
 
-// IsManaland returns true if this is a GPU-enabled Land (Manaland).
-func (l *Land) IsManaland() bool {
+// IsManaland returns true if this is a GPU-enabled LandViewModel (Manaland).
+func (l *LandViewModel) IsManaland() bool {
 	return l.HasGPU()
 }
 
-// RAMAllocated returns the total RAM allocated to all processes on this Land.
-func (l *Land) RAMAllocated() uint64 {
+// RAMAllocated returns the total RAM allocated to all processes on this LandViewModel.
+func (l *LandViewModel) RAMAllocated() uint64 {
 	var total uint64
 	for _, t := range l.Trees {
 		total += t.RAMAllocated
@@ -92,8 +95,8 @@ func (l *Land) RAMAllocated() uint64 {
 	return total
 }
 
-// RAMAvailable returns the available RAM on this Land.
-func (l *Land) RAMAvailable() uint64 {
+// RAMAvailable returns the available RAM on this LandViewModel.
+func (l *LandViewModel) RAMAvailable() uint64 {
 	allocated := l.RAMAllocated()
 	if allocated >= l.RAMTotal {
 		return 0
@@ -102,38 +105,38 @@ func (l *Land) RAMAvailable() uint64 {
 }
 
 // Occupancy returns the RAM usage as a percentage (0-100).
-func (l *Land) Occupancy() float64 {
+func (l *LandViewModel) Occupancy() float64 {
 	if l.RAMTotal == 0 {
 		return 0
 	}
 	return float64(l.RAMAllocated()) / float64(l.RAMTotal) * 100
 }
 
-// ProcessCount returns the total number of processes running on this Land.
-func (l *Land) ProcessCount() int {
+// ProcessCount returns the total number of processes running on this LandViewModel.
+func (l *LandViewModel) ProcessCount() int {
 	return len(l.Trees) + len(l.Treehouses) + len(l.Nims)
 }
 
-// AddTree adds a tree to this Land.
-func (l *Land) AddTree(tree Tree) {
+// AddTree adds a tree to this LandViewModel.
+func (l *LandViewModel) AddTree(tree TreeViewModel) {
 	tree.LandID = l.ID
 	l.Trees = append(l.Trees, tree)
 }
 
-// AddTreehouse adds a treehouse to this Land.
-func (l *Land) AddTreehouse(th Treehouse) {
+// AddTreehouse adds a treehouse to this LandViewModel.
+func (l *LandViewModel) AddTreehouse(th TreehouseViewModel) {
 	th.LandID = l.ID
 	l.Treehouses = append(l.Treehouses, th)
 }
 
-// AddNim adds a nim to this Land.
-func (l *Land) AddNim(nim Nim) {
+// AddNim adds a nim to this LandViewModel.
+func (l *LandViewModel) AddNim(nim NimViewModel) {
 	nim.LandID = l.ID
 	l.Nims = append(l.Nims, nim)
 }
 
-// RemoveProcess removes a process by ID from this Land.
-func (l *Land) RemoveProcess(processID string) bool {
+// RemoveProcess removes a process by ID from this LandViewModel.
+func (l *LandViewModel) RemoveProcess(processID string) bool {
 	// Try to remove from trees
 	for i, t := range l.Trees {
 		if t.ID == processID {
@@ -158,28 +161,28 @@ func (l *Land) RemoveProcess(processID string) bool {
 	return false
 }
 
-// FindProcess finds a process by ID on this Land.
-func (l *Land) FindProcess(processID string) *Process {
+// FindProcess finds a process by ID on this LandViewModel.
+func (l *LandViewModel) FindProcess(processID string) *ProcessViewModel {
 	for i := range l.Trees {
 		if l.Trees[i].ID == processID {
-			return &l.Trees[i].Process
+			return &l.Trees[i].ProcessViewModel
 		}
 	}
 	for i := range l.Treehouses {
 		if l.Treehouses[i].ID == processID {
-			return &l.Treehouses[i].Process
+			return &l.Treehouses[i].ProcessViewModel
 		}
 	}
 	for i := range l.Nims {
 		if l.Nims[i].ID == processID {
-			return &l.Nims[i].Process
+			return &l.Nims[i].ProcessViewModel
 		}
 	}
 	return nil
 }
 
-// String returns a human-readable summary of the Land.
-func (l *Land) String() string {
+// String returns a human-readable summary of the LandViewModel.
+func (l *LandViewModel) String() string {
 	landType := "Land"
 	if l.IsManaland() {
 		landType = "Manaland"
@@ -211,21 +214,21 @@ func FormatBytes(bytes uint64) string {
 	}
 }
 
-// NewLand creates a new Land with the given ID.
-func NewLand(id string) *Land {
-	return &Land{
+// NewLandViewModel creates a new LandViewModel with the given ID.
+func NewLandViewModel(id string) *LandViewModel {
+	return &LandViewModel{
 		ID:         id,
-		Trees:      make([]Tree, 0),
-		Treehouses: make([]Treehouse, 0),
-		Nims:       make([]Nim, 0),
+		Trees:      make([]TreeViewModel, 0),
+		Treehouses: make([]TreehouseViewModel, 0),
+		Nims:       make([]NimViewModel, 0),
 		JoinedAt:   time.Now(),
 		LastSeen:   time.Now(),
 	}
 }
 
-// NewProcess creates a new Process with the given parameters.
-func NewProcess(id, name string, processType ProcessType, ramAllocated uint64) Process {
-	return Process{
+// NewProcessViewModel creates a new ProcessViewModel with the given parameters.
+func NewProcessViewModel(id, name string, processType ProcessType, ramAllocated uint64) ProcessViewModel {
+	return ProcessViewModel{
 		ID:           id,
 		Name:         name,
 		Type:         processType,
@@ -234,10 +237,10 @@ func NewProcess(id, name string, processType ProcessType, ramAllocated uint64) P
 	}
 }
 
-// NewTree creates a new Tree process.
-func NewTree(id, name string, ramAllocated uint64, subjects []string) Tree {
-	return Tree{
-		Process: Process{
+// NewTreeViewModel creates a new TreeViewModel process.
+func NewTreeViewModel(id, name string, ramAllocated uint64, subjects []string) TreeViewModel {
+	return TreeViewModel{
+		ProcessViewModel: ProcessViewModel{
 			ID:           id,
 			Name:         name,
 			Type:         ProcessTypeTree,
@@ -248,10 +251,10 @@ func NewTree(id, name string, ramAllocated uint64, subjects []string) Tree {
 	}
 }
 
-// NewTreehouse creates a new Treehouse process.
-func NewTreehouse(id, name string, ramAllocated uint64, scriptPath string) Treehouse {
-	return Treehouse{
-		Process: Process{
+// NewTreehouseViewModel creates a new TreehouseViewModel process.
+func NewTreehouseViewModel(id, name string, ramAllocated uint64, scriptPath string) TreehouseViewModel {
+	return TreehouseViewModel{
+		ProcessViewModel: ProcessViewModel{
 			ID:           id,
 			Name:         name,
 			Type:         ProcessTypeTreehouse,
@@ -262,10 +265,10 @@ func NewTreehouse(id, name string, ramAllocated uint64, scriptPath string) Treeh
 	}
 }
 
-// NewNim creates a new Nim process.
-func NewNim(id, name string, ramAllocated uint64, subjects []string, aiEnabled bool) Nim {
-	return Nim{
-		Process: Process{
+// NewNimViewModel creates a new NimViewModel process.
+func NewNimViewModel(id, name string, ramAllocated uint64, subjects []string, aiEnabled bool) NimViewModel {
+	return NimViewModel{
+		ProcessViewModel: ProcessViewModel{
 			ID:           id,
 			Name:         name,
 			Type:         ProcessTypeNim,

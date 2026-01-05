@@ -30,7 +30,7 @@ func NewPrinter(w io.Writer) *Printer {
 //	  Treehouses: 1 (ram: 1GB)
 //	  Nims: 1 (ram: 2GB)
 //	  Total: 4 processes (ram: 11GB, 17% of capacity)
-func (p *Printer) PrintSummary(territory *Territory) {
+func (p *Printer) PrintSummary(territory *TerritoryViewModel) {
 	summary := territory.GetSummary()
 	
 	// Calculate regular land stats
@@ -123,7 +123,7 @@ func (p *Printer) PrintSummary(territory *Territory) {
 //	    - router (ram: 4GB)
 //	  Treehouses: (none)
 //	  Nims: (none)
-func (p *Printer) PrintTerritory(territory *Territory) {
+func (p *Printer) PrintTerritory(territory *TerritoryViewModel) {
 	totalLand := territory.LandCount()
 	fmt.Fprintf(p.writer, "Territory: %d land\n", totalLand)
 	
@@ -139,8 +139,8 @@ func (p *Printer) PrintTerritory(territory *Territory) {
 	}
 }
 
-// printLand prints a single Land with its processes.
-func (p *Printer) printLand(land *Land) {
+// printLand prints a single LandViewModel with its processes.
+func (p *Printer) printLand(land *LandViewModel) {
 	// Determine land type
 	landType := "Land"
 	if land.IsManaland() {
@@ -196,7 +196,7 @@ func (p *Printer) printLand(land *Land) {
 }
 
 // PrintCompact prints a compact single-line summary.
-func (p *Printer) PrintCompact(territory *Territory) {
+func (p *Printer) PrintCompact(territory *TerritoryViewModel) {
 	summary := territory.GetSummary()
 	totalLand := summary.LandCount + summary.ManalandCount
 	
@@ -206,7 +206,7 @@ func (p *Printer) PrintCompact(territory *Territory) {
 }
 
 // PrintJSON prints the territory as JSON (for machine consumption).
-func (p *Printer) PrintJSON(territory *Territory) error {
+func (p *Printer) PrintJSON(territory *TerritoryViewModel) error {
 	// For now, just use the built-in JSON marshaling
 	// In a production implementation, you'd use encoding/json
 	lands := territory.Lands()
@@ -230,7 +230,7 @@ func (p *Printer) PrintJSON(territory *Territory) error {
 }
 
 // printLandJSON prints a land as JSON.
-func (p *Printer) printLandJSON(land *Land, indent string) {
+func (p *Printer) printLandJSON(land *LandViewModel, indent string) {
 	fmt.Fprintf(p.writer, "%s{\n", indent)
 	fmt.Fprintf(p.writer, "%s  \"id\": \"%s\",\n", indent, land.ID)
 	fmt.Fprintf(p.writer, "%s  \"hostname\": \"%s\",\n", indent, land.Hostname)

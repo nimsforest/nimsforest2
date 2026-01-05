@@ -487,31 +487,31 @@ func TestViewmodelUpdater(t *testing.T) {
 func TestViewmodelManaLand(t *testing.T) {
 	territory := viewmodel.NewWorld()
 
-	// Create GPU-enabled land (Manaland)
-	land := viewmodel.NewLandViewModel("gpu-node")
+	// Create ManaLand (land with GPU/magical compute resources)
+	land := viewmodel.NewLandViewModel("mana-node")
 	land.RAMTotal = 64 * 1024 * 1024 * 1024 // 64GB
 	land.CPUCores = 16
 	land.GPUVram = 48 * 1024 * 1024 * 1024  // 48GB VRAM
 	land.GPUTflops = 100.0                   // 100 TFLOPS
 	territory.AddLand(land)
 
-	// Test HasGPU
-	if !land.HasGPU() {
-		t.Error("HasGPU() = false, want true")
-	}
-
 	// Test IsManaland
 	if !land.IsManaland() {
 		t.Error("IsManaland() = false, want true")
 	}
 
-	// Test total GPU VRAM
+	// Test HasGPU (ManaLand has GPU resources)
+	if !land.HasGPU() {
+		t.Error("HasGPU() = false, want true")
+	}
+
+	// Test total VRAM across all ManaLand
 	expectedVram := uint64(48 * 1024 * 1024 * 1024)
 	if got := territory.TotalGPUVram(); got != expectedVram {
 		t.Errorf("TotalGPUVram() = %d, want %d", got, expectedVram)
 	}
 
-	// Print should show GPU info
+	// Print should show ManaLand info
 	var buf bytes.Buffer
 	printer := viewmodel.NewPrinter(&buf)
 	printer.PrintWorld(territory)
@@ -521,10 +521,10 @@ func TestViewmodelManaLand(t *testing.T) {
 		t.Error("Print output should contain 'Manaland:'")
 	}
 	if !strings.Contains(output, "vram") {
-		t.Error("Print output should contain GPU vram info")
+		t.Error("Print output should contain vram info")
 	}
 
-	t.Logf("✅ GPU/Manaland tests passed\n%s", output)
+	t.Logf("✅ ManaLand tests passed\n%s", output)
 }
 
 // TestViewmodelE2E is an end-to-end test of the full viewmodel flow.

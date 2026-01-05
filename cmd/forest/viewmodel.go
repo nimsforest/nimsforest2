@@ -3,17 +3,12 @@ package main
 import (
 	"fmt"
 	"os"
-	"os/signal"
 	"path/filepath"
-	"syscall"
 	"time"
 
 	"github.com/nats-io/nats-server/v2/server"
-	"github.com/nats-io/nats.go"
-	"github.com/yourusername/nimsforest/internal/core"
 	"github.com/yourusername/nimsforest/internal/natsembed"
 	"github.com/yourusername/nimsforest/internal/viewmodel"
-	"github.com/yourusername/nimsforest/internal/windwaker"
 )
 
 // handleViewmodel handles the 'viewmodel' command and its subcommands.
@@ -29,8 +24,6 @@ func handleViewmodel(args []string) {
 		handleViewmodelPrint()
 	case "summary":
 		handleViewmodelSummary()
-	case "watch":
-		handleViewmodelWatch()
 	case "help", "--help", "-h":
 		printViewmodelHelp()
 	default:

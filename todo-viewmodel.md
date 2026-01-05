@@ -13,22 +13,29 @@
 
 ## Phase 2: Data Layer
 
-### NATS HTTP Query
-- Function to query NATS monitoring endpoint for cluster state
-- Parse node list → Land entries
-- Parse running processes → Trees/Treehouses/Nims with land assignments
+### Embedded NATS Access
+- nimsforest embeds NATS server → direct access to cluster state
+- Use embedded server's `*server.Server` to query cluster info
+- Access `Routez`, `Varz`, `Jsz` directly via server API (no HTTP round-trip)
+
+### Cluster State Reader
+- `ReadClusterState(server *nats.Server) → ClusterSnapshot`
+- Get connected routes → peer nodes → Land entries
+- Query JetStream for deployed processes metadata
 
 ### Mapper
-- `BuildTerritory(natsResponse) → Territory`
+- `BuildTerritory(ClusterSnapshot) → Territory`
 - Map NATS node IDs to Land IDs
 - Attach processes to their respective Land
 
 ## Phase 3: Event Subscription
 
-### NATS JetStream Subscription
-- Subscribe to cluster events stream
+### Internal Event Hooks
+- Register callbacks on embedded NATS server for cluster events
+- Use server's internal event system (route connect/disconnect)
+- Subscribe via internal client to JetStream for process lifecycle events
 - Event types to handle:
-  - `node.joined` / `node.left`
+  - `node.joined` / `node.left` (route events)
   - `tree.deployed` / `tree.removed`
   - `treehouse.deployed` / `treehouse.removed`
   - `nim.deployed` / `nim.removed`
@@ -63,9 +70,9 @@
 ## Phase 5: Runtime Integration
 
 ### Viewmodel Controller
-- Initialize: query NATS → build Territory → render
-- Subscribe to events → apply updates → re-render affected Land
-- Handle reconnect: full query to rebuild state
+- Initialize: read embedded server state → build Territory → render
+- Register event hooks → apply updates → re-render affected Land
+- Handle cluster rejoin: full state read to rebuild Territory
 
 ### First Boot
 - Start with empty territory
@@ -107,5 +114,6 @@ internal/viewrender/
 
 ## Dependencies
 
-- NATS client for HTTP queries and JetStream subscription
+- Access to embedded `*server.Server` from natsembed package
+- Internal NATS client for JetStream subscriptions
 - Terminal UI library (e.g., tcell, bubbletea) or web renderer (decision needed)

@@ -27,10 +27,10 @@
 - Assert: gpu_vram and gpu_tflops populated
 
 ### Test: CLI Print
-- Run `nimsforest viewmodel print` against running cluster
-- Assert: Output contains ASCII grid
-- Assert: Land squares rendered with correct relative sizes
-- Assert: GPU land shows mana tube indicator
+- Run `nimsforest viewmodel print`
+- Assert: Output lists all Land entries with specs
+- Assert: Processes nested under their Land
+- Assert: GPU land shows vram
 
 This test defines the contract. Implementation is complete when it passes.
 
@@ -79,73 +79,36 @@ This test defines the contract. Implementation is complete when it passes.
 ### Model Updater
 - `ApplyEvent(territory, event) → updated territory`
 - Incremental updates, no full rebuild
-- Track which Land changed for partial re-render
 - Infer process metadata (ram_allocated) from subject/stream config
 
-## Phase 4: View Layer
-
-### Grid Renderer
-- Render Territory as grid of squares
-- Square positioning algorithm (pack squares, larger ones first)
-- Square size based on RAM capacity (define scale factor)
-
-### Land Square Rendering
-- Fill color shade based on cpu_cores (lighter = fewer, darker = more)
-- Occupancy fill overlay (percentage of square filled)
-- Border/outline for square boundary
-
-### GPU Land Extension
-- Detect `HasGPU()` lands
-- Render vertical mana tube from center
-- Tube diameter from gpu_vram
-- Tube glow intensity from gpu_tflops
-
-### Process Indicators
-- Small markers on land squares for trees/treehouses/nims
-- Position around mana tube if GPU land, else distributed on square
-
-## Phase 5: CLI Integration
+## Phase 4: CLI Integration
 
 ### Command: `nimsforest viewmodel print`
-- Connects to running nimsforest instance (or uses embedded server if same process)
-- Reads current Territory state
-- Renders grid to console (ASCII/Unicode)
-- Prints once and exits (no live updates)
+- Reads current Territory state from embedded server
+- Prints simple text list to stdout
+- Prints once and exits
 
-### Console Renderer
-- ASCII grid layout for Land squares
-- Use box-drawing characters for squares
-- Shade via ASCII density (░▒▓█) for CPU cores
-- Fill percentage shown inside square
-- Vertical bars for mana tubes on GPU land
-
-## Phase 6: Runtime Integration
-
-### Viewmodel Controller
-- Initialize: read embedded server state → build Territory → render
-- Register event hooks → apply updates → re-render affected Land
-- Handle cluster rejoin: full state read to rebuild Territory
-
-### First Boot
-- Start with empty territory
-- As nodes appear via events, animate land squares appearing
-- As processes deploy, show trees growing on land
+### Output Format
+```
+Land: node-abc (ram: 16GB, cpu: 4, occupancy: 45%)
+  tree: payment-processor (ram: 4GB)
+  nim: qualify (ram: 2GB)
+Land: node-xyz (ram: 32GB, cpu: 8, gpu: 24GB vram, occupancy: 25%)
+  tree: scoring (ram: 8GB)
+```
 
 ## MVP Scope
 
 **Include:**
-- Land grid with size/shade encoding
-- Occupancy percentage display
-- Mana tubes for GPU nodes
-- Initial load from NATS query
-- Event-driven incremental updates
+- Territory model with Land/Tree/Nim structs
+- Read cluster state from embedded NATS
+- Detect processes via Wind/River subscriptions
+- `nimsforest viewmodel print` outputs text list
 
 **Defer:**
+- Visual grid rendering (ASCII or GUI)
+- Live updating display
 - Animations/transitions
-- External mana tethers visualization
-- Soil/state accumulation visuals
-- Process clustering around tubes
-- Interactive elements (click, hover)
 
 ## File Structure
 
@@ -159,17 +122,10 @@ internal/viewmodel/
   mapper.go         # Cluster state → Territory
   updater.go        # Apply events to Territory
   detector.go       # Wind/River subscription detection
-
-internal/viewrender/
-  grid.go           # Grid layout algorithm
-  land.go           # Land square rendering
-  tube.go           # Mana tube rendering
-  console.go        # ASCII/Unicode console output
-  renderer.go       # Main render orchestration
+  print.go          # Simple text list output
 ```
 
 ## Dependencies
 
 - Access to embedded `*server.Server` from natsembed package
 - Internal NATS client for JetStream subscriptions
-- Terminal UI library (e.g., tcell, bubbletea) or web renderer (decision needed)

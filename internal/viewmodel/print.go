@@ -32,7 +32,7 @@ func NewPrinter(w io.Writer) *Printer {
 //	  Total: 4 processes (ram: 11GB, 17% of capacity)
 func (p *Printer) PrintSummary(territory *World) {
 	summary := territory.GetSummary()
-	
+
 	// Calculate regular land stats
 	regularRAM := uint64(0)
 	regularCPU := 0
@@ -42,7 +42,7 @@ func (p *Printer) PrintSummary(territory *World) {
 			regularCPU += land.CPUCores
 		}
 	}
-	
+
 	// Calculate manaland stats
 	manaRAM := uint64(0)
 	manaCPU := 0
@@ -52,7 +52,7 @@ func (p *Printer) PrintSummary(territory *World) {
 			manaCPU += land.CPUCores
 		}
 	}
-	
+
 	fmt.Fprintln(p.writer, "Capacity:")
 	if summary.LandCount > 0 {
 		fmt.Fprintf(p.writer, "  Land: %d (ram: %s, cpu: %d cores)\n",
@@ -62,7 +62,7 @@ func (p *Printer) PrintSummary(territory *World) {
 		fmt.Fprintf(p.writer, "  Manaland: %d (ram: %s, cpu: %d cores, vram: %s)\n",
 			summary.ManalandCount, FormatBytes(manaRAM), manaCPU, FormatBytes(summary.TotalManaVram))
 	}
-	
+
 	totalLand := summary.LandCount + summary.ManalandCount
 	if summary.TotalManaVram > 0 {
 		fmt.Fprintf(p.writer, "  Total: %d land (ram: %s, cpu: %d cores, vram: %s)\n",
@@ -71,31 +71,31 @@ func (p *Printer) PrintSummary(territory *World) {
 		fmt.Fprintf(p.writer, "  Total: %d land (ram: %s, cpu: %d cores)\n",
 			totalLand, FormatBytes(summary.TotalRAM), summary.TotalCPUCores)
 	}
-	
+
 	fmt.Fprintln(p.writer)
 	fmt.Fprintln(p.writer, "Usage:")
-	
+
 	if summary.TreeCount > 0 {
 		fmt.Fprintf(p.writer, "  Trees: %d (ram: %s)\n",
 			summary.TreeCount, FormatBytes(summary.TreeRAM))
 	} else {
 		fmt.Fprintln(p.writer, "  Trees: 0")
 	}
-	
+
 	if summary.TreehouseCount > 0 {
 		fmt.Fprintf(p.writer, "  Treehouses: %d (ram: %s)\n",
 			summary.TreehouseCount, FormatBytes(summary.TreehouseRAM))
 	} else {
 		fmt.Fprintln(p.writer, "  Treehouses: 0")
 	}
-	
+
 	if summary.NimCount > 0 {
 		fmt.Fprintf(p.writer, "  Nims: %d (ram: %s)\n",
 			summary.NimCount, FormatBytes(summary.NimRAM))
 	} else {
 		fmt.Fprintln(p.writer, "  Nims: 0")
 	}
-	
+
 	totalProcesses := summary.TreeCount + summary.TreehouseCount + summary.NimCount
 	if totalProcesses > 0 {
 		fmt.Fprintf(p.writer, "  Total: %d processes (ram: %s, %.0f%% of capacity)\n",
@@ -126,12 +126,12 @@ func (p *Printer) PrintSummary(territory *World) {
 func (p *Printer) PrintWorld(territory *World) {
 	totalLand := territory.LandCount()
 	fmt.Fprintf(p.writer, "World: %d land\n", totalLand)
-	
+
 	lands := territory.Lands()
 	for i, land := range lands {
 		fmt.Fprintln(p.writer)
 		p.printLand(land)
-		
+
 		// Add extra newline between lands (but not after the last one)
 		if i < len(lands)-1 {
 			// Space is already added by the blank line between lands
@@ -146,7 +146,7 @@ func (p *Printer) printLand(land *LandViewModel) {
 	if land.IsManaland() {
 		landType = "Manaland"
 	}
-	
+
 	// Print land header
 	if land.IsManaland() {
 		cpuInfo := formatCPUInfo(land.CPUCores, land.CPUFreqGHz)
@@ -158,7 +158,7 @@ func (p *Printer) printLand(land *LandViewModel) {
 		fmt.Fprintf(p.writer, "%s: %s (ram: %s, %s, occupancy: %.0f%%)\n",
 			landType, land.ID, FormatBytes(land.RAMTotal), cpuInfo, land.Occupancy())
 	}
-	
+
 	// Print Trees
 	fmt.Fprint(p.writer, "  Trees:")
 	if len(land.Trees) == 0 {
@@ -169,7 +169,7 @@ func (p *Printer) printLand(land *LandViewModel) {
 			fmt.Fprintf(p.writer, "    - %s (ram: %s)\n", tree.Name, FormatBytes(tree.RAMAllocated))
 		}
 	}
-	
+
 	// Print Treehouses
 	fmt.Fprint(p.writer, "  Treehouses:")
 	if len(land.Treehouses) == 0 {
@@ -180,7 +180,7 @@ func (p *Printer) printLand(land *LandViewModel) {
 			fmt.Fprintf(p.writer, "    - %s (ram: %s)\n", th.Name, FormatBytes(th.RAMAllocated))
 		}
 	}
-	
+
 	// Print Nims
 	fmt.Fprint(p.writer, "  Nims:")
 	if len(land.Nims) == 0 {
@@ -201,7 +201,7 @@ func (p *Printer) printLand(land *LandViewModel) {
 func (p *Printer) PrintCompact(territory *World) {
 	summary := territory.GetSummary()
 	totalLand := summary.LandCount + summary.ManalandCount
-	
+
 	fmt.Fprintf(p.writer, "%d land | %d trees, %d treehouses, %d nims | %s/%s RAM (%.0f%%)\n",
 		totalLand, summary.TreeCount, summary.TreehouseCount, summary.NimCount,
 		FormatBytes(summary.TotalRAMAllocated), FormatBytes(summary.TotalRAM), summary.Occupancy)
@@ -212,11 +212,11 @@ func (p *Printer) PrintJSON(territory *World) error {
 	// For now, just use the built-in JSON marshaling
 	// In a production implementation, you'd use encoding/json
 	lands := territory.Lands()
-	
+
 	fmt.Fprintln(p.writer, "{")
 	fmt.Fprintf(p.writer, "  \"land_count\": %d,\n", len(lands))
 	fmt.Fprintln(p.writer, "  \"lands\": [")
-	
+
 	for i, land := range lands {
 		p.printLandJSON(land, "    ")
 		if i < len(lands)-1 {
@@ -225,7 +225,7 @@ func (p *Printer) PrintJSON(territory *World) error {
 			fmt.Fprintln(p.writer)
 		}
 	}
-	
+
 	fmt.Fprintln(p.writer, "  ]")
 	fmt.Fprintln(p.writer, "}")
 	return nil
@@ -285,25 +285,25 @@ func (p *Printer) Box(title string, content string) {
 			width = len(line) + 4
 		}
 	}
-	
+
 	// Top border
 	fmt.Fprintf(p.writer, "┌%s┐\n", strings.Repeat("─", width-2))
-	
+
 	// Title
 	padding := (width - 2 - len(title)) / 2
 	fmt.Fprintf(p.writer, "│%s%s%s│\n",
 		strings.Repeat(" ", padding),
 		title,
 		strings.Repeat(" ", width-2-padding-len(title)))
-	
+
 	// Separator
 	fmt.Fprintf(p.writer, "├%s┤\n", strings.Repeat("─", width-2))
-	
+
 	// Content
 	for _, line := range lines {
 		fmt.Fprintf(p.writer, "│ %-*s │\n", width-4, line)
 	}
-	
+
 	// Bottom border
 	fmt.Fprintf(p.writer, "└%s┘\n", strings.Repeat("─", width-2))
 }

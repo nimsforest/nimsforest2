@@ -16,19 +16,19 @@ type Detector struct {
 	reader    *Reader
 	territory *World
 	mu        sync.RWMutex
-	
+
 	// Known process patterns for identification
 	treePatterns      []string
 	treehousePatterns []string
 	nimPatterns       []string
-	
+
 	// Process registry - tracks what we've detected
 	knownProcesses map[string]DetectedProcess
-	
+
 	// Event callbacks
 	onProcessAdded   func(proc DetectedProcess)
 	onProcessRemoved func(processID string)
-	
+
 	// Polling configuration
 	pollInterval time.Duration
 	stopCh       chan struct{}
@@ -111,7 +111,7 @@ func (d *Detector) DetectProcesses() ([]DetectedProcess, error) {
 
 	// Analyze subscriptions to detect processes
 	processMap := make(map[string]DetectedProcess)
-	
+
 	for _, sub := range subs {
 		proc := d.analyzeSubscription(sub)
 		if proc != nil {
@@ -175,7 +175,7 @@ func (d *Detector) analyzeSubscription(sub SubscriptionInfo) *DetectedProcess {
 
 	procType := d.inferType(sub.Subject)
 	name := InferProcessName(sub.Subject)
-	
+
 	proc := &DetectedProcess{
 		ID:           fmt.Sprintf("%s-%s", procType, name),
 		Name:         name,
@@ -282,11 +282,11 @@ func matchesPattern(subject, pattern string) bool {
 	if strings.Contains(pattern, "*") {
 		patternParts := strings.Split(pattern, ".")
 		subjectParts := strings.Split(subject, ".")
-		
+
 		if len(patternParts) != len(subjectParts) {
 			return false
 		}
-		
+
 		for i, pp := range patternParts {
 			if pp != "*" && pp != subjectParts[i] {
 				return false

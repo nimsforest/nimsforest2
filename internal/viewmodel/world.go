@@ -54,16 +54,16 @@ func (t *World) GetLand(landID string) *LandViewModel {
 func (t *World) Lands() []*LandViewModel {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	
+
 	lands := make([]*LandViewModel, 0, len(t.lands))
 	for _, land := range t.lands {
 		lands = append(lands, land)
 	}
-	
+
 	sort.Slice(lands, func(i, j int) bool {
 		return lands[i].ID < lands[j].ID
 	})
-	
+
 	return lands
 }
 
@@ -78,7 +78,7 @@ func (t *World) LandCount() int {
 func (t *World) ManalandCount() int {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	
+
 	count := 0
 	for _, land := range t.lands {
 		if land.IsManaland() {
@@ -97,7 +97,7 @@ func (t *World) RegularLandCount() int {
 func (t *World) TotalRAM() uint64 {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	
+
 	var total uint64
 	for _, land := range t.lands {
 		total += land.RAMTotal
@@ -109,7 +109,7 @@ func (t *World) TotalRAM() uint64 {
 func (t *World) TotalRAMAllocated() uint64 {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	
+
 	var total uint64
 	for _, land := range t.lands {
 		total += land.RAMAllocated()
@@ -121,7 +121,7 @@ func (t *World) TotalRAMAllocated() uint64 {
 func (t *World) TotalCPUCores() int {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	
+
 	total := 0
 	for _, land := range t.lands {
 		total += land.CPUCores
@@ -133,7 +133,7 @@ func (t *World) TotalCPUCores() int {
 func (t *World) TotalManaVram() uint64 {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	
+
 	var total uint64
 	for _, land := range t.lands {
 		total += land.GPUVram
@@ -145,7 +145,7 @@ func (t *World) TotalManaVram() uint64 {
 func (t *World) TreeCount() int {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	
+
 	count := 0
 	for _, land := range t.lands {
 		count += len(land.Trees)
@@ -157,7 +157,7 @@ func (t *World) TreeCount() int {
 func (t *World) TreehouseCount() int {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	
+
 	count := 0
 	for _, land := range t.lands {
 		count += len(land.Treehouses)
@@ -169,7 +169,7 @@ func (t *World) TreehouseCount() int {
 func (t *World) NimCount() int {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	
+
 	count := 0
 	for _, land := range t.lands {
 		count += len(land.Nims)
@@ -186,7 +186,7 @@ func (t *World) TotalProcessCount() int {
 func (t *World) TreeRAM() uint64 {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	
+
 	var total uint64
 	for _, land := range t.lands {
 		for _, tree := range land.Trees {
@@ -200,7 +200,7 @@ func (t *World) TreeRAM() uint64 {
 func (t *World) TreehouseRAM() uint64 {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	
+
 	var total uint64
 	for _, land := range t.lands {
 		for _, th := range land.Treehouses {
@@ -214,7 +214,7 @@ func (t *World) TreehouseRAM() uint64 {
 func (t *World) NimRAM() uint64 {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	
+
 	var total uint64
 	for _, land := range t.lands {
 		for _, nim := range land.Nims {
@@ -237,7 +237,7 @@ func (t *World) Occupancy() float64 {
 func (t *World) FindProcess(processID string) (*Process, *LandViewModel) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	
+
 	for _, land := range t.lands {
 		if proc := land.FindProcess(processID); proc != nil {
 			return proc, land
@@ -250,7 +250,7 @@ func (t *World) FindProcess(processID string) (*Process, *LandViewModel) {
 func (t *World) AllTrees() []TreeViewModel {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	
+
 	var trees []TreeViewModel
 	for _, land := range t.lands {
 		trees = append(trees, land.Trees...)
@@ -262,7 +262,7 @@ func (t *World) AllTrees() []TreeViewModel {
 func (t *World) AllTreehouses() []TreehouseViewModel {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	
+
 	var treehouses []TreehouseViewModel
 	for _, land := range t.lands {
 		treehouses = append(treehouses, land.Treehouses...)
@@ -274,7 +274,7 @@ func (t *World) AllTreehouses() []TreehouseViewModel {
 func (t *World) AllNims() []NimViewModel {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	
+
 	var nims []NimViewModel
 	for _, land := range t.lands {
 		nims = append(nims, land.Nims...)
@@ -298,12 +298,12 @@ func (t *World) String() string {
 // Summary holds summary statistics for the territory.
 type Summary struct {
 	// Capacity
-	LandCount         int
-	ManalandCount     int
-	TotalRAM          uint64
-	TotalCPUCores     int
-	TotalManaVram     uint64
-	
+	LandCount     int
+	ManalandCount int
+	TotalRAM      uint64
+	TotalCPUCores int
+	TotalManaVram uint64
+
 	// Usage
 	TreeCount         int
 	TreehouseCount    int

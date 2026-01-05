@@ -11,12 +11,12 @@ import (
 type EventType string
 
 const (
-	EventLandAdded       EventType = "land_added"
-	EventLandRemoved     EventType = "land_removed"
-	EventLandUpdated     EventType = "land_updated"
-	EventProcessAdded    EventType = "process_added"
-	EventProcessRemoved  EventType = "process_removed"
-	EventProcessUpdated  EventType = "process_updated"
+	EventLandAdded      EventType = "land_added"
+	EventLandRemoved    EventType = "land_removed"
+	EventLandUpdated    EventType = "land_updated"
+	EventProcessAdded   EventType = "process_added"
+	EventProcessRemoved EventType = "process_removed"
+	EventProcessUpdated EventType = "process_updated"
 )
 
 // Event represents a change to the viewmodel.
@@ -32,11 +32,11 @@ type Event struct {
 type Updater struct {
 	territory *World
 	mu        sync.RWMutex
-	
+
 	// Event history for debugging/auditing
 	eventHistory []Event
 	maxHistory   int
-	
+
 	// Callbacks
 	onChange func(event Event)
 }

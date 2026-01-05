@@ -491,9 +491,9 @@ func TestViewmodelManaLand(t *testing.T) {
 	land := viewmodel.NewLandViewModel("gpu-node")
 	land.RAMTotal = 64 * 1024 * 1024 * 1024 // 64GB
 	land.CPUCores = 16
-	land.CPUFreqGHz = 2.4                    // 2.4 GHz
-	land.GPUVram = 48 * 1024 * 1024 * 1024   // 48GB VRAM
-	land.GPUTflops = 43000                    // 43000 TFLOPS
+	land.CPUFreqGHz = 2.4                  // 2.4 GHz
+	land.GPUVram = 48 * 1024 * 1024 * 1024 // 48GB VRAM
+	land.GPUTflops = 43000                 // 43000 TFLOPS
 	territory.AddLand(land)
 
 	// Test IsManaland
@@ -692,7 +692,7 @@ func BenchmarkWorldPrint(b *testing.B) {
 		land := viewmodel.NewLandViewModel(fmt.Sprintf("node-%d", i))
 		land.RAMTotal = 16 * 1024 * 1024 * 1024
 		land.CPUCores = 4
-		
+
 		for j := 0; j < 5; j++ {
 			tree := viewmodel.NewTreeViewModel(
 				fmt.Sprintf("tree-%d-%d", i, j),

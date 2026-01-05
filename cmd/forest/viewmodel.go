@@ -107,12 +107,12 @@ func getOrStartNATSServer() (*server.Server, func()) {
 	// Return the server's internal *server.Server
 	// We need to get the internal server from natsembed.Server
 	// For now, we'll need to expose it or use a different approach
-	
+
 	// Actually, natsembed.Server wraps *server.Server but doesn't expose it
 	// We need to either:
 	// 1. Add a method to natsembed.Server to expose the internal server
 	// 2. Create the server.Server directly here
-	
+
 	// Let's create it directly for the viewmodel command
 	opts := &server.Options{
 		ServerName: cfg.NodeName,

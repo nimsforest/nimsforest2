@@ -52,10 +52,10 @@ type StreamInfo struct {
 
 // ConsumerInfo represents information about a JetStream consumer.
 type ConsumerInfo struct {
-	StreamName   string `json:"stream_name"`
-	Name         string `json:"name"`
+	StreamName    string `json:"stream_name"`
+	Name          string `json:"name"`
 	FilterSubject string `json:"filter_subject"`
-	NumPending   uint64 `json:"num_pending"`
+	NumPending    uint64 `json:"num_pending"`
 	NumAckPending uint64 `json:"num_ack_pending"`
 }
 
@@ -212,9 +212,9 @@ func (r *Reader) GetJetStreamInfo() ([]StreamInfo, []ConsumerInfo, error) {
 
 	// Get JetStream information using Jsz
 	jsz, err := r.server.Jsz(&server.JSzOptions{
-		Streams:   true,
-		Consumer:  true,
-		Config:    true,
+		Streams:    true,
+		Consumer:   true,
+		Config:     true,
 		LeaderOnly: false,
 	})
 	if err != nil {

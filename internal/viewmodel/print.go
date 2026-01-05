@@ -60,13 +60,13 @@ func (p *Printer) PrintSummary(territory *World) {
 	}
 	if summary.ManalandCount > 0 {
 		fmt.Fprintf(p.writer, "  Manaland: %d (ram: %s, cpu: %d cores, vram: %s)\n",
-			summary.ManalandCount, FormatBytes(manaRAM), manaCPU, FormatBytes(summary.TotalGPUVram))
+			summary.ManalandCount, FormatBytes(manaRAM), manaCPU, FormatBytes(summary.TotalManaVram))
 	}
 	
 	totalLand := summary.LandCount + summary.ManalandCount
-	if summary.TotalGPUVram > 0 {
+	if summary.TotalManaVram > 0 {
 		fmt.Fprintf(p.writer, "  Total: %d land (ram: %s, cpu: %d cores, vram: %s)\n",
-			totalLand, FormatBytes(summary.TotalRAM), summary.TotalCPUCores, FormatBytes(summary.TotalGPUVram))
+			totalLand, FormatBytes(summary.TotalRAM), summary.TotalCPUCores, FormatBytes(summary.TotalManaVram))
 	} else {
 		fmt.Fprintf(p.writer, "  Total: %d land (ram: %s, cpu: %d cores)\n",
 			totalLand, FormatBytes(summary.TotalRAM), summary.TotalCPUCores)
@@ -149,7 +149,7 @@ func (p *Printer) printLand(land *LandViewModel) {
 	
 	// Print land header
 	if land.IsManaland() {
-		fmt.Fprintf(p.writer, "%s: %s (ram: %s, cpu: %d, gpu: %s vram, occupancy: %.0f%%)\n",
+		fmt.Fprintf(p.writer, "%s: %s (ram: %s, cpu: %d, mana: %s vram, occupancy: %.0f%%)\n",
 			landType, land.ID, FormatBytes(land.RAMTotal), land.CPUCores,
 			FormatBytes(land.GPUVram), land.Occupancy())
 	} else {

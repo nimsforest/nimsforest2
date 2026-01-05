@@ -46,12 +46,12 @@ func TestViewmodelWorld(t *testing.T) {
 		t.Errorf("ManalandCount() = %d, want 1", got)
 	}
 
-	// Test HasGPU
-	if !land2.HasGPU() {
-		t.Error("land2.HasGPU() = false, want true")
+	// Test HasMana
+	if !land2.HasMana() {
+		t.Error("land2.HasMana() = false, want true")
 	}
-	if land1.HasGPU() {
-		t.Error("land1.HasGPU() = true, want false")
+	if land1.HasMana() {
+		t.Error("land1.HasMana() = true, want false")
 	}
 
 	// Test TotalRAM
@@ -60,10 +60,10 @@ func TestViewmodelWorld(t *testing.T) {
 		t.Errorf("TotalRAM() = %d, want %d", got, expectedRAM)
 	}
 
-	// Test TotalGPUVram
+	// Test TotalManaVram
 	expectedVram := uint64(24 * 1024 * 1024 * 1024)
-	if got := territory.TotalGPUVram(); got != expectedVram {
-		t.Errorf("TotalGPUVram() = %d, want %d", got, expectedVram)
+	if got := territory.TotalManaVram(); got != expectedVram {
+		t.Errorf("TotalManaVram() = %d, want %d", got, expectedVram)
 	}
 
 	t.Log("✅ World model tests passed")
@@ -500,15 +500,15 @@ func TestViewmodelManaLand(t *testing.T) {
 		t.Error("IsManaland() = false, want true")
 	}
 
-	// Test HasGPU (ManaLand has GPU resources)
-	if !land.HasGPU() {
-		t.Error("HasGPU() = false, want true")
+	// Test HasMana (ManaLand has mana/GPU resources)
+	if !land.HasMana() {
+		t.Error("HasMana() = false, want true")
 	}
 
 	// Test total VRAM across all ManaLand
 	expectedVram := uint64(48 * 1024 * 1024 * 1024)
-	if got := territory.TotalGPUVram(); got != expectedVram {
-		t.Errorf("TotalGPUVram() = %d, want %d", got, expectedVram)
+	if got := territory.TotalManaVram(); got != expectedVram {
+		t.Errorf("TotalManaVram() = %d, want %d", got, expectedVram)
 	}
 
 	// Print should show ManaLand info

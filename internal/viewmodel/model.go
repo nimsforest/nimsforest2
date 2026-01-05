@@ -50,7 +50,7 @@ type NimViewModel struct {
 }
 
 // LandViewModel represents a node in the cluster.
-// LandViewModel can have regular CPU resources or GPU resources (Manaland).
+// LandViewModel can have regular CPU resources or mana resources (Manaland).
 type LandViewModel struct {
 	ID         string `json:"id"`          // Node identifier (from NATS server name)
 	Hostname   string `json:"hostname"`    // Node hostname
@@ -70,14 +70,14 @@ type LandViewModel struct {
 	ClusterURL string    `json:"cluster_url"` // Cluster route URL
 }
 
-// HasGPU returns true if this LandViewModel has GPU resources.
-func (l *LandViewModel) HasGPU() bool {
+// HasMana returns true if this LandViewModel has mana (GPU) resources.
+func (l *LandViewModel) HasMana() bool {
 	return l.GPUVram > 0
 }
 
-// IsManaland returns true if this is a GPU-enabled LandViewModel (Manaland).
+// IsManaland returns true if this is a mana-enabled LandViewModel (Manaland).
 func (l *LandViewModel) IsManaland() bool {
-	return l.HasGPU()
+	return l.HasMana()
 }
 
 // RAMAllocated returns the total RAM allocated to all processes on this LandViewModel.

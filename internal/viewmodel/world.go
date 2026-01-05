@@ -74,7 +74,7 @@ func (t *World) LandCount() int {
 	return len(t.lands)
 }
 
-// ManalandCount returns the number of GPU-enabled LandViewModel (Manaland).
+// ManalandCount returns the number of mana-enabled LandViewModel (Manaland).
 func (t *World) ManalandCount() int {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -88,7 +88,7 @@ func (t *World) ManalandCount() int {
 	return count
 }
 
-// RegularLandCount returns the number of non-GPU LandViewModel.
+// RegularLandCount returns the number of non-mana LandViewModel (regular Land).
 func (t *World) RegularLandCount() int {
 	return t.LandCount() - t.ManalandCount()
 }
@@ -129,8 +129,8 @@ func (t *World) TotalCPUCores() int {
 	return total
 }
 
-// TotalGPUVram returns the total GPU VRAM across all Manaland.
-func (t *World) TotalGPUVram() uint64 {
+// TotalManaVram returns the total mana VRAM across all Manaland.
+func (t *World) TotalManaVram() uint64 {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	
@@ -302,7 +302,7 @@ type Summary struct {
 	ManalandCount     int
 	TotalRAM          uint64
 	TotalCPUCores     int
-	TotalGPUVram      uint64
+	TotalManaVram     uint64
 	
 	// Usage
 	TreeCount         int
@@ -322,7 +322,7 @@ func (t *World) GetSummary() Summary {
 		ManalandCount:     t.ManalandCount(),
 		TotalRAM:          t.TotalRAM(),
 		TotalCPUCores:     t.TotalCPUCores(),
-		TotalGPUVram:      t.TotalGPUVram(),
+		TotalManaVram:     t.TotalManaVram(),
 		TreeCount:         t.TreeCount(),
 		TreehouseCount:    t.TreehouseCount(),
 		NimCount:          t.NimCount(),

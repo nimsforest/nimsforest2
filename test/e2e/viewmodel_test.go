@@ -17,10 +17,10 @@ import (
 	"github.com/yourusername/nimsforest/internal/viewmodel"
 )
 
-// TestViewmodelTerritory tests basic territory model functionality.
-func TestViewmodelTerritory(t *testing.T) {
+// TestViewmodelWorld tests basic territory model functionality.
+func TestViewmodelWorld(t *testing.T) {
 	// Create a territory manually
-	territory := viewmodel.NewTerritory()
+	territory := viewmodel.NewWorld()
 
 	// Add a LandViewModel
 	land1 := viewmodel.NewLandViewModel("node-1")
@@ -66,12 +66,12 @@ func TestViewmodelTerritory(t *testing.T) {
 		t.Errorf("TotalGPUVram() = %d, want %d", got, expectedVram)
 	}
 
-	t.Log("✅ Territory model tests passed")
+	t.Log("✅ World model tests passed")
 }
 
 // TestViewmodelProcesses tests adding processes to LandViewModel.
 func TestViewmodelProcesses(t *testing.T) {
-	territory := viewmodel.NewTerritory()
+	territory := viewmodel.NewWorld()
 
 	// Create LandViewModel
 	land := viewmodel.NewLandViewModel("node-1")
@@ -138,7 +138,7 @@ func TestViewmodelProcesses(t *testing.T) {
 
 // TestViewmodelOccupancy tests occupancy calculations.
 func TestViewmodelOccupancy(t *testing.T) {
-	territory := viewmodel.NewTerritory()
+	territory := viewmodel.NewWorld()
 
 	// Create two lands with different usage
 	land1 := viewmodel.NewLandViewModel("node-1")
@@ -179,7 +179,7 @@ func TestViewmodelOccupancy(t *testing.T) {
 
 // TestViewmodelPrint tests the print output format.
 func TestViewmodelPrint(t *testing.T) {
-	territory := viewmodel.NewTerritory()
+	territory := viewmodel.NewWorld()
 
 	// Create LandViewModel with processes
 	land := viewmodel.NewLandViewModel("node-abc")
@@ -199,13 +199,13 @@ func TestViewmodelPrint(t *testing.T) {
 	// Print territory
 	var buf bytes.Buffer
 	printer := viewmodel.NewPrinter(&buf)
-	printer.PrintTerritory(territory)
+	printer.PrintWorld(territory)
 
 	output := buf.String()
 
 	// Verify expected content
 	expectedStrings := []string{
-		"Territory: 1 land",
+		"World: 1 land",
 		"Land: node-abc",
 		"ram: 16GB",
 		"cpu: 4",
@@ -228,7 +228,7 @@ func TestViewmodelPrint(t *testing.T) {
 
 // TestViewmodelSummary tests the summary output format.
 func TestViewmodelSummary(t *testing.T) {
-	territory := viewmodel.NewTerritory()
+	territory := viewmodel.NewWorld()
 
 	// Create regular LandViewModel
 	land1 := viewmodel.NewLandViewModel("node-1")
@@ -320,7 +320,7 @@ func TestViewmodelWithEmbeddedNATS(t *testing.T) {
 	}
 
 	// Get territory
-	territory := vm.GetTerritory()
+	territory := vm.GetWorld()
 
 	// Should have at least the local node
 	if territory.LandCount() < 1 {
@@ -414,7 +414,7 @@ func TestViewmodelDetection(t *testing.T) {
 
 // TestViewmodelUpdater tests incremental updates.
 func TestViewmodelUpdater(t *testing.T) {
-	territory := viewmodel.NewTerritory()
+	territory := viewmodel.NewWorld()
 	updater := viewmodel.NewUpdater(territory)
 
 	// Track events
@@ -485,7 +485,7 @@ func TestViewmodelUpdater(t *testing.T) {
 
 // TestViewmodelGPULand tests GPU/Manaland functionality.
 func TestViewmodelGPULand(t *testing.T) {
-	territory := viewmodel.NewTerritory()
+	territory := viewmodel.NewWorld()
 
 	// Create GPU-enabled land (Manaland)
 	land := viewmodel.NewLandViewModel("gpu-node")
@@ -514,7 +514,7 @@ func TestViewmodelGPULand(t *testing.T) {
 	// Print should show GPU info
 	var buf bytes.Buffer
 	printer := viewmodel.NewPrinter(&buf)
-	printer.PrintTerritory(territory)
+	printer.PrintWorld(territory)
 
 	output := buf.String()
 	if !strings.Contains(output, "Manaland:") {
@@ -606,7 +606,7 @@ func TestViewmodelE2E(t *testing.T) {
 	t.Logf("Summary:\n%s", summaryBuf.String())
 
 	// Verify we can see the local node
-	territory := vm.GetTerritory()
+	territory := vm.GetWorld()
 	lands := territory.Lands()
 	if len(lands) == 0 {
 		t.Fatal("No lands found in territory")
@@ -673,9 +673,9 @@ func TestInferProcessType(t *testing.T) {
 }
 
 // Benchmark for territory operations
-func BenchmarkTerritoryAddLand(b *testing.B) {
+func BenchmarkWorldAddLand(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		territory := viewmodel.NewTerritory()
+		territory := viewmodel.NewWorld()
 		for j := 0; j < 100; j++ {
 			land := viewmodel.NewLandViewModel(fmt.Sprintf("node-%d", j))
 			land.RAMTotal = 16 * 1024 * 1024 * 1024
@@ -685,8 +685,8 @@ func BenchmarkTerritoryAddLand(b *testing.B) {
 	}
 }
 
-func BenchmarkTerritoryPrint(b *testing.B) {
-	territory := viewmodel.NewTerritory()
+func BenchmarkWorldPrint(b *testing.B) {
+	territory := viewmodel.NewWorld()
 	for i := 0; i < 10; i++ {
 		land := viewmodel.NewLandViewModel(fmt.Sprintf("node-%d", i))
 		land.RAMTotal = 16 * 1024 * 1024 * 1024
@@ -710,6 +710,6 @@ func BenchmarkTerritoryPrint(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		var buf bytes.Buffer
 		printer = viewmodel.NewPrinter(&buf)
-		printer.PrintTerritory(territory)
+		printer.PrintWorld(territory)
 	}
 }

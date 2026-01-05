@@ -28,9 +28,9 @@ type Event struct {
 	Data      interface{} `json:"data,omitempty"`
 }
 
-// Updater applies events to a Territory for incremental updates.
+// Updater applies events to a World for incremental updates.
 type Updater struct {
-	territory *Territory
+	territory *World
 	mu        sync.RWMutex
 	
 	// Event history for debugging/auditing
@@ -41,8 +41,8 @@ type Updater struct {
 	onChange func(event Event)
 }
 
-// NewUpdater creates a new Updater for the given Territory.
-func NewUpdater(territory *Territory) *Updater {
+// NewUpdater creates a new Updater for the given World.
+func NewUpdater(territory *World) *Updater {
 	return &Updater{
 		territory:    territory,
 		eventHistory: make([]Event, 0),

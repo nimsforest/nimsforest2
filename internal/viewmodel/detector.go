@@ -14,7 +14,7 @@ import (
 // It detects Trees, Treehouses, and Nims by analyzing subscription patterns.
 type Detector struct {
 	reader    *Reader
-	territory *Territory
+	territory *World
 	mu        sync.RWMutex
 	
 	// Known process patterns for identification
@@ -66,8 +66,8 @@ func NewDetector(reader *Reader) *Detector {
 	}
 }
 
-// SetTerritory sets the territory to update when processes are detected.
-func (d *Detector) SetTerritory(territory *Territory) {
+// SetWorld sets the territory to update when processes are detected.
+func (d *Detector) SetWorld(territory *World) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.territory = territory

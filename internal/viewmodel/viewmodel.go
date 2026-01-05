@@ -9,19 +9,19 @@
 // # Architecture
 //
 // The viewmodel consists of several components:
-//   - Model: Core data structures (Land, Tree, Treehouse, Nim, Territory)
+//   - Model: Core data structures (Land, Tree, Treehouse, Nim, World)
 //   - Reader: Reads cluster state from the embedded NATS server
-//   - Mapper: Converts cluster snapshots to Territory
+//   - Mapper: Converts cluster snapshots to World
 //   - Detector: Monitors subscriptions to detect processes
-//   - Updater: Applies incremental updates to the Territory
-//   - Printer: Formats Territory data for CLI output
+//   - Updater: Applies incremental updates to the World
+//   - Printer: Formats World data for CLI output
 //
 // # Usage
 //
 // Basic usage to get a snapshot of the current cluster state:
 //
 //	vm := viewmodel.New(natsServer)
-//	territory, err := vm.GetTerritory()
+//	territory, err := vm.GetWorld()
 //	if err != nil {
 //	    log.Fatal(err)
 //	}
@@ -32,7 +32,7 @@
 //	vm := viewmodel.New(natsServer)
 //	vm.StartDetection()
 //	defer vm.StopDetection()
-//	// Territory is updated automatically as processes come and go
+//	// World is updated automatically as processes come and go
 package viewmodel
 
 import (
@@ -50,7 +50,7 @@ type ViewModel struct {
 	mapper    *Mapper
 	detector  *Detector
 	updater   *Updater
-	territory *Territory
+	territory *World
 	mu        sync.RWMutex
 }
 
@@ -58,7 +58,7 @@ type ViewModel struct {
 func New(ns *server.Server) *ViewModel {
 	reader := NewReader(ns)
 	mapper := NewMapper()
-	territory := NewTerritory()
+	territory := NewWorld()
 	detector := NewDetector(reader)
 	updater := NewUpdater(territory)
 
@@ -72,7 +72,7 @@ func New(ns *server.Server) *ViewModel {
 	}
 
 	// Wire up detector callbacks
-	detector.SetTerritory(territory)
+	detector.SetWorld(territory)
 	detector.SetOnProcessAdded(func(proc DetectedProcess) {
 		// Find the best land to add this process to
 		lands := territory.Lands()
@@ -108,16 +108,16 @@ func (vm *ViewModel) Refresh() error {
 	}
 
 	// Build territory with processes
-	vm.territory = vm.mapper.BuildTerritoryWithProcesses(snapshot, processes)
+	vm.territory = vm.mapper.BuildWorldWithProcesses(snapshot, processes)
 	vm.updater = NewUpdater(vm.territory)
-	vm.detector.SetTerritory(vm.territory)
+	vm.detector.SetWorld(vm.territory)
 
 	return nil
 }
 
-// GetTerritory returns the current Territory.
+// GetWorld returns the current World.
 // Call Refresh() first to ensure the territory is up-to-date.
-func (vm *ViewModel) GetTerritory() *Territory {
+func (vm *ViewModel) GetWorld() *World {
 	vm.mu.RLock()
 	defer vm.mu.RUnlock()
 	return vm.territory
@@ -139,7 +139,7 @@ func (vm *ViewModel) Print(w io.Writer) {
 	defer vm.mu.RUnlock()
 
 	printer := NewPrinter(w)
-	printer.PrintTerritory(vm.territory)
+	printer.PrintWorld(vm.territory)
 }
 
 // PrintSummary prints a summary to the given writer.
@@ -205,12 +205,12 @@ func (vm *ViewModel) GetUpdater() *Updater {
 
 // QuickView creates a ViewModel, refreshes it, and returns the territory.
 // This is a convenience function for one-shot usage.
-func QuickView(ns *server.Server) (*Territory, error) {
+func QuickView(ns *server.Server) (*World, error) {
 	vm := New(ns)
 	if err := vm.Refresh(); err != nil {
 		return nil, err
 	}
-	return vm.GetTerritory(), nil
+	return vm.GetWorld(), nil
 }
 
 // QuickPrint creates a ViewModel, refreshes it, and prints to the writer.

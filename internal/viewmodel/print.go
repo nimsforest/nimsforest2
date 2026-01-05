@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// Printer formats Territory data for output.
+// Printer formats World data for output.
 type Printer struct {
 	writer io.Writer
 }
@@ -30,7 +30,7 @@ func NewPrinter(w io.Writer) *Printer {
 //	  Treehouses: 1 (ram: 1GB)
 //	  Nims: 1 (ram: 2GB)
 //	  Total: 4 processes (ram: 11GB, 17% of capacity)
-func (p *Printer) PrintSummary(territory *Territory) {
+func (p *Printer) PrintSummary(territory *World) {
 	summary := territory.GetSummary()
 	
 	// Calculate regular land stats
@@ -105,10 +105,10 @@ func (p *Printer) PrintSummary(territory *Territory) {
 	}
 }
 
-// PrintTerritory prints the full territory with all land and processes.
+// PrintWorld prints the full territory with all land and processes.
 // Output format:
 //
-//	Territory: 3 land
+//	World: 3 land
 //
 //	Land: node-abc (ram: 16GB, cpu: 4, occupancy: 38%)
 //	  Trees:
@@ -123,9 +123,9 @@ func (p *Printer) PrintSummary(territory *Territory) {
 //	    - router (ram: 4GB)
 //	  Treehouses: (none)
 //	  Nims: (none)
-func (p *Printer) PrintTerritory(territory *Territory) {
+func (p *Printer) PrintWorld(territory *World) {
 	totalLand := territory.LandCount()
-	fmt.Fprintf(p.writer, "Territory: %d land\n", totalLand)
+	fmt.Fprintf(p.writer, "World: %d land\n", totalLand)
 	
 	lands := territory.Lands()
 	for i, land := range lands {
@@ -196,7 +196,7 @@ func (p *Printer) printLand(land *LandViewModel) {
 }
 
 // PrintCompact prints a compact single-line summary.
-func (p *Printer) PrintCompact(territory *Territory) {
+func (p *Printer) PrintCompact(territory *World) {
 	summary := territory.GetSummary()
 	totalLand := summary.LandCount + summary.ManalandCount
 	
@@ -206,7 +206,7 @@ func (p *Printer) PrintCompact(territory *Territory) {
 }
 
 // PrintJSON prints the territory as JSON (for machine consumption).
-func (p *Printer) PrintJSON(territory *Territory) error {
+func (p *Printer) PrintJSON(territory *World) error {
 	// For now, just use the built-in JSON marshaling
 	// In a production implementation, you'd use encoding/json
 	lands := territory.Lands()

@@ -99,7 +99,16 @@ This test defines the contract. Implementation is complete when it passes.
 
 ### Summary Output Format
 ```
-Territory: 3 land, 2 trees, 1 treehouse, 1 nim
+Capacity:
+  Land: 2 (ram: 32GB, cpu: 8 cores)
+  Manaland: 1 (ram: 32GB, cpu: 8 cores, vram: 24GB)
+  Total: 3 land (ram: 64GB, cpu: 16 cores, vram: 24GB)
+
+Usage:
+  Trees: 2 (ram: 8GB)
+  Treehouses: 1 (ram: 1GB)
+  Nims: 1 (ram: 2GB)
+  Total: 4 processes (ram: 11GB, 17% of capacity)
 ```
 
 ### Print Output Format

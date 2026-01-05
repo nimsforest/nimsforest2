@@ -10,13 +10,15 @@ import (
 	"github.com/yourusername/nimsforest/pkg/brain"
 )
 
-// Forest is the main runtime that manages all TreeHouses and Nims.
+// Forest is the main runtime that manages all Trees, TreeHouses and Nims.
 // It uses Wind for all pub/sub operations.
 type Forest struct {
 	config     *Config
 	wind       *core.Wind
+	river      *core.River // Optional: for Trees (requires JetStream)
 	humus      *core.Humus // Optional: for state tracking
 	brain      brain.Brain
+	trees      map[string]*Tree
 	treehouses map[string]*TreeHouse
 	nims       map[string]*Nim
 
@@ -47,9 +49,13 @@ func NewForestFromConfig(cfg *Config, wind *core.Wind, b brain.Brain) (*Forest, 
 		config:     cfg,
 		wind:       wind,
 		brain:      b,
+		trees:      make(map[string]*Tree),
 		treehouses: make(map[string]*TreeHouse),
 		nims:       make(map[string]*Nim),
 	}
+
+	// Note: Trees require River, which must be set via SetRiver() before Start()
+	// Trees from config will be created when SetRiver is called or in Start()
 
 	// Create TreeHouses
 	for name, thCfg := range cfg.TreeHouses {
@@ -88,9 +94,12 @@ func NewForestWithHumus(cfg *Config, wind *core.Wind, humus *core.Humus, b brain
 		wind:       wind,
 		humus:      humus,
 		brain:      b,
+		trees:      make(map[string]*Tree),
 		treehouses: make(map[string]*TreeHouse),
 		nims:       make(map[string]*Nim),
 	}
+
+	// Note: Trees require River, which must be set via SetRiver() before Start()
 
 	// Create TreeHouses
 	for name, thCfg := range cfg.TreeHouses {
@@ -123,13 +132,38 @@ func NewForestWithHumus(cfg *Config, wind *core.Wind, humus *core.Humus, b brain
 	return f, nil
 }
 
-// Start starts all TreeHouses and Nims.
+// Start starts all Trees, TreeHouses and Nims.
 func (f *Forest) Start(ctx context.Context) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
 	if f.running {
 		return fmt.Errorf("forest already running")
+	}
+
+	// Create Trees from config (requires river)
+	if f.river != nil && f.config != nil {
+		for name, treeCfg := range f.config.Trees {
+			if _, exists := f.trees[name]; exists {
+				continue // Already created
+			}
+			treeCfg.Name = name
+			scriptPath := f.config.ResolvePath(treeCfg.Script)
+			tree, err := NewTree(treeCfg, f.wind, f.river, scriptPath)
+			if err != nil {
+				log.Printf("[Forest] Warning: failed to create tree %s: %v", name, err)
+				continue
+			}
+			f.trees[name] = tree
+		}
+	}
+
+	// Start Trees
+	for name, tree := range f.trees {
+		if err := tree.Start(ctx); err != nil {
+			f.stopAll()
+			return fmt.Errorf("failed to start tree %s: %w", name, err)
+		}
 	}
 
 	// Start TreeHouses
@@ -151,8 +185,8 @@ func (f *Forest) Start(ctx context.Context) error {
 	}
 
 	f.running = true
-	log.Printf("[Forest] Started with %d treehouses and %d nims",
-		len(f.treehouses), len(f.nims))
+	log.Printf("[Forest] Started with %d trees, %d treehouses and %d nims",
+		len(f.trees), len(f.treehouses), len(f.nims))
 	return nil
 }
 
@@ -173,6 +207,9 @@ func (f *Forest) Stop() error {
 
 // stopAll stops all components without locking (internal use).
 func (f *Forest) stopAll() {
+	for _, tree := range f.trees {
+		tree.Stop()
+	}
 	for _, th := range f.treehouses {
 		th.Stop()
 	}
@@ -201,4 +238,380 @@ func (f *Forest) IsRunning() bool {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.running
+}
+
+// SetRiver sets the River connection for tree support.
+// Must be called before adding trees.
+func (f *Forest) SetRiver(river *core.River) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.river = river
+}
+
+// =============================================================================
+// Runtime Component Management
+// =============================================================================
+
+// ComponentInfo provides information about a running component.
+type ComponentInfo struct {
+	Name       string `json:"name"`
+	Type       string `json:"type"` // "treehouse" or "nim"
+	Subscribes string `json:"subscribes"`
+	Publishes  string `json:"publishes"`
+	Script     string `json:"script,omitempty"` // TreeHouse only
+	Prompt     string `json:"prompt,omitempty"` // Nim only
+	Running    bool   `json:"running"`
+}
+
+// TreeInfo provides information about a running tree.
+type TreeInfo struct {
+	Name      string `json:"name"`
+	Watches   string `json:"watches"`
+	Publishes string `json:"publishes"`
+	Script    string `json:"script,omitempty"`
+	Running   bool   `json:"running"`
+}
+
+// ForestStatus provides a snapshot of the forest state.
+type ForestStatus struct {
+	Running    bool            `json:"running"`
+	Trees      []TreeInfo      `json:"trees"`
+	TreeHouses []ComponentInfo `json:"treehouses"`
+	Nims       []ComponentInfo `json:"nims"`
+	ConfigPath string          `json:"config_path,omitempty"`
+}
+
+// Status returns the current status of the forest.
+func (f *Forest) Status() ForestStatus {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	status := ForestStatus{
+		Running:    f.running,
+		Trees:      make([]TreeInfo, 0, len(f.trees)),
+		TreeHouses: make([]ComponentInfo, 0, len(f.treehouses)),
+		Nims:       make([]ComponentInfo, 0, len(f.nims)),
+	}
+
+	for name, tree := range f.trees {
+		cfg := f.config.Trees[name]
+		status.Trees = append(status.Trees, TreeInfo{
+			Name:      name,
+			Watches:   cfg.Watches,
+			Publishes: cfg.Publishes,
+			Script:    cfg.Script,
+			Running:   tree.IsRunning(),
+		})
+	}
+
+	for name, th := range f.treehouses {
+		cfg := f.config.TreeHouses[name]
+		status.TreeHouses = append(status.TreeHouses, ComponentInfo{
+			Name:       name,
+			Type:       "treehouse",
+			Subscribes: cfg.Subscribes,
+			Publishes:  cfg.Publishes,
+			Script:     cfg.Script,
+			Running:    th.IsRunning(),
+		})
+	}
+
+	for name, nim := range f.nims {
+		cfg := f.config.Nims[name]
+		status.Nims = append(status.Nims, ComponentInfo{
+			Name:       name,
+			Type:       "nim",
+			Subscribes: cfg.Subscribes,
+			Publishes:  cfg.Publishes,
+			Prompt:     cfg.Prompt,
+			Running:    nim.IsRunning(),
+		})
+	}
+
+	return status
+}
+
+// AddTree adds a new Tree at runtime.
+// Requires River to be set via SetRiver() first.
+func (f *Forest) AddTree(name string, cfg TreeConfig) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if _, exists := f.trees[name]; exists {
+		return fmt.Errorf("tree '%s' already exists", name)
+	}
+
+	if f.river == nil {
+		return fmt.Errorf("river is required for trees (call SetRiver first)")
+	}
+
+	// Ensure name is set
+	cfg.Name = name
+
+	// Resolve script path
+	scriptPath := f.config.ResolvePath(cfg.Script)
+
+	// Create the Tree
+	tree, err := NewTree(cfg, f.wind, f.river, scriptPath)
+	if err != nil {
+		return fmt.Errorf("failed to create tree: %w", err)
+	}
+
+	// Start it if the forest is running
+	if f.running {
+		if err := tree.Start(context.Background()); err != nil {
+			return fmt.Errorf("failed to start tree: %w", err)
+		}
+	}
+
+	// Add to maps
+	f.trees[name] = tree
+	if f.config.Trees == nil {
+		f.config.Trees = make(map[string]TreeConfig)
+	}
+	f.config.Trees[name] = cfg
+
+	log.Printf("[Forest] Added tree '%s' (watches: %s, publishes: %s)",
+		name, cfg.Watches, cfg.Publishes)
+	return nil
+}
+
+// RemoveTree removes a Tree at runtime.
+func (f *Forest) RemoveTree(name string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	tree, exists := f.trees[name]
+	if !exists {
+		return fmt.Errorf("tree '%s' not found", name)
+	}
+
+	// Stop it
+	if err := tree.Stop(); err != nil {
+		log.Printf("[Forest] Warning: error stopping tree '%s': %v", name, err)
+	}
+
+	// Remove from maps
+	delete(f.trees, name)
+	delete(f.config.Trees, name)
+
+	log.Printf("[Forest] Removed tree '%s'", name)
+	return nil
+}
+
+// AddTreeHouse adds a new TreeHouse at runtime.
+func (f *Forest) AddTreeHouse(name string, cfg TreeHouseConfig) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if _, exists := f.treehouses[name]; exists {
+		return fmt.Errorf("treehouse '%s' already exists", name)
+	}
+
+	// Ensure name is set
+	cfg.Name = name
+
+	// Resolve script path
+	scriptPath := f.config.ResolvePath(cfg.Script)
+
+	// Create the TreeHouse
+	th, err := NewTreeHouse(cfg, f.wind, scriptPath)
+	if err != nil {
+		return fmt.Errorf("failed to create treehouse: %w", err)
+	}
+
+	// Start it if the forest is running
+	if f.running {
+		if err := th.Start(context.Background()); err != nil {
+			return fmt.Errorf("failed to start treehouse: %w", err)
+		}
+	}
+
+	// Add to maps
+	f.treehouses[name] = th
+	if f.config.TreeHouses == nil {
+		f.config.TreeHouses = make(map[string]TreeHouseConfig)
+	}
+	f.config.TreeHouses[name] = cfg
+
+	log.Printf("[Forest] Added treehouse '%s' (subscribes: %s, publishes: %s)",
+		name, cfg.Subscribes, cfg.Publishes)
+	return nil
+}
+
+// RemoveTreeHouse removes a TreeHouse at runtime.
+func (f *Forest) RemoveTreeHouse(name string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	th, exists := f.treehouses[name]
+	if !exists {
+		return fmt.Errorf("treehouse '%s' not found", name)
+	}
+
+	// Stop it
+	if err := th.Stop(); err != nil {
+		log.Printf("[Forest] Warning: error stopping treehouse '%s': %v", name, err)
+	}
+
+	// Remove from maps
+	delete(f.treehouses, name)
+	delete(f.config.TreeHouses, name)
+
+	log.Printf("[Forest] Removed treehouse '%s'", name)
+	return nil
+}
+
+// AddNim adds a new Nim at runtime.
+func (f *Forest) AddNim(name string, cfg NimConfig) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if _, exists := f.nims[name]; exists {
+		return fmt.Errorf("nim '%s' already exists", name)
+	}
+
+	// Ensure name is set
+	cfg.Name = name
+
+	// Resolve prompt path
+	promptPath := f.config.ResolvePath(cfg.Prompt)
+
+	// Create the Nim
+	var nim *Nim
+	var err error
+
+	if f.humus != nil {
+		nim, err = NewNimWithHumus(cfg, f.wind, f.humus, f.brain, promptPath)
+	} else {
+		nim, err = NewNim(cfg, f.wind, f.brain, promptPath)
+	}
+
+	if err != nil {
+		return fmt.Errorf("failed to create nim: %w", err)
+	}
+
+	// Start it if the forest is running
+	if f.running {
+		if err := nim.Start(context.Background()); err != nil {
+			return fmt.Errorf("failed to start nim: %w", err)
+		}
+	}
+
+	// Add to maps
+	f.nims[name] = nim
+	if f.config.Nims == nil {
+		f.config.Nims = make(map[string]NimConfig)
+	}
+	f.config.Nims[name] = cfg
+
+	log.Printf("[Forest] Added nim '%s' (subscribes: %s, publishes: %s)",
+		name, cfg.Subscribes, cfg.Publishes)
+	return nil
+}
+
+// RemoveNim removes a Nim at runtime.
+func (f *Forest) RemoveNim(name string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	nim, exists := f.nims[name]
+	if !exists {
+		return fmt.Errorf("nim '%s' not found", name)
+	}
+
+	// Stop it
+	if err := nim.Stop(); err != nil {
+		log.Printf("[Forest] Warning: error stopping nim '%s': %v", name, err)
+	}
+
+	// Remove from maps
+	delete(f.nims, name)
+	delete(f.config.Nims, name)
+
+	log.Printf("[Forest] Removed nim '%s'", name)
+	return nil
+}
+
+// Reload reloads the forest configuration, adding/removing components as needed.
+func (f *Forest) Reload(newCfg *Config) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	// Find TreeHouses to remove (in old config but not in new)
+	for name := range f.treehouses {
+		if _, exists := newCfg.TreeHouses[name]; !exists {
+			if th := f.treehouses[name]; th != nil {
+				th.Stop()
+			}
+			delete(f.treehouses, name)
+			log.Printf("[Forest] Removed treehouse '%s' (not in new config)", name)
+		}
+	}
+
+	// Find TreeHouses to add (in new config but not running)
+	for name, cfg := range newCfg.TreeHouses {
+		if _, exists := f.treehouses[name]; !exists {
+			cfg.Name = name
+			scriptPath := newCfg.ResolvePath(cfg.Script)
+			th, err := NewTreeHouse(cfg, f.wind, scriptPath)
+			if err != nil {
+				log.Printf("[Forest] Warning: failed to create treehouse '%s': %v", name, err)
+				continue
+			}
+			if f.running {
+				if err := th.Start(context.Background()); err != nil {
+					log.Printf("[Forest] Warning: failed to start treehouse '%s': %v", name, err)
+					continue
+				}
+			}
+			f.treehouses[name] = th
+			log.Printf("[Forest] Added treehouse '%s' from new config", name)
+		}
+	}
+
+	// Find Nims to remove
+	for name := range f.nims {
+		if _, exists := newCfg.Nims[name]; !exists {
+			if nim := f.nims[name]; nim != nil {
+				nim.Stop()
+			}
+			delete(f.nims, name)
+			log.Printf("[Forest] Removed nim '%s' (not in new config)", name)
+		}
+	}
+
+	// Find Nims to add
+	for name, cfg := range newCfg.Nims {
+		if _, exists := f.nims[name]; !exists {
+			cfg.Name = name
+			promptPath := newCfg.ResolvePath(cfg.Prompt)
+			var nim *Nim
+			var err error
+			if f.humus != nil {
+				nim, err = NewNimWithHumus(cfg, f.wind, f.humus, f.brain, promptPath)
+			} else {
+				nim, err = NewNim(cfg, f.wind, f.brain, promptPath)
+			}
+			if err != nil {
+				log.Printf("[Forest] Warning: failed to create nim '%s': %v", name, err)
+				continue
+			}
+			if f.running {
+				if err := nim.Start(context.Background()); err != nil {
+					log.Printf("[Forest] Warning: failed to start nim '%s': %v", name, err)
+					continue
+				}
+			}
+			f.nims[name] = nim
+			log.Printf("[Forest] Added nim '%s' from new config", name)
+		}
+	}
+
+	// Update config reference
+	f.config = newCfg
+
+	log.Printf("[Forest] Reloaded with %d treehouses and %d nims",
+		len(f.treehouses), len(f.nims))
+	return nil
 }

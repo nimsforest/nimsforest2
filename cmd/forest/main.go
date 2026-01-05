@@ -59,6 +59,12 @@ func main() {
 		case "viewmodel":
 			handleViewmodel(os.Args[2:])
 			return
+
+		// CLI client commands (talk to running daemon)
+		case "list", "ls", "status", "add", "remove", "rm", "reload":
+			runClientCommand(os.Args[1:])
+			return
+
 		default:
 			fmt.Fprintf(os.Stderr, "Unknown command: %s\n\n", command)
 			printHelp()
@@ -122,16 +128,32 @@ func printHelp() {
 	fmt.Println("Usage:")
 	fmt.Println("  forest [command]")
 	fmt.Println()
-	fmt.Println("Commands:")
+	fmt.Println("Daemon Commands (start long-running process):")
 	fmt.Println("  (no command)    Start the NimsForest event processor (requires cluster config)")
 	fmt.Println("  run, start      Start the NimsForest event processor (requires cluster config)")
 	fmt.Println("  standalone      Start standalone mode (embedded NATS, no cluster config needed)")
 	fmt.Println("  test            Run E2E tests with sample leads")
+	fmt.Println()
+	fmt.Println("CLI Commands (talk to running daemon):")
+	fmt.Println("  list [type]     List running components (treehouses, nims, all)")
+	fmt.Println("  status          Show daemon status")
+	fmt.Println("  add             Add a treehouse or nim at runtime")
+	fmt.Println("  remove          Remove a treehouse or nim")
+	fmt.Println("  reload          Reload configuration from disk")
+	fmt.Println()
+	fmt.Println("Other Commands:")
 	fmt.Println("  viewmodel       View cluster state (print, summary)")
 	fmt.Println("  version         Show version information")
 	fmt.Println("  update          Check for updates and install if available")
 	fmt.Println("  check-update    Check for updates without installing")
 	fmt.Println("  help            Show this help message")
+	fmt.Println()
+	fmt.Println("Add Component Examples:")
+	fmt.Println("  forest add treehouse scoring2 --subscribes=contact.updated --publishes=lead.rescored --script=./rescore.lua")
+	fmt.Println("  forest add treehouse --config=./treehouse.yaml")
+	fmt.Println("  forest add nim qualifier2 --subscribes=lead.rescored --publishes=lead.requalified --prompt=./requalify.md")
+	fmt.Println("  forest remove treehouse scoring2")
+	fmt.Println("  forest remove nim qualifier2")
 	fmt.Println()
 	fmt.Println("Standalone Mode (for development/testing):")
 	fmt.Println("  forest standalone               # Start with embedded NATS server")
@@ -145,6 +167,7 @@ func printHelp() {
 	fmt.Println("  ANTHROPIC_API_KEY       Claude API key for AI-powered Nims")
 	fmt.Println("  OPENAI_API_KEY          OpenAI API key (alternative to Claude)")
 	fmt.Println("  FOREST_CONFIG           Path to forest.yaml config file")
+	fmt.Println("  NIMSFOREST_API          Management API address (default: 127.0.0.1:8080)")
 	fmt.Println("  NATS_CLUSTER_NODE_INFO  Override node info path")
 	fmt.Println("  NATS_CLUSTER_REGISTRY   Override registry path")
 	fmt.Println("  JETSTREAM_DIR           JetStream data directory")
@@ -152,7 +175,9 @@ func printHelp() {
 	fmt.Println()
 	fmt.Println("Examples:")
 	fmt.Println("  forest standalone                          # Development mode")
-	fmt.Println("  forest test                                # Run E2E tests")
+	fmt.Println("  forest list                                # List running components")
+	fmt.Println("  forest add treehouse x --config=x.yaml     # Add component")
+	fmt.Println("  forest reload                              # Reload config")
 	fmt.Println("  ANTHROPIC_API_KEY=sk-... forest standalone # With Claude AI")
 	fmt.Println("  forest                                     # Production cluster mode")
 	fmt.Println()
@@ -360,6 +385,20 @@ func runForest() {
 					}
 					for name := range cfg.Nims {
 						fmt.Printf("   🧚 Nim:%s (AI-powered)\n", name)
+					}
+
+					// Start Management API
+					apiAddr := runtime.GetAPIAddress()
+					api := runtime.NewAPI(runtime.APIConfig{
+						Address:    apiAddr,
+						Forest:     runtimeForest,
+						ConfigPath: configPath,
+					})
+					if err := api.Start(); err != nil {
+						log.Printf("⚠️  Failed to start management API: %v\n", err)
+					} else {
+						defer api.Stop()
+						fmt.Printf("   🔧 Management API at http://%s\n", apiAddr)
 					}
 				}
 			}
@@ -713,6 +752,20 @@ func runStandalone() {
 		log.Fatalf("❌ Failed to start forest: %v\n", err)
 	}
 	defer forest.Stop()
+
+	// 7. Start Management API
+	apiAddr := runtime.GetAPIAddress()
+	api := runtime.NewAPI(runtime.APIConfig{
+		Address:    apiAddr,
+		Forest:     forest,
+		ConfigPath: configPath,
+	})
+	if err := api.Start(); err != nil {
+		log.Printf("⚠️  Failed to start management API: %v\n", err)
+	} else {
+		defer api.Stop()
+		fmt.Printf("🔧 Management API at http://%s\n", apiAddr)
+	}
 
 	fmt.Println()
 	fmt.Println("🌲 Forest running!")

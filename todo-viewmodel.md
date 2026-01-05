@@ -1,5 +1,30 @@
 # NimsForest Viewmodel - Implementation Plan
 
+## Phase 0: E2E Test (Define Success)
+
+### Test: `test/e2e/viewmodel_test.go`
+- Spin up embedded NATS cluster (2 nodes)
+- Deploy a tree and a nim to different nodes
+- Initialize viewmodel
+- Assert: Territory contains 2 Land entries with correct RAM/CPU
+- Assert: Tree appears on correct Land with ram_allocated
+- Assert: Nim appears on correct Land with ram_allocated
+- Assert: Occupancy calculations are correct
+
+### Test: Event Updates
+- With viewmodel running, deploy another tree
+- Assert: Territory updates without full rebuild
+- Assert: New tree appears on correct Land
+- Remove a node from cluster
+- Assert: Land removed from Territory
+
+### Test: GPU Land
+- Add node with GPU specs
+- Assert: Land.HasGPU() returns true
+- Assert: gpu_vram and gpu_tflops populated
+
+This test defines the contract. Implementation is complete when it passes.
+
 ## Phase 1: Model Layer
 
 ### Define Core Structs

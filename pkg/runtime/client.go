@@ -72,6 +72,71 @@ func (c *Client) Status() (*ForestStatus, error) {
 }
 
 // =============================================================================
+// Tree Operations
+// =============================================================================
+
+// ListTrees returns all running trees.
+func (c *Client) ListTrees() ([]TreeInfo, error) {
+	resp, err := c.httpClient.Get(c.baseURL + "/api/v1/trees")
+	if err != nil {
+		return nil, fmt.Errorf("cannot connect to nimsforest daemon: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, c.parseError(resp)
+	}
+
+	var trees []TreeInfo
+	if err := json.NewDecoder(resp.Body).Decode(&trees); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+	return trees, nil
+}
+
+// AddTree adds a new tree.
+func (c *Client) AddTree(name, watches, publishes, script string) error {
+	payload := map[string]string{
+		"name":      name,
+		"watches":   watches,
+		"publishes": publishes,
+		"script":    script,
+	}
+
+	data, _ := json.Marshal(payload)
+	resp, err := c.httpClient.Post(c.baseURL+"/api/v1/trees", "application/json", bytes.NewReader(data))
+	if err != nil {
+		return fmt.Errorf("cannot connect to nimsforest daemon: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated {
+		return c.parseError(resp)
+	}
+	return nil
+}
+
+// AddTreeFromConfig adds a tree from a config struct.
+func (c *Client) AddTreeFromConfig(cfg TreeConfig) error {
+	return c.AddTree(cfg.Name, cfg.Watches, cfg.Publishes, cfg.Script)
+}
+
+// RemoveTree removes a tree by name.
+func (c *Client) RemoveTree(name string) error {
+	req, _ := http.NewRequest(http.MethodDelete, c.baseURL+"/api/v1/trees/"+name, nil)
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("cannot connect to nimsforest daemon: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNoContent {
+		return c.parseError(resp)
+	}
+	return nil
+}
+
+// =============================================================================
 // TreeHouse Operations
 // =============================================================================
 

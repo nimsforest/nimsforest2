@@ -47,6 +47,11 @@ func NewAPI(cfg APIConfig) *API {
 	// Status
 	mux.HandleFunc("GET /api/v1/status", api.handleStatus)
 
+	// Trees
+	mux.HandleFunc("GET /api/v1/trees", api.handleListTrees)
+	mux.HandleFunc("POST /api/v1/trees", api.handleAddTree)
+	mux.HandleFunc("DELETE /api/v1/trees/{name}", api.handleRemoveTree)
+
 	// TreeHouses
 	mux.HandleFunc("GET /api/v1/treehouses", api.handleListTreeHouses)
 	mux.HandleFunc("POST /api/v1/treehouses", api.handleAddTreeHouse)
@@ -126,6 +131,83 @@ func (api *API) handleStatus(w http.ResponseWriter, r *http.Request) {
 	status := api.config.Forest.Status()
 	status.ConfigPath = api.config.ConfigPath
 	writeJSON(w, http.StatusOK, status)
+}
+
+func (api *API) handleListTrees(w http.ResponseWriter, r *http.Request) {
+	status := api.config.Forest.Status()
+	writeJSON(w, http.StatusOK, status.Trees)
+}
+
+func (api *API) handleAddTree(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Name      string `json:"name"`
+		Watches   string `json:"watches"`
+		Publishes string `json:"publishes"`
+		Script    string `json:"script"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+
+	// Validate required fields
+	if req.Name == "" {
+		writeError(w, http.StatusBadRequest, "name is required")
+		return
+	}
+	if req.Watches == "" {
+		writeError(w, http.StatusBadRequest, "watches is required")
+		return
+	}
+	if req.Publishes == "" {
+		writeError(w, http.StatusBadRequest, "publishes is required")
+		return
+	}
+	if req.Script == "" {
+		writeError(w, http.StatusBadRequest, "script is required")
+		return
+	}
+
+	cfg := TreeConfig{
+		Name:      req.Name,
+		Watches:   req.Watches,
+		Publishes: req.Publishes,
+		Script:    req.Script,
+	}
+
+	if err := api.config.Forest.AddTree(req.Name, cfg); err != nil {
+		if strings.Contains(err.Error(), "already exists") {
+			writeError(w, http.StatusConflict, err.Error())
+		} else {
+			writeError(w, http.StatusBadRequest, err.Error())
+		}
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, map[string]string{
+		"status": "created",
+		"name":   req.Name,
+	})
+}
+
+func (api *API) handleRemoveTree(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	if name == "" {
+		writeError(w, http.StatusBadRequest, "name is required")
+		return
+	}
+
+	if err := api.config.Forest.RemoveTree(name); err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			writeError(w, http.StatusNotFound, err.Error())
+		} else {
+			writeError(w, http.StatusInternalServerError, err.Error())
+		}
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (api *API) handleListTreeHouses(w http.ResponseWriter, r *http.Request) {

@@ -18,7 +18,7 @@ type Forest struct {
 	river      *core.River // Optional: for Trees (requires JetStream)
 	humus      *core.Humus // Optional: for state tracking
 	brain      brain.Brain
-	trees      map[string]*TreeInstance
+	trees      map[string]*Tree
 	treehouses map[string]*TreeHouse
 	nims       map[string]*Nim
 
@@ -49,10 +49,13 @@ func NewForestFromConfig(cfg *Config, wind *core.Wind, b brain.Brain) (*Forest, 
 		config:     cfg,
 		wind:       wind,
 		brain:      b,
-		trees:      make(map[string]*TreeInstance),
+		trees:      make(map[string]*Tree),
 		treehouses: make(map[string]*TreeHouse),
 		nims:       make(map[string]*Nim),
 	}
+
+	// Note: Trees require River, which must be set via SetRiver() before Start()
+	// Trees from config will be created when SetRiver is called or in Start()
 
 	// Create TreeHouses
 	for name, thCfg := range cfg.TreeHouses {
@@ -91,10 +94,12 @@ func NewForestWithHumus(cfg *Config, wind *core.Wind, humus *core.Humus, b brain
 		wind:       wind,
 		humus:      humus,
 		brain:      b,
-		trees:      make(map[string]*TreeInstance),
+		trees:      make(map[string]*Tree),
 		treehouses: make(map[string]*TreeHouse),
 		nims:       make(map[string]*Nim),
 	}
+
+	// Note: Trees require River, which must be set via SetRiver() before Start()
 
 	// Create TreeHouses
 	for name, thCfg := range cfg.TreeHouses {
@@ -136,13 +141,29 @@ func (f *Forest) Start(ctx context.Context) error {
 		return fmt.Errorf("forest already running")
 	}
 
+	// Create Trees from config (requires river)
+	if f.river != nil && f.config != nil {
+		for name, treeCfg := range f.config.Trees {
+			if _, exists := f.trees[name]; exists {
+				continue // Already created
+			}
+			treeCfg.Name = name
+			scriptPath := f.config.ResolvePath(treeCfg.Script)
+			tree, err := NewTree(treeCfg, f.wind, f.river, scriptPath)
+			if err != nil {
+				log.Printf("[Forest] Warning: failed to create tree %s: %v", name, err)
+				continue
+			}
+			f.trees[name] = tree
+		}
+	}
+
 	// Start Trees
-	for name, instance := range f.trees {
-		if err := instance.Tree.Start(ctx); err != nil {
+	for name, tree := range f.trees {
+		if err := tree.Start(ctx); err != nil {
 			f.stopAll()
 			return fmt.Errorf("failed to start tree %s: %w", name, err)
 		}
-		instance.Running = true
 	}
 
 	// Start TreeHouses
@@ -186,9 +207,8 @@ func (f *Forest) Stop() error {
 
 // stopAll stops all components without locking (internal use).
 func (f *Forest) stopAll() {
-	for _, instance := range f.trees {
-		instance.Tree.Stop()
-		instance.Running = false
+	for _, tree := range f.trees {
+		tree.Stop()
 	}
 	for _, th := range f.treehouses {
 		th.Stop()
@@ -243,13 +263,22 @@ type ComponentInfo struct {
 	Running    bool   `json:"running"`
 }
 
+// TreeInfo provides information about a running tree.
+type TreeInfo struct {
+	Name      string `json:"name"`
+	Watches   string `json:"watches"`
+	Publishes string `json:"publishes"`
+	Script    string `json:"script,omitempty"`
+	Running   bool   `json:"running"`
+}
+
 // ForestStatus provides a snapshot of the forest state.
 type ForestStatus struct {
-	Running     bool               `json:"running"`
-	Trees       []TreeInstanceInfo `json:"trees"`
-	TreeHouses  []ComponentInfo    `json:"treehouses"`
-	Nims        []ComponentInfo    `json:"nims"`
-	ConfigPath  string             `json:"config_path,omitempty"`
+	Running    bool            `json:"running"`
+	Trees      []TreeInfo      `json:"trees"`
+	TreeHouses []ComponentInfo `json:"treehouses"`
+	Nims       []ComponentInfo `json:"nims"`
+	ConfigPath string          `json:"config_path,omitempty"`
 }
 
 // Status returns the current status of the forest.
@@ -259,17 +288,19 @@ func (f *Forest) Status() ForestStatus {
 
 	status := ForestStatus{
 		Running:    f.running,
-		Trees:      make([]TreeInstanceInfo, 0, len(f.trees)),
+		Trees:      make([]TreeInfo, 0, len(f.trees)),
 		TreeHouses: make([]ComponentInfo, 0, len(f.treehouses)),
 		Nims:       make([]ComponentInfo, 0, len(f.nims)),
 	}
 
-	for name, instance := range f.trees {
-		status.Trees = append(status.Trees, TreeInstanceInfo{
-			Name:     name,
-			Type:     instance.Config.Type,
-			Patterns: instance.Tree.Patterns(),
-			Running:  instance.Running,
+	for name, tree := range f.trees {
+		cfg := f.config.Trees[name]
+		status.Trees = append(status.Trees, TreeInfo{
+			Name:      name,
+			Watches:   cfg.Watches,
+			Publishes: cfg.Publishes,
+			Script:    cfg.Script,
+			Running:   tree.IsRunning(),
 		})
 	}
 
@@ -298,6 +329,74 @@ func (f *Forest) Status() ForestStatus {
 	}
 
 	return status
+}
+
+// AddTree adds a new Tree at runtime.
+// Requires River to be set via SetRiver() first.
+func (f *Forest) AddTree(name string, cfg TreeConfig) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if _, exists := f.trees[name]; exists {
+		return fmt.Errorf("tree '%s' already exists", name)
+	}
+
+	if f.river == nil {
+		return fmt.Errorf("river is required for trees (call SetRiver first)")
+	}
+
+	// Ensure name is set
+	cfg.Name = name
+
+	// Resolve script path
+	scriptPath := f.config.ResolvePath(cfg.Script)
+
+	// Create the Tree
+	tree, err := NewTree(cfg, f.wind, f.river, scriptPath)
+	if err != nil {
+		return fmt.Errorf("failed to create tree: %w", err)
+	}
+
+	// Start it if the forest is running
+	if f.running {
+		if err := tree.Start(context.Background()); err != nil {
+			return fmt.Errorf("failed to start tree: %w", err)
+		}
+	}
+
+	// Add to maps
+	f.trees[name] = tree
+	if f.config.Trees == nil {
+		f.config.Trees = make(map[string]TreeConfig)
+	}
+	f.config.Trees[name] = cfg
+
+	log.Printf("[Forest] Added tree '%s' (watches: %s, publishes: %s)",
+		name, cfg.Watches, cfg.Publishes)
+	return nil
+}
+
+// RemoveTree removes a Tree at runtime.
+func (f *Forest) RemoveTree(name string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	tree, exists := f.trees[name]
+	if !exists {
+		return fmt.Errorf("tree '%s' not found", name)
+	}
+
+	// Stop it
+	if err := tree.Stop(); err != nil {
+		log.Printf("[Forest] Warning: error stopping tree '%s': %v", name, err)
+	}
+
+	// Remove from maps
+	delete(f.trees, name)
+	delete(f.config.Trees, name)
+
+	log.Printf("[Forest] Removed tree '%s'", name)
+	return nil
 }
 
 // AddTreeHouse adds a new TreeHouse at runtime.

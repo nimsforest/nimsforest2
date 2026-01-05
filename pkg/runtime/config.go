@@ -12,12 +12,21 @@ import (
 
 // Config represents the forest configuration loaded from YAML.
 type Config struct {
+	Trees      map[string]TreeConfig      `yaml:"trees"`
 	TreeHouses map[string]TreeHouseConfig `yaml:"treehouses"`
 	Nims       map[string]NimConfig       `yaml:"nims"`
 
 	// BaseDir is the directory from which the config was loaded.
 	// Used to resolve relative script/prompt paths.
 	BaseDir string `yaml:"-"`
+}
+
+// TreeConfig defines a Tree - a River-to-Wind adapter that parses external data.
+type TreeConfig struct {
+	Name     string `yaml:"-"`        // Set from map key
+	Watches  string `yaml:"watches"`  // River subject to observe (JetStream)
+	Publishes string `yaml:"publishes"` // Wind subject to publish Leaves to
+	Script   string `yaml:"script"`   // Path to Lua script
 }
 
 // TreeHouseConfig defines a TreeHouse - a Lua-based data transformer.
@@ -56,6 +65,11 @@ func LoadConfig(path string) (*Config, error) {
 	cfg.BaseDir = filepath.Dir(absPath)
 
 	// Set names from map keys
+	for name := range cfg.Trees {
+		t := cfg.Trees[name]
+		t.Name = name
+		cfg.Trees[name] = t
+	}
 	for name := range cfg.TreeHouses {
 		th := cfg.TreeHouses[name]
 		th.Name = name
@@ -77,6 +91,18 @@ func LoadConfig(path string) (*Config, error) {
 
 // Validate checks that the configuration is valid.
 func (c *Config) Validate() error {
+	for name, t := range c.Trees {
+		if t.Watches == "" {
+			return fmt.Errorf("tree %q: missing watches", name)
+		}
+		if t.Publishes == "" {
+			return fmt.Errorf("tree %q: missing publishes", name)
+		}
+		if t.Script == "" {
+			return fmt.Errorf("tree %q: missing script", name)
+		}
+	}
+
 	for name, th := range c.TreeHouses {
 		if th.Subscribes == "" {
 			return fmt.Errorf("treehouse %q: missing subscribes", name)

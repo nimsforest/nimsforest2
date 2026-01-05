@@ -68,17 +68,41 @@ func handleList(args []string) {
 
 	switch what {
 	case "all":
+		printTrees(status.Trees)
+		fmt.Println()
 		printTreeHouses(status.TreeHouses)
 		fmt.Println()
 		printNims(status.Nims)
+	case "trees", "tree":
+		printTrees(status.Trees)
 	case "treehouses", "treehouse", "th":
 		printTreeHouses(status.TreeHouses)
 	case "nims", "nim":
 		printNims(status.Nims)
 	default:
-		fmt.Fprintf(os.Stderr, "Unknown type: %s (use: all, treehouses, nims)\n", what)
+		fmt.Fprintf(os.Stderr, "Unknown type: %s (use: all, trees, treehouses, nims)\n", what)
 		os.Exit(1)
 	}
+}
+
+func printTrees(trees []runtime.TreeInfo) {
+	fmt.Println("TREES:")
+	if len(trees) == 0 {
+		fmt.Println("  (none)")
+		return
+	}
+
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(w, "  NAME\tWATCHES\tPUBLISHES\tSCRIPT\tSTATUS")
+	for _, t := range trees {
+		status := "stopped"
+		if t.Running {
+			status = "running"
+		}
+		fmt.Fprintf(w, "  %s\t%s\t%s\t%s\t[%s]\n",
+			t.Name, t.Watches, t.Publishes, t.Script, status)
+	}
+	w.Flush()
 }
 
 func printTreeHouses(treehouses []runtime.ComponentInfo) {
@@ -162,8 +186,8 @@ func handleStatus(args []string) {
 
 func handleAdd(args []string) {
 	if len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "Usage: forest add <treehouse|nim> [options]")
-		fmt.Fprintln(os.Stderr, "       forest add <treehouse|nim> --config=<path>")
+		fmt.Fprintln(os.Stderr, "Usage: forest add <tree|treehouse|nim> [options]")
+		fmt.Fprintln(os.Stderr, "       forest add <tree|treehouse|nim> --config=<path>")
 		os.Exit(1)
 	}
 
@@ -171,14 +195,81 @@ func handleAdd(args []string) {
 	cmdArgs := args[1:]
 
 	switch componentType {
+	case "tree":
+		handleAddTree(cmdArgs)
 	case "treehouse", "th":
 		handleAddTreeHouse(cmdArgs)
 	case "nim":
 		handleAddNim(cmdArgs)
 	default:
-		fmt.Fprintf(os.Stderr, "Unknown component type: %s (use: treehouse, nim)\n", componentType)
+		fmt.Fprintf(os.Stderr, "Unknown component type: %s (use: tree, treehouse, nim)\n", componentType)
 		os.Exit(1)
 	}
+}
+
+func handleAddTree(args []string) {
+	// Parse flags
+	var name, watches, publishes, script, configPath string
+
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if strings.HasPrefix(arg, "--config=") {
+			configPath = strings.TrimPrefix(arg, "--config=")
+		} else if strings.HasPrefix(arg, "--watches=") {
+			watches = strings.TrimPrefix(arg, "--watches=")
+		} else if strings.HasPrefix(arg, "--publishes=") {
+			publishes = strings.TrimPrefix(arg, "--publishes=")
+		} else if strings.HasPrefix(arg, "--script=") {
+			script = strings.TrimPrefix(arg, "--script=")
+		} else if strings.HasPrefix(arg, "--name=") {
+			name = strings.TrimPrefix(arg, "--name=")
+		} else if !strings.HasPrefix(arg, "-") && name == "" {
+			name = arg
+		}
+	}
+
+	client := runtime.NewClientFromEnv()
+
+	// Load from config file if provided
+	if configPath != "" {
+		cfg, err := loadTreeConfig(configPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
+			os.Exit(1)
+		}
+		if name != "" {
+			cfg.Name = name // Allow overriding name
+		}
+		if cfg.Name == "" {
+			// Use filename as name
+			cfg.Name = strings.TrimSuffix(filepath.Base(configPath), filepath.Ext(configPath))
+		}
+		if err := client.AddTreeFromConfig(cfg); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("✅ Added tree '%s'\n", cfg.Name)
+		return
+	}
+
+	// Validate required fields
+	if name == "" {
+		fmt.Fprintln(os.Stderr, "Error: name is required")
+		fmt.Fprintln(os.Stderr, "Usage: forest add tree <name> --watches=<subj> --publishes=<subj> --script=<path>")
+		fmt.Fprintln(os.Stderr, "   or: forest add tree --config=<path>")
+		os.Exit(1)
+	}
+	if watches == "" || publishes == "" || script == "" {
+		fmt.Fprintln(os.Stderr, "Error: --watches, --publishes, and --script are required")
+		fmt.Fprintln(os.Stderr, "Usage: forest add tree <name> --watches=<subj> --publishes=<subj> --script=<path>")
+		os.Exit(1)
+	}
+
+	if err := client.AddTree(name, watches, publishes, script); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Printf("✅ Added tree '%s'\n", name)
 }
 
 func handleAddTreeHouse(args []string) {
@@ -317,7 +408,7 @@ func handleAddNim(args []string) {
 
 func handleRemove(args []string) {
 	if len(args) < 2 {
-		fmt.Fprintln(os.Stderr, "Usage: forest remove <treehouse|nim> <name>")
+		fmt.Fprintln(os.Stderr, "Usage: forest remove <tree|treehouse|nim> <name>")
 		os.Exit(1)
 	}
 
@@ -327,6 +418,12 @@ func handleRemove(args []string) {
 	client := runtime.NewClientFromEnv()
 
 	switch componentType {
+	case "tree":
+		if err := client.RemoveTree(name); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("✅ Removed tree '%s'\n", name)
 	case "treehouse", "th":
 		if err := client.RemoveTreeHouse(name); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
@@ -340,7 +437,7 @@ func handleRemove(args []string) {
 		}
 		fmt.Printf("✅ Removed nim '%s'\n", name)
 	default:
-		fmt.Fprintf(os.Stderr, "Unknown component type: %s (use: treehouse, nim)\n", componentType)
+		fmt.Fprintf(os.Stderr, "Unknown component type: %s (use: tree, treehouse, nim)\n", componentType)
 		os.Exit(1)
 	}
 }
@@ -362,6 +459,20 @@ func handleReload(args []string) {
 // =============================================================================
 // Helpers
 // =============================================================================
+
+// loadTreeConfig loads a Tree configuration from a YAML file.
+func loadTreeConfig(path string) (runtime.TreeConfig, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return runtime.TreeConfig{}, err
+	}
+
+	var cfg runtime.TreeConfig
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return runtime.TreeConfig{}, err
+	}
+	return cfg, nil
+}
 
 // loadTreeHouseConfig loads a TreeHouse configuration from a YAML file.
 func loadTreeHouseConfig(path string) (runtime.TreeHouseConfig, error) {
@@ -395,19 +506,25 @@ func printClientHelp() {
 	fmt.Print(`
 CLI Commands (talk to running daemon):
 
-  forest list [treehouses|nims|all]    List running components
-  forest status [--json]               Show daemon status
-  forest add treehouse <name> ...      Add a treehouse
-  forest add nim <name> ...            Add a nim
-  forest remove treehouse <name>       Remove a treehouse
-  forest remove nim <name>             Remove a nim
-  forest reload                        Reload configuration from disk
+  forest list [trees|treehouses|nims|all]   List running components
+  forest status [--json]                    Show daemon status
+  forest add tree <name> ...                Add a tree (River→Wind)
+  forest add treehouse <name> ...           Add a treehouse (Wind→Wind)
+  forest add nim <name> ...                 Add a nim (Wind→Wind, AI)
+  forest remove tree <name>                 Remove a tree
+  forest remove treehouse <name>            Remove a treehouse
+  forest remove nim <name>                  Remove a nim
+  forest reload                             Reload configuration from disk
 
-Add TreeHouse Examples:
+Add Tree Examples (parses external data from River):
+  forest add tree stripe --watches=river.stripe.webhook --publishes=payment.completed --script=./parse_stripe.lua
+  forest add tree --config=./tree.yaml
+
+Add TreeHouse Examples (transforms internal Leaves):
   forest add treehouse scoring --subscribes=contact.created --publishes=lead.scored --script=./scoring.lua
   forest add treehouse --config=./treehouse.yaml
 
-Add Nim Examples:
+Add Nim Examples (AI-powered processing):
   forest add nim qualify --subscribes=lead.scored --publishes=lead.qualified --prompt=./qualify.md
   forest add nim --config=./nim.yaml
 

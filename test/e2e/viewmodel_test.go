@@ -483,8 +483,8 @@ func TestViewmodelUpdater(t *testing.T) {
 	t.Log("✅ Updater event handling tests passed")
 }
 
-// TestViewmodelGPULand tests GPU/Manaland functionality.
-func TestViewmodelGPULand(t *testing.T) {
+// TestViewmodelManaLand tests GPU/Manaland functionality.
+func TestViewmodelManaLand(t *testing.T) {
 	territory := viewmodel.NewWorld()
 
 	// Create GPU-enabled land (Manaland)

@@ -1,56 +1,10 @@
-# Runtime Component Addition - Research & Design
+# Runtime Component Addition
 
-## Problem Statement
+This document describes how NimsForest handles runtime component management.
 
-How can we add/remove Trees, TreeHouses, and Nims at runtime without restarting NimsForest?
+## Architecture
 
-The challenge: The main `forest run` process blocks waiting for shutdown signals. CLI commands need to communicate with this running process.
-
-## How Other Tools Solve This
-
-### 1. Docker (Unix Socket)
-
-```bash
-# Daemon
-dockerd  # Listens on /var/run/docker.sock
-
-# CLI (separate process)
-docker run nginx  # Connects to socket, sends command
-```
-
-### 2. Kubernetes (HTTP API)
-
-```bash
-# Daemon (API server)
-kube-apiserver  # Listens on :6443
-
-# CLI (separate process)  
-kubectl apply -f pod.yaml  # HTTP POST to API server
-```
-
-### 3. Consul (HTTP API)
-
-```bash
-# Daemon
-consul agent -server  # HTTP API on :8500
-
-# CLI (separate process)
-consul services register service.json  # HTTP PUT
-```
-
-### 4. Prometheus (SIGHUP + HTTP)
-
-```bash
-# Reload via signal
-kill -HUP $(pidof prometheus)
-
-# Or via HTTP
-curl -X POST http://localhost:9090/-/reload
-```
-
-## Recommended Design for NimsForest
-
-### Architecture
+NimsForest uses a **client-server pattern** (like Docker, Kubernetes, Consul):
 
 ```
 ┌────────────────────────────────────────────────────────┐
@@ -62,120 +16,70 @@ curl -X POST http://localhost:9090/-/reload
 │                                                        │
 │  ┌──────────────────────────────────────────────────┐ │
 │  │              Management API (:8080)               │ │
+│  │  GET  /health                - Health check      │ │
+│  │  GET  /api/v1/status         - Get status        │ │
+│  │  GET  /api/v1/treehouses     - List treehouses   │ │
 │  │  POST /api/v1/treehouses     - Add treehouse     │ │
 │  │  DELETE /api/v1/treehouses/x - Remove treehouse  │ │
+│  │  GET  /api/v1/nims           - List nims         │ │
 │  │  POST /api/v1/nims           - Add nim           │ │
 │  │  DELETE /api/v1/nims/x       - Remove nim        │ │
 │  │  POST /-/reload              - Reload config     │ │
-│  │  GET /api/v1/status          - Get status        │ │
 │  └──────────────────────────────────────────────────┘ │
 └────────────────────────────────────────────────────────┘
                            ▲
-                           │ HTTP
+                           │ HTTP (localhost only)
                            ▼
 ┌────────────────────────────────────────────────────────┐
-│                 forest CLI (client)                     │
+│                 forest CLI (same binary)                │
 │                                                        │
-│  forest add treehouse scoring2 --subscribes=... ...   │
-│  forest remove nim qualifier                           │
 │  forest list                                           │
-│  forest reload                                         │
 │  forest status                                         │
+│  forest add treehouse scoring2 --config=...           │
+│  forest remove nim qualifier                           │
+│  forest reload                                         │
 └────────────────────────────────────────────────────────┘
 ```
 
-### CLI Commands
+## CLI Commands
+
+### Daemon Commands (start long-running process)
 
 ```bash
-# Start daemon (existing)
-forest run
-forest standalone
+forest run              # Start with cluster config
+forest standalone       # Start standalone mode (dev)
+```
 
-# Management commands (NEW - talks to running daemon)
+### Management Commands (talk to running daemon)
+
+```bash
+# List components
+forest list                      # List all
+forest list treehouses           # List treehouses only
+forest list nims                 # List nims only
+
+# Get status
+forest status                    # Human-readable
+forest status --json             # JSON output
+
+# Add components
 forest add treehouse <name> --subscribes=<subj> --publishes=<subj> --script=<path>
+forest add treehouse --config=<path.yaml>
 forest add nim <name> --subscribes=<subj> --publishes=<subj> --prompt=<path>
+forest add nim --config=<path.yaml>
+
+# Remove components
 forest remove treehouse <name>
 forest remove nim <name>
-forest list [treehouses|nims|all]
-forest reload                    # Reload config file
-forest status                    # Show running components
 
-# Direct config reload via signal (also works)
-kill -HUP $(pidof forest)
-```
-
-### Alternative: Use NATS as Control Plane
-
-Since NimsForest already has NATS, we could use NATS subjects for control:
-
-```
-forest.control.add.treehouse    - Add treehouse
-forest.control.remove.treehouse - Remove treehouse  
-forest.control.add.nim          - Add nim
-forest.control.remove.nim       - Remove nim
-forest.control.reload           - Reload config
-forest.control.status           - Request status
-forest.control.status.response  - Status response
-```
-
-**Pros:**
-- No additional port needed
-- Works across cluster nodes
-- Reuses existing infrastructure
-
-**Cons:**
-- Requires NATS connection for CLI
-- More complex than HTTP
-
-## Implementation Plan
-
-### Phase 1: Core Runtime Methods
-Add to `pkg/runtime/forest.go`:
-- `AddTreeHouse(name string, cfg TreeHouseConfig) error`
-- `RemoveTreeHouse(name string) error`
-- `AddNim(name string, cfg NimConfig) error`
-- `RemoveNim(name string) error`
-- `Reload(cfg *Config) error`
-- `ListTreeHouses() []TreeHouseInfo`
-- `ListNims() []NimInfo`
-- `Status() ForestStatus`
-
-### Phase 2: Management API Server
-Add `pkg/runtime/api.go`:
-- HTTP server on configurable port (default 8080)
-- REST endpoints for all operations
-- JSON request/response
-
-### Phase 3: CLI Client
-Update `cmd/forest/main.go`:
-- Add subcommands that call the API
-- Use same binary for daemon and client
-- Auto-detect if daemon is running
-
-### Phase 4: SIGHUP Support
-- Signal handler for config reload
-- Graceful component replacement
-
-## File Structure
-
-```
-pkg/runtime/
-├── forest.go        # Add runtime methods
-├── api.go           # NEW: HTTP management API
-├── api_handlers.go  # NEW: HTTP handlers
-└── ...
-
-cmd/forest/
-├── main.go          # Route to daemon or client mode
-├── daemon.go        # Daemon (forest run)
-├── client.go        # NEW: CLI client commands
-└── ...
+# Reload config from disk
+forest reload
 ```
 
 ## Example Usage
 
 ```bash
-# Terminal 1: Start the forest
+# Terminal 1: Start the forest (systemd or manual)
 $ forest standalone
 🌲 NimsForest Standalone Mode
 📡 Starting embedded NATS server...
@@ -185,32 +89,121 @@ $ forest standalone
    🏠 TreeHouse:scoring
    🧚 Nim:qualify
 
-# Terminal 2: Add a new component
-$ forest add treehouse rescore \
-    --subscribes contact.updated \
-    --publishes lead.rescored \
-    --script ./scripts/treehouses/rescore.lua
-✅ Added treehouse 'rescore'
-
+# Terminal 2 (or from morpheus): Manage components
 $ forest list
 TREEHOUSES:
-  scoring   contact.created → lead.scored     [running]
-  rescore   contact.updated → lead.rescored   [running]
+  NAME      SUBSCRIBES        PUBLISHES      SCRIPT                           STATUS
+  scoring   contact.created   lead.scored    ../scripts/treehouses/scoring.lua [running]
 
 NIMS:
-  qualify   lead.scored → lead.qualified      [running]
+  NAME      SUBSCRIBES   PUBLISHES        PROMPT                      STATUS
+  qualify   lead.scored  lead.qualified   ../scripts/nims/qualify.md  [running]
+
+$ forest add treehouse rescore \
+    --subscribes=contact.updated \
+    --publishes=lead.rescored \
+    --script=./scripts/treehouses/rescore.lua
+✅ Added treehouse 'rescore'
 
 $ forest remove treehouse rescore
 ✅ Removed treehouse 'rescore'
 
-# Or reload entire config
 $ forest reload
-✅ Config reloaded (added: 1 treehouse, removed: 0)
+✅ Configuration reloaded
 ```
 
-## Security Considerations
+## Configuration Files
 
-1. **Bind to localhost only** by default (127.0.0.1:8080)
-2. **Optional authentication** for production
-3. **Rate limiting** on API endpoints
-4. **Audit logging** for all changes
+### TreeHouse Config (YAML)
+
+```yaml
+# rescore.yaml
+name: rescore
+subscribes: contact.updated
+publishes: lead.rescored
+script: ./scripts/treehouses/rescore.lua
+```
+
+### Nim Config (YAML)
+
+```yaml
+# requalify.yaml
+name: requalify
+subscribes: lead.rescored
+publishes: lead.requalified
+prompt: ./scripts/nims/requalify.md
+```
+
+## Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `NIMSFOREST_API` | Management API address | `127.0.0.1:8080` |
+
+## API Reference
+
+### GET /health
+
+Health check endpoint.
+
+**Response:** `{"status": "ok"}`
+
+### GET /api/v1/status
+
+Get forest status.
+
+**Response:**
+```json
+{
+  "running": true,
+  "treehouses": [...],
+  "nims": [...],
+  "config_path": "/path/to/forest.yaml"
+}
+```
+
+### POST /api/v1/treehouses
+
+Add a new treehouse.
+
+**Request:**
+```json
+{
+  "name": "scoring2",
+  "subscribes": "contact.updated",
+  "publishes": "lead.rescored",
+  "script": "./rescore.lua"
+}
+```
+
+### DELETE /api/v1/treehouses/{name}
+
+Remove a treehouse by name.
+
+### POST /api/v1/nims
+
+Add a new nim.
+
+**Request:**
+```json
+{
+  "name": "qualify2",
+  "subscribes": "lead.rescored",
+  "publishes": "lead.requalified",
+  "prompt": "./requalify.md"
+}
+```
+
+### DELETE /api/v1/nims/{name}
+
+Remove a nim by name.
+
+### POST /-/reload
+
+Reload configuration from disk.
+
+## Security
+
+- API binds to `127.0.0.1` only by default (localhost)
+- No authentication required for localhost access
+- For remote access, use SSH tunnel or VPN

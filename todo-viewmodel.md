@@ -90,14 +90,26 @@ This test defines the contract. Implementation is complete when it passes.
 
 ### Output Format
 ```
-Territory: 2 land
+Territory: 3 land
 
 Land: node-abc (ram: 16GB, cpu: 4, occupancy: 38%)
-  tree: payment-processor (ram: 4GB)
-  nim: qualify (ram: 2GB)
+  Trees:
+    - payment-processor (ram: 4GB)
+  Treehouses:
+    - scoring (ram: 1GB)
+  Nims:
+    - qualify (ram: 2GB)
 
 Land: node-xyz (ram: 16GB, cpu: 4, occupancy: 25%)
-  tree: scoring (ram: 4GB)
+  Trees:
+    - router (ram: 4GB)
+  Treehouses: (none)
+  Nims: (none)
+
+Land: node-gpu (ram: 32GB, cpu: 8, gpu: 24GB vram, occupancy: 0%)
+  Trees: (none)
+  Treehouses: (none)
+  Nims: (none)
 ```
 
 ## MVP Scope

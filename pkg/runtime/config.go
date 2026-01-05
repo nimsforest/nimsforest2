@@ -23,10 +23,10 @@ type Config struct {
 
 // TreeConfig defines a Tree - a River-to-Wind adapter that parses external data.
 type TreeConfig struct {
-	Name     string `yaml:"-"`        // Set from map key
-	Watches  string `yaml:"watches"`  // River subject to observe (JetStream)
+	Name      string `yaml:"-"`         // Set from map key
+	Watches   string `yaml:"watches"`   // River subject to observe (JetStream)
 	Publishes string `yaml:"publishes"` // Wind subject to publish Leaves to
-	Script   string `yaml:"script"`   // Path to Lua script
+	Script    string `yaml:"script"`    // Path to Lua script
 }
 
 // TreeHouseConfig defines a TreeHouse - a Lua-based data transformer.

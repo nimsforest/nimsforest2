@@ -22,7 +22,7 @@ func (m *mockBrain) Initialize(ctx context.Context) error { return nil }
 func (m *mockBrain) Ask(ctx context.Context, prompt string) (string, error) {
 	return `{"result": "ok"}`, nil
 }
-func (m *mockBrain) Close(ctx context.Context) error                            { return nil }
+func (m *mockBrain) Close(ctx context.Context) error { return nil }
 func (m *mockBrain) Store(ctx context.Context, content string, tags []string) (*brain.Knowledge, error) {
 	return nil, nil
 }

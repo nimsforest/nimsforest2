@@ -32,6 +32,11 @@
 - Assert: Processes nested under their Land
 - Assert: GPU land shows vram
 
+### Test: CLI Summary
+- Run `nimsforest viewmodel summary`
+- Assert: Output shows total counts
+- Assert: Counts match actual deployed resources
+
 This test defines the contract. Implementation is complete when it passes.
 
 ## Phase 1: Model Layer
@@ -85,10 +90,19 @@ This test defines the contract. Implementation is complete when it passes.
 
 ### Command: `nimsforest viewmodel print`
 - Reads current Territory state from embedded server
-- Prints simple text list to stdout
+- Prints full nested list to stdout
 - Prints once and exits
 
-### Output Format
+### Command: `nimsforest viewmodel summary`
+- Reads current Territory state from embedded server
+- Prints counts only
+
+### Summary Output Format
+```
+Territory: 3 land, 2 trees, 1 treehouse, 1 nim
+```
+
+### Print Output Format
 ```
 Territory: 3 land
 

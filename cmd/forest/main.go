@@ -145,6 +145,7 @@ func printHelp() {
 	fmt.Println("  ANTHROPIC_API_KEY       Claude API key for AI-powered Nims")
 	fmt.Println("  OPENAI_API_KEY          OpenAI API key (alternative to Claude)")
 	fmt.Println("  FOREST_CONFIG           Path to forest.yaml config file")
+	fmt.Println("  FOREST_VERBOSE          Enable verbose logging (true/1/yes)")
 	fmt.Println("  NATS_CLUSTER_NODE_INFO  Override node info path")
 	fmt.Println("  NATS_CLUSTER_REGISTRY   Override registry path")
 	fmt.Println("  JETSTREAM_DIR           JetStream data directory")

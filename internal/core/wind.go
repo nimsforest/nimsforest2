@@ -4,9 +4,20 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
+	"strings"
 
 	"github.com/nats-io/nats.go"
 )
+
+// Verbose controls detailed logging output.
+// Set FOREST_VERBOSE=true or FOREST_VERBOSE=1 to enable.
+var Verbose = checkVerbose()
+
+func checkVerbose() bool {
+	v := strings.ToLower(os.Getenv("FOREST_VERBOSE"))
+	return v == "true" || v == "1" || v == "yes"
+}
 
 // Wind wraps NATS Core pub/sub functionality for carrying leaves.
 // Wind is ephemeral - messages are not persisted and are delivered
@@ -43,6 +54,9 @@ func (w *Wind) Drop(leaf Leaf) error {
 		return fmt.Errorf("failed to publish leaf to subject %s: %w", leaf.Subject, err)
 	}
 
+	if Verbose {
+		log.Printf("[Wind] Dropped leaf: subject=%s, source=%s", leaf.Subject, leaf.Source)
+	}
 	return nil
 }
 
@@ -77,6 +91,9 @@ func (w *Wind) Catch(subject string, handler func(leaf Leaf)) (*nats.Subscriptio
 		return nil, fmt.Errorf("failed to subscribe to subject %s: %w", subject, err)
 	}
 
+	if Verbose {
+		log.Printf("[Wind] Catching leaves on subject: %s", subject)
+	}
 	return sub, nil
 }
 
@@ -106,6 +123,9 @@ func (w *Wind) CatchWithQueue(subject, queue string, handler func(leaf Leaf)) (*
 		return nil, fmt.Errorf("failed to queue subscribe to subject %s with queue %s: %w", subject, queue, err)
 	}
 
+	if Verbose {
+		log.Printf("[Wind] Catching leaves on subject %s with queue %s", subject, queue)
+	}
 	return sub, nil
 }
 

@@ -83,13 +83,13 @@ func TestWindWakerBeatsReceived(t *testing.T) {
 
 	var received atomic.Int32
 
-	// Subscribe to beats before starting
-	err := OnBeat(wind, "test-dancer", func(beat Beat) error {
+	// Catch beats before starting WindWaker
+	_, err := CatchBeatFunc(wind, "test-dancer", func(beat Beat) error {
 		received.Add(1)
 		return nil
 	})
 	if err != nil {
-		t.Fatalf("Failed to subscribe: %v", err)
+		t.Fatalf("Failed to catch beats: %v", err)
 	}
 
 	ww := New(wind, 100) // 100Hz
@@ -115,13 +115,13 @@ func TestWindWakerBeatContent(t *testing.T) {
 	var lastBeat Beat
 	var beatReceived atomic.Bool
 
-	err := OnBeat(wind, "test-dancer", func(beat Beat) error {
+	_, err := CatchBeatFunc(wind, "test-dancer", func(beat Beat) error {
 		lastBeat = beat
 		beatReceived.Store(true)
 		return nil
 	})
 	if err != nil {
-		t.Fatalf("Failed to subscribe: %v", err)
+		t.Fatalf("Failed to catch beats: %v", err)
 	}
 
 	ww := New(wind, 50) // 50Hz
@@ -159,7 +159,7 @@ func TestDancerInterface(t *testing.T) {
 
 	var danceCount atomic.Int32
 
-	dancer := NewSimpleDancer("test-dancer", func(beat Beat) error {
+	dancer := NewDancer("test-dancer", func(beat Beat) error {
 		danceCount.Add(1)
 		return nil
 	})
@@ -168,9 +168,9 @@ func TestDancerInterface(t *testing.T) {
 		t.Errorf("Expected ID 'test-dancer', got '%s'", dancer.ID())
 	}
 
-	err := RegisterDancer(wind, dancer)
+	_, err := CatchBeat(wind, dancer)
 	if err != nil {
-		t.Fatalf("Failed to register dancer: %v", err)
+		t.Fatalf("Failed to catch beats for dancer: %v", err)
 	}
 
 	ww := New(wind, 100)
@@ -194,15 +194,15 @@ func TestMultipleDancers(t *testing.T) {
 
 	var count1, count2, count3 atomic.Int32
 
-	OnBeat(wind, "dancer-1", func(beat Beat) error {
+	CatchBeatFunc(wind, "dancer-1", func(beat Beat) error {
 		count1.Add(1)
 		return nil
 	})
-	OnBeat(wind, "dancer-2", func(beat Beat) error {
+	CatchBeatFunc(wind, "dancer-2", func(beat Beat) error {
 		count2.Add(1)
 		return nil
 	})
-	OnBeat(wind, "dancer-3", func(beat Beat) error {
+	CatchBeatFunc(wind, "dancer-3", func(beat Beat) error {
 		count3.Add(1)
 		return nil
 	})

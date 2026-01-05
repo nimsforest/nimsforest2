@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 
+	"github.com/nats-io/nats.go"
 	"github.com/yourusername/nimsforest/internal/core"
 )
 
@@ -20,9 +21,10 @@ type Dancer interface {
 // DanceFunc is a function type for simple dance handlers.
 type DanceFunc func(beat Beat) error
 
-// RegisterDancer subscribes a Dancer to dance beats via the Wind.
+// CatchBeat subscribes a Dancer to dance beats via Wind.Catch().
 // The dancer's Dance() method will be called on each beat.
-func RegisterDancer(wind *core.Wind, dancer Dancer) error {
+// Returns the subscription for later cleanup.
+func CatchBeat(wind *core.Wind, dancer Dancer) (*nats.Subscription, error) {
 	return wind.Catch(SubjectDanceBeat, func(leaf core.Leaf) {
 		var beat Beat
 		if err := json.Unmarshal(leaf.Data, &beat); err != nil {
@@ -36,9 +38,10 @@ func RegisterDancer(wind *core.Wind, dancer Dancer) error {
 	})
 }
 
-// OnBeat subscribes a simple function to dance beats.
+// CatchBeatFunc subscribes a simple function to dance beats via Wind.Catch().
 // This is a convenience for components that don't need the full Dancer interface.
-func OnBeat(wind *core.Wind, name string, fn DanceFunc) error {
+// Returns the subscription for later cleanup.
+func CatchBeatFunc(wind *core.Wind, name string, fn DanceFunc) (*nats.Subscription, error) {
 	return wind.Catch(SubjectDanceBeat, func(leaf core.Leaf) {
 		var beat Beat
 		if err := json.Unmarshal(leaf.Data, &beat); err != nil {
@@ -52,14 +55,14 @@ func OnBeat(wind *core.Wind, name string, fn DanceFunc) error {
 	})
 }
 
-// SimpleDancer wraps a function as a Dancer.
+// SimpleDancer wraps a DanceFunc as a Dancer interface.
 type SimpleDancer struct {
 	id string
 	fn DanceFunc
 }
 
-// NewSimpleDancer creates a Dancer from a function.
-func NewSimpleDancer(id string, fn DanceFunc) *SimpleDancer {
+// NewDancer creates a Dancer from an ID and function.
+func NewDancer(id string, fn DanceFunc) *SimpleDancer {
 	return &SimpleDancer{id: id, fn: fn}
 }
 

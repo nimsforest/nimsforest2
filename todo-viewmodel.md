@@ -3,13 +3,13 @@
 ## Phase 0: E2E Test (Define Success)
 
 ### Test: `test/e2e/viewmodel_test.go`
-- Spin up embedded NATS cluster (2 nodes)
-- Deploy a tree and a nim to different nodes
+- Spin up embedded NATS cluster (minimum 2 nodes)
+- Deploy a tree on node 1, a nim on node 2
 - Initialize viewmodel
 - Assert: Territory contains 2 Land entries with correct RAM/CPU
 - Assert: Tree appears on correct Land with ram_allocated
 - Assert: Nim appears on correct Land with ram_allocated
-- Assert: Occupancy calculations are correct
+- Assert: Occupancy calculations are correct per Land
 
 ### Test: Event Updates
 - With viewmodel running, start a new tree (creates subscriber)
@@ -90,11 +90,14 @@ This test defines the contract. Implementation is complete when it passes.
 
 ### Output Format
 ```
-Land: node-abc (ram: 16GB, cpu: 4, occupancy: 45%)
+Territory: 2 land
+
+Land: node-abc (ram: 16GB, cpu: 4, occupancy: 38%)
   tree: payment-processor (ram: 4GB)
   nim: qualify (ram: 2GB)
-Land: node-xyz (ram: 32GB, cpu: 8, gpu: 24GB vram, occupancy: 25%)
-  tree: scoring (ram: 8GB)
+
+Land: node-xyz (ram: 16GB, cpu: 4, occupancy: 25%)
+  tree: scoring (ram: 4GB)
 ```
 
 ## MVP Scope

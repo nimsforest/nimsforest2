@@ -136,7 +136,13 @@ sources:
 
 ### 3. Ceremony Source
 
-Runs on a schedule or interval, emitting events into River. Aligns with the WindWaker ceremony pattern.
+Listens to WindWaker's `dance.beat` and counts beats to trigger at intervals. This keeps all timing synchronized through the forest's conductor.
+
+**How it works:**
+1. Ceremony source catches `dance.beat` from Wind
+2. Counts beats until interval is reached (e.g., 90Hz × 60s = 5400 beats for 1 minute)
+3. Flows event into River
+4. Resets counter
 
 **Use Cases:**
 - Daily report generation
@@ -147,24 +153,26 @@ Runs on a schedule or interval, emitting events into River. Aligns with the Wind
 **Configuration:**
 ```yaml
 sources:
-  daily-summary:
-    type: ceremony
-    schedule: "0 8 * * *"            # Cron expression: 8 AM daily
-    publishes: river.trigger.daily_summary
-    payload:                          # Static payload
-      type: daily_summary
-      
   hourly-health-check:
     type: ceremony
-    interval: 1h                      # Or use interval instead of cron
+    interval: 1h                      # Counts beats for 1 hour
     publishes: river.trigger.health_check
     script: scripts/sources/health.lua  # Optional: Lua script to generate payload
     
   heartbeat:
     type: ceremony
-    interval: 30s                     # Every 30 seconds
+    interval: 30s                     # Every 30 seconds (2700 beats at 90Hz)
     publishes: river.system.heartbeat
+    
+  five-minute-sync:
+    type: ceremony
+    interval: 5m
+    publishes: river.trigger.sync
+    payload:                          # Static payload
+      type: sync_trigger
 ```
+
+**Note:** For wall-clock schedules (e.g., "8 AM daily"), a separate scheduler component may be needed, or the ceremony source can check wall-clock time on each beat.
 
 ---
 
@@ -338,8 +346,7 @@ func NewPollSource(cfg PollSourceConfig, river *core.River, soil *core.Soil) *Po
 
 type CeremonySourceConfig struct {
     Name      string
-    Schedule  string            // Cron expression (optional, use this OR interval)
-    Interval  time.Duration     // Simple interval (optional, use this OR schedule)
+    Interval  time.Duration     // How often to trigger (e.g., 30s, 5m, 1h)
     Publishes string
     Payload   map[string]any    // Static payload (optional)
     Script    string            // Lua script path (optional)
@@ -347,13 +354,40 @@ type CeremonySourceConfig struct {
 
 type CeremonySource struct {
     *core.BaseSource
-    config    CeremonySourceConfig
-    scheduler *cron.Cron        // For cron-based scheduling
-    ticker    *time.Ticker      // For interval-based scheduling
-    vm        *runtime.LuaVM    // For script-based payloads
+    config       CeremonySourceConfig
+    wind         *core.Wind
+    vm           *runtime.LuaVM    // For script-based payloads
+    
+    // Beat counting
+    beatsPerTrigger uint64        // Calculated from interval and Hz
+    beatCount       uint64        // Current count
+    hz              int           // WindWaker frequency (typically 90)
+    sub             *core.Subscription
 }
 
-func NewCeremonySource(cfg CeremonySourceConfig, river *core.River) *CeremonySource
+func NewCeremonySource(cfg CeremonySourceConfig, wind *core.Wind, river *core.River) *CeremonySource
+
+// Start subscribes to dance.beat and begins counting
+func (s *CeremonySource) Start(ctx context.Context) error {
+    // Calculate beats needed: interval_seconds * hz
+    s.beatsPerTrigger = uint64(s.config.Interval.Seconds()) * uint64(s.hz)
+    
+    // Catch dance beats from WindWaker
+    s.sub, _ = s.wind.Catch("dance.beat", func(leaf core.Leaf) {
+        s.beatCount++
+        if s.beatCount >= s.beatsPerTrigger {
+            s.trigger()
+            s.beatCount = 0
+        }
+    })
+    return nil
+}
+
+// trigger flows the event into River
+func (s *CeremonySource) trigger() {
+    payload := s.buildPayload()  // Static or from Lua script
+    s.Flow(payload)
+}
 ```
 
 ### Phase 5: Configuration Integration
@@ -384,10 +418,10 @@ sources:
     headers:
       Authorization: Bearer ${CRM_TOKEN}
       
-  daily-report:
+  hourly-report:
     type: ceremony
-    schedule: "0 9 * * *"
-    publishes: river.trigger.daily_report
+    interval: 1h
+    publishes: river.trigger.hourly_report
 
 # Trees - Parse River data into Leaves
 trees:
@@ -433,13 +467,10 @@ type SourceConfig struct {
     Secret    string            `yaml:"secret,omitempty"`
     Headers   []string          `yaml:"headers,omitempty"`
     
-    // HTTP Poll fields
-    URL       string            `yaml:"url,omitempty"`
-    Method    string            `yaml:"method,omitempty"`
-    
-    // Ceremony fields (also used by http_poll for interval)
-    Schedule  string            `yaml:"schedule,omitempty"`  // Cron expression
-    Interval  string            `yaml:"interval,omitempty"`  // Simple interval (e.g., "5m", "1h")
+    // HTTP Poll / Ceremony fields
+    URL       string            `yaml:"url,omitempty"`       // http_poll only
+    Method    string            `yaml:"method,omitempty"`    // http_poll only
+    Interval  string            `yaml:"interval,omitempty"`  // Duration (e.g., "5m", "1h")
     
     // Common fields
     Publishes string            `yaml:"publishes"`
@@ -481,17 +512,16 @@ forest add source crm-contacts \
   --publishes=river.crm.contacts \
   --interval=5m
 
-# Add ceremony source (with cron schedule)
-forest add source daily-cleanup \
-  --type=ceremony \
-  --schedule="0 2 * * *" \
-  --publishes=river.trigger.cleanup
-
-# Add ceremony source (with simple interval)
+# Add ceremony source (counts WindWaker beats)
 forest add source heartbeat \
   --type=ceremony \
   --interval=30s \
   --publishes=river.system.heartbeat
+
+forest add source hourly-sync \
+  --type=ceremony \
+  --interval=1h \
+  --publishes=river.trigger.sync
 
 # Remove source
 forest remove source stripe-webhook
@@ -551,7 +581,7 @@ nimsforest/
 │       ├── webhook_verify.go   # Signature verification
 │       ├── http_server.go      # Webhook HTTP server
 │       ├── poll.go             # HTTP poll source
-│       ├── ceremony.go         # Ceremony source (scheduled/interval)
+│       ├── ceremony.go         # Ceremony source (counts WindWaker beats)
 │       └── factory.go          # Source factory (creates source from config)
 │
 ├── pkg/runtime/
@@ -628,13 +658,13 @@ sources:
       param: since
       extract: $.meta.last_updated
       
-  # Daily summary trigger (ceremony with cron schedule)
-  daily-summary:
+  # Hourly sync trigger (ceremony counts WindWaker beats)
+  hourly-sync:
     type: ceremony
-    schedule: "0 9 * * *"
-    publishes: river.trigger.daily_summary
+    interval: 1h
+    publishes: river.trigger.sync
     
-  # System heartbeat (ceremony with simple interval)
+  # System heartbeat (every 30 seconds)
   heartbeat:
     type: ceremony
     interval: 30s
@@ -717,10 +747,10 @@ CRM_TOKEN=...
 - [ ] Integration tests
 
 ### Milestone 4: Ceremony Source (Week 4)
-- [ ] Implement `CeremonySource`
-- [ ] Support both cron expressions and simple intervals
+- [ ] Implement `CeremonySource` that catches `dance.beat`
+- [ ] Beat counting for interval-based triggers
 - [ ] Add Lua script support for payload generation
-- [ ] Integration tests
+- [ ] Integration tests with WindWaker
 
 ### Milestone 5: Full Integration (Week 5)
 - [ ] Integrate all sources into Forest
@@ -737,7 +767,7 @@ CRM_TOKEN=...
 - Source interface compliance
 - Configuration parsing and validation
 - Signature verification algorithms
-- Ceremony scheduling (cron expressions and intervals)
+- Ceremony beat counting accuracy
 
 ### Integration Tests
 - Webhook source → River flow
@@ -759,7 +789,7 @@ CRM_TOKEN=...
 2. **Runtime management**: Add/remove/pause/resume sources via API and CLI
 3. **Webhook support**: At least Stripe and GitHub signature verification
 4. **Poll support**: Basic polling with cursor/pagination
-5. **Ceremony support**: Cron expressions and intervals with optional Lua payload generation
+5. **Ceremony support**: Interval-based triggers using WindWaker beats, optional Lua payload
 6. **Security**: Signature verification, secret management, rate limiting
 7. **Observability**: Logging, metrics for each source
 8. **Documentation**: Config examples, API docs, security guidelines
@@ -790,4 +820,3 @@ CRM_TOKEN=...
 - [NATS JetStream Documentation](https://docs.nats.io/nats-concepts/jetstream)
 - [Stripe Webhook Security](https://stripe.com/docs/webhooks/signatures)
 - [GitHub Webhook Security](https://docs.github.com/en/webhooks/using-webhooks/validating-webhook-deliveries)
-- [robfig/cron](https://pkg.go.dev/github.com/robfig/cron/v3) - For ceremony cron expression parsing

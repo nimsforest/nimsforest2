@@ -12,22 +12,6 @@ import (
 	"github.com/yourusername/nimsforest/internal/core"
 )
 
-// mockRiver is a mock River for testing
-type mockRiver struct {
-	flows []struct {
-		subject string
-		data    []byte
-	}
-}
-
-func (m *mockRiver) Flow(subject string, data []byte) error {
-	m.flows = append(m.flows, struct {
-		subject string
-		data    []byte
-	}{subject, data})
-	return nil
-}
-
 func TestWebhookSource_Handler(t *testing.T) {
 	// Create a mock river using a real River would require NATS
 	// For unit testing, we'll test the handler directly

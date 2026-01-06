@@ -19,6 +19,19 @@ jobs:
       with:
         fetch-depth: 0  # Fetch all tags for version detection
 
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: web/package-lock.json
+
+    - name: Build web frontend
+      run: |
+        cd web
+        npm ci
+        npm run build
+
     - name: Set up Go
       uses: actions/setup-go@v5
       with:

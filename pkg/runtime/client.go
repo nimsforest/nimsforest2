@@ -72,6 +72,129 @@ func (c *Client) Status() (*ForestStatus, error) {
 }
 
 // =============================================================================
+// Source Operations
+// =============================================================================
+
+// ListSources returns all running sources.
+func (c *Client) ListSources() ([]SourceInfo, error) {
+	resp, err := c.httpClient.Get(c.baseURL + "/api/v1/sources")
+	if err != nil {
+		return nil, fmt.Errorf("cannot connect to nimsforest daemon: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, c.parseError(resp)
+	}
+
+	var sources []SourceInfo
+	if err := json.NewDecoder(resp.Body).Decode(&sources); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+	return sources, nil
+}
+
+// AddSource adds a new source.
+func (c *Client) AddSource(name, sourceType, publishes string, opts map[string]interface{}) error {
+	payload := map[string]interface{}{
+		"name":      name,
+		"type":      sourceType,
+		"publishes": publishes,
+	}
+	// Merge in any additional options
+	for k, v := range opts {
+		payload[k] = v
+	}
+
+	data, _ := json.Marshal(payload)
+	resp, err := c.httpClient.Post(c.baseURL+"/api/v1/sources", "application/json", bytes.NewReader(data))
+	if err != nil {
+		return fmt.Errorf("cannot connect to nimsforest daemon: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated {
+		return c.parseError(resp)
+	}
+	return nil
+}
+
+// AddSourceFromConfig adds a source from a config struct.
+func (c *Client) AddSourceFromConfig(cfg SourceConfig) error {
+	opts := make(map[string]interface{})
+	if cfg.Path != "" {
+		opts["path"] = cfg.Path
+	}
+	if cfg.Secret != "" {
+		opts["secret"] = cfg.Secret
+	}
+	if len(cfg.Headers) > 0 {
+		opts["headers"] = cfg.Headers
+	}
+	if cfg.URL != "" {
+		opts["url"] = cfg.URL
+	}
+	if cfg.Method != "" {
+		opts["method"] = cfg.Method
+	}
+	if cfg.Interval != "" {
+		opts["interval"] = cfg.Interval
+	}
+	if len(cfg.ReqHeaders) > 0 {
+		opts["request_headers"] = cfg.ReqHeaders
+	}
+	if len(cfg.Payload) > 0 {
+		opts["payload"] = cfg.Payload
+	}
+	return c.AddSource(cfg.Name, cfg.Type, cfg.Publishes, opts)
+}
+
+// RemoveSource removes a source by name.
+func (c *Client) RemoveSource(name string) error {
+	req, _ := http.NewRequest(http.MethodDelete, c.baseURL+"/api/v1/sources/"+name, nil)
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("cannot connect to nimsforest daemon: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNoContent {
+		return c.parseError(resp)
+	}
+	return nil
+}
+
+// PauseSource pauses a source.
+func (c *Client) PauseSource(name string) error {
+	req, _ := http.NewRequest(http.MethodPut, c.baseURL+"/api/v1/sources/"+name+"/pause", nil)
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("cannot connect to nimsforest daemon: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return c.parseError(resp)
+	}
+	return nil
+}
+
+// ResumeSource resumes a paused source.
+func (c *Client) ResumeSource(name string) error {
+	req, _ := http.NewRequest(http.MethodPut, c.baseURL+"/api/v1/sources/"+name+"/resume", nil)
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("cannot connect to nimsforest daemon: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return c.parseError(resp)
+	}
+	return nil
+}
+
+// =============================================================================
 // Tree Operations
 // =============================================================================
 

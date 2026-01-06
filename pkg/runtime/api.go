@@ -47,6 +47,13 @@ func NewAPI(cfg APIConfig) *API {
 	// Status
 	mux.HandleFunc("GET /api/v1/status", api.handleStatus)
 
+	// Sources
+	mux.HandleFunc("GET /api/v1/sources", api.handleListSources)
+	mux.HandleFunc("POST /api/v1/sources", api.handleAddSource)
+	mux.HandleFunc("DELETE /api/v1/sources/{name}", api.handleRemoveSource)
+	mux.HandleFunc("PUT /api/v1/sources/{name}/pause", api.handlePauseSource)
+	mux.HandleFunc("PUT /api/v1/sources/{name}/resume", api.handleResumeSource)
+
 	// Trees
 	mux.HandleFunc("GET /api/v1/trees", api.handleListTrees)
 	mux.HandleFunc("POST /api/v1/trees", api.handleAddTree)
@@ -131,6 +138,141 @@ func (api *API) handleStatus(w http.ResponseWriter, r *http.Request) {
 	status := api.config.Forest.Status()
 	status.ConfigPath = api.config.ConfigPath
 	writeJSON(w, http.StatusOK, status)
+}
+
+// =============================================================================
+// Source Handlers
+// =============================================================================
+
+func (api *API) handleListSources(w http.ResponseWriter, r *http.Request) {
+	status := api.config.Forest.Status()
+	writeJSON(w, http.StatusOK, status.Sources)
+}
+
+func (api *API) handleAddSource(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Name      string            `json:"name"`
+		Type      string            `json:"type"`
+		Publishes string            `json:"publishes"`
+		Path      string            `json:"path,omitempty"`
+		Secret    string            `json:"secret,omitempty"`
+		Headers   []string          `json:"headers,omitempty"`
+		URL       string            `json:"url,omitempty"`
+		Method    string            `json:"method,omitempty"`
+		Interval  string            `json:"interval,omitempty"`
+		ReqHeaders map[string]string `json:"request_headers,omitempty"`
+		Payload   map[string]any    `json:"payload,omitempty"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+
+	// Validate required fields
+	if req.Name == "" {
+		writeError(w, http.StatusBadRequest, "name is required")
+		return
+	}
+	if req.Type == "" {
+		writeError(w, http.StatusBadRequest, "type is required")
+		return
+	}
+	if req.Publishes == "" {
+		writeError(w, http.StatusBadRequest, "publishes is required")
+		return
+	}
+
+	cfg := SourceConfig{
+		Name:       req.Name,
+		Type:       req.Type,
+		Publishes:  req.Publishes,
+		Path:       req.Path,
+		Secret:     req.Secret,
+		Headers:    req.Headers,
+		URL:        req.URL,
+		Method:     req.Method,
+		Interval:   req.Interval,
+		ReqHeaders: req.ReqHeaders,
+		Payload:    req.Payload,
+	}
+
+	if err := api.config.Forest.AddSource(req.Name, cfg); err != nil {
+		if strings.Contains(err.Error(), "already exists") {
+			writeError(w, http.StatusConflict, err.Error())
+		} else {
+			writeError(w, http.StatusBadRequest, err.Error())
+		}
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, map[string]string{
+		"status": "created",
+		"name":   req.Name,
+	})
+}
+
+func (api *API) handleRemoveSource(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	if name == "" {
+		writeError(w, http.StatusBadRequest, "name is required")
+		return
+	}
+
+	if err := api.config.Forest.RemoveSource(name); err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			writeError(w, http.StatusNotFound, err.Error())
+		} else {
+			writeError(w, http.StatusInternalServerError, err.Error())
+		}
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (api *API) handlePauseSource(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	if name == "" {
+		writeError(w, http.StatusBadRequest, "name is required")
+		return
+	}
+
+	if err := api.config.Forest.PauseSource(name); err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			writeError(w, http.StatusNotFound, err.Error())
+		} else {
+			writeError(w, http.StatusInternalServerError, err.Error())
+		}
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{
+		"status": "paused",
+		"name":   name,
+	})
+}
+
+func (api *API) handleResumeSource(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	if name == "" {
+		writeError(w, http.StatusBadRequest, "name is required")
+		return
+	}
+
+	if err := api.config.Forest.ResumeSource(name); err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			writeError(w, http.StatusNotFound, err.Error())
+		} else {
+			writeError(w, http.StatusInternalServerError, err.Error())
+		}
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{
+		"status": "resumed",
+		"name":   name,
+	})
 }
 
 func (api *API) handleListTrees(w http.ResponseWriter, r *http.Request) {

@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
 
 // Config represents the forest configuration loaded from YAML.
 type Config struct {
+	Sources    map[string]SourceConfig    `yaml:"sources"`
 	Trees      map[string]TreeConfig      `yaml:"trees"`
 	TreeHouses map[string]TreeHouseConfig `yaml:"treehouses"`
 	Nims       map[string]NimConfig       `yaml:"nims"`
@@ -19,6 +21,43 @@ type Config struct {
 	// BaseDir is the directory from which the config was loaded.
 	// Used to resolve relative script/prompt paths.
 	BaseDir string `yaml:"-"`
+}
+
+// SourceConfig defines a Source - an entry point for external data.
+type SourceConfig struct {
+	Name string `yaml:"-"` // Set from map key
+
+	// Type of source: http_webhook, http_poll, ceremony
+	Type string `yaml:"type"`
+
+	// Common fields
+	Publishes string `yaml:"publishes"`
+
+	// HTTP Webhook fields
+	Path    string   `yaml:"path,omitempty"`
+	Secret  string   `yaml:"secret,omitempty"`
+	Headers []string `yaml:"headers,omitempty"`
+
+	// HTTP Poll fields
+	URL        string            `yaml:"url,omitempty"`
+	Method     string            `yaml:"method,omitempty"`
+	Interval   string            `yaml:"interval,omitempty"` // Duration string (e.g., "5m", "1h")
+	ReqHeaders map[string]string `yaml:"request_headers,omitempty"`
+	Body       string            `yaml:"body,omitempty"`
+	Cursor     *CursorConfig     `yaml:"cursor,omitempty"`
+	Timeout    string            `yaml:"timeout,omitempty"`
+
+	// Ceremony fields
+	Payload map[string]any `yaml:"payload,omitempty"`
+	Script  string         `yaml:"script,omitempty"`
+	Hz      int            `yaml:"hz,omitempty"`
+}
+
+// CursorConfig configures cursor-based pagination for poll sources.
+type CursorConfig struct {
+	Param   string `yaml:"param"`   // Query param name for cursor
+	Extract string `yaml:"extract"` // JSONPath to extract next cursor from response
+	Store   string `yaml:"store"`   // Key to persist cursor (optional)
 }
 
 // TreeConfig defines a Tree - a River-to-Wind adapter that parses external data.
@@ -65,6 +104,11 @@ func LoadConfig(path string) (*Config, error) {
 	cfg.BaseDir = filepath.Dir(absPath)
 
 	// Set names from map keys
+	for name := range cfg.Sources {
+		s := cfg.Sources[name]
+		s.Name = name
+		cfg.Sources[name] = s
+	}
 	for name := range cfg.Trees {
 		t := cfg.Trees[name]
 		t.Name = name
@@ -91,6 +135,35 @@ func LoadConfig(path string) (*Config, error) {
 
 // Validate checks that the configuration is valid.
 func (c *Config) Validate() error {
+	// Validate sources
+	for name, s := range c.Sources {
+		if s.Type == "" {
+			return fmt.Errorf("source %q: missing type", name)
+		}
+		if s.Publishes == "" {
+			return fmt.Errorf("source %q: missing publishes", name)
+		}
+		switch s.Type {
+		case "http_webhook":
+			if s.Path == "" {
+				return fmt.Errorf("source %q: http_webhook requires path", name)
+			}
+		case "http_poll":
+			if s.URL == "" {
+				return fmt.Errorf("source %q: http_poll requires url", name)
+			}
+		case "ceremony":
+			if s.Interval == "" {
+				return fmt.Errorf("source %q: ceremony requires interval", name)
+			}
+			if _, err := time.ParseDuration(s.Interval); err != nil {
+				return fmt.Errorf("source %q: invalid interval %q: %w", name, s.Interval, err)
+			}
+		default:
+			return fmt.Errorf("source %q: unknown type %q (use http_webhook, http_poll, or ceremony)", name, s.Type)
+		}
+	}
+
 	for name, t := range c.Trees {
 		if t.Watches == "" {
 			return fmt.Errorf("tree %q: missing watches", name)

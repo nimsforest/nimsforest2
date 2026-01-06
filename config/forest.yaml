@@ -1,12 +1,79 @@
 # NimsForest Configuration
-# Lead scoring pipeline example
+# Complete example with Sources, Trees, TreeHouses, and Nims
 
+# =============================================================================
+# SOURCES - Entry points for external data
+# =============================================================================
+sources:
+  # Stripe payment webhooks
+  stripe:
+    type: http_webhook
+    path: /webhooks/stripe
+    publishes: river.stripe.webhook
+    secret: ${STRIPE_WEBHOOK_SECRET}
+
+  # GitHub repository events
+  github:
+    type: http_webhook
+    path: /webhooks/github
+    publishes: river.github.events
+    headers:
+      - X-GitHub-Event
+      - X-GitHub-Delivery
+
+  # Poll CRM API for new contacts (example - disabled by default)
+  # crm-sync:
+  #   type: http_poll
+  #   url: ${CRM_API_URL}/contacts
+  #   publishes: river.crm.contacts
+  #   interval: 10m
+  #   request_headers:
+  #     Authorization: Bearer ${CRM_TOKEN}
+  #   cursor:
+  #     param: since
+  #     extract: $.meta.last_updated
+
+  # System heartbeat (every 30 seconds)
+  heartbeat:
+    type: ceremony
+    interval: 30s
+    publishes: river.system.heartbeat
+
+  # Hourly sync trigger
+  hourly-sync:
+    type: ceremony
+    interval: 1h
+    publishes: river.trigger.sync
+    payload:
+      type: sync_trigger
+      source: ceremony
+
+# =============================================================================
+# TREES - Parse River data into structured Leaves
+# =============================================================================
+# trees:
+#   stripe-parser:
+#     watches: river.stripe.webhook
+#     publishes: payment.completed
+#     script: ../scripts/trees/stripe_parser.lua
+#
+#   github-parser:
+#     watches: river.github.events
+#     publishes: repo.events
+#     script: ../scripts/trees/github_parser.lua
+
+# =============================================================================
+# TREEHOUSES - Lua-based transformers
+# =============================================================================
 treehouses:
   scoring:
     subscribes: contact.created
     publishes: lead.scored
     script: ../scripts/treehouses/scoring.lua
 
+# =============================================================================
+# NIMS - AI-powered processors
+# =============================================================================
 nims:
   qualify:
     subscribes: lead.scored

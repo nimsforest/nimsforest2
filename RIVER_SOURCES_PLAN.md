@@ -1,6 +1,6 @@
 # River Sources Planning Document
 
-> **TL;DR**: Add Sources as configurable components that feed external data into River via HTTP webhooks, HTTP polling, or cron schedules. Manageable through `forest.yaml` config and runtime API.
+> **TL;DR**: Add Sources as configurable components that feed external data into River via HTTP webhooks, HTTP polling, or cron schedules. Manageable through `forest.yaml` config and runtime API. Sources are simply connected to River or not - no registry needed.
 
 ## Executive Summary
 
@@ -9,6 +9,7 @@
 | **Goal** | Enable external systems to push/pull data into NimsForest |
 | **Source Types** | HTTP Webhook, HTTP Poll, Cron |
 | **Configuration** | YAML-based (`forest.yaml`) + Runtime API |
+| **Management** | Sources are connected to River directly (no registry) |
 | **Security** | Signature verification, secret management, rate limiting |
 | **Timeline** | 5 weeks for full implementation |
 
@@ -65,6 +66,8 @@ External Systems
                 │    TREES     │  (Parse → Leaves)
                 └──────────────┘
 ```
+
+**Key Design**: Sources hold a reference to River and call `river.Flow()` directly. No registry or intermediary layer - a source is either connected and running, or it's not.
 
 ---
 
@@ -157,20 +160,6 @@ sources:
     script: scripts/sources/health.lua  # Optional: Lua script to generate payload
 ```
 
-### 4. NATS Bridge Source (Future)
-
-Bridges events from other NATS subjects or clusters.
-
-**Configuration:**
-```yaml
-sources:
-  legacy-events:
-    type: nats_bridge
-    subscribes: legacy.events.>      # Source NATS subject
-    publishes: river.legacy.events   # Target River subject
-    cluster: nats://legacy-cluster:4222
-```
-
 ---
 
 ## Implementation Plan
@@ -183,14 +172,15 @@ sources:
 // internal/core/source.go
 
 // Source feeds external data into the River.
+// Sources hold a direct reference to River - they're either connected or not.
 type Source interface {
     // Name returns the unique identifier for this source
     Name() string
     
-    // Type returns the source type (http_webhook, http_poll, cron, etc.)
+    // Type returns the source type (http_webhook, http_poll, cron)
     Type() string
     
-    // Start begins accepting/fetching data
+    // Start begins accepting/fetching data and flowing to River
     Start(ctx context.Context) error
     
     // Stop gracefully shuts down the source
@@ -201,37 +191,39 @@ type Source interface {
 }
 
 // BaseSource provides common functionality for all sources.
+// Embeds a River reference for direct data flow.
 type BaseSource struct {
-    name   string
-    river  *River
-    logger *log.Logger
+    name      string
+    river     *River
+    publishes string  // The river subject to publish to
+    running   bool
+    mu        sync.Mutex
 }
 
-// Flow sends data to the River with the given subject.
-func (s *BaseSource) Flow(subject string, data []byte) error {
+// NewBaseSource creates a base source connected to the given River.
+func NewBaseSource(name string, river *River, publishes string) *BaseSource {
+    return &BaseSource{
+        name:      name,
+        river:     river,
+        publishes: publishes,
+    }
+}
+
+// Flow sends data to the River.
+func (s *BaseSource) Flow(data []byte) error {
+    return s.river.Flow(s.publishes, data)
+}
+
+// FlowWithSubject sends data to River with a custom subject suffix.
+// E.g., if publishes is "river.stripe" and suffix is "webhook.charge",
+// the final subject becomes "river.stripe.webhook.charge"
+func (s *BaseSource) FlowWithSubject(suffix string, data []byte) error {
+    subject := s.publishes
+    if suffix != "" {
+        subject = s.publishes + "." + suffix
+    }
     return s.river.Flow(subject, data)
 }
-```
-
-#### 1.2 Source Registry
-
-```go
-// internal/core/source_registry.go
-
-// SourceRegistry manages all active sources.
-type SourceRegistry struct {
-    sources map[string]Source
-    river   *River
-    mu      sync.RWMutex
-}
-
-func NewSourceRegistry(river *River) *SourceRegistry
-func (r *SourceRegistry) Register(source Source) error
-func (r *SourceRegistry) Unregister(name string) error
-func (r *SourceRegistry) Get(name string) (Source, bool)
-func (r *SourceRegistry) List() []SourceInfo
-func (r *SourceRegistry) StartAll(ctx context.Context) error
-func (r *SourceRegistry) StopAll() error
 ```
 
 ### Phase 2: HTTP Webhook Source
@@ -510,13 +502,13 @@ type Forest struct {
     humus         *core.Humus
     brain         brain.Brain
     
-    // Component registries
-    sources       *core.SourceRegistry
+    // Components (sources are just connected to river or not)
+    sources       map[string]Source
     trees         map[string]*Tree
     treehouses    map[string]*TreeHouse
     nims          map[string]*Nim
     
-    // HTTP servers
+    // HTTP server for webhooks
     webhookServer *sources.WebhookServer
     
     mu      sync.Mutex
@@ -527,7 +519,7 @@ func (f *Forest) AddSource(name string, cfg SourceConfig) error
 func (f *Forest) RemoveSource(name string) error
 func (f *Forest) PauseSource(name string) error
 func (f *Forest) ResumeSource(name string) error
-func (f *Forest) SourceStatus() []SourceInfo
+func (f *Forest) ListSources() []SourceInfo
 ```
 
 ---
@@ -539,7 +531,6 @@ nimsforest/
 ├── internal/
 │   ├── core/
 │   │   ├── source.go           # Source interface & BaseSource
-│   │   ├── source_registry.go  # Source registry
 │   │   └── river.go            # (existing)
 │   │
 │   └── sources/
@@ -548,7 +539,7 @@ nimsforest/
 │       ├── http_server.go      # Webhook HTTP server
 │       ├── poll.go             # HTTP poll source
 │       ├── cron.go             # Cron source
-│       └── factory.go          # Source factory
+│       └── factory.go          # Source factory (creates source from config)
 │
 ├── pkg/runtime/
 │   ├── config.go               # Updated with SourceConfig
@@ -689,8 +680,8 @@ CRM_TOKEN=...
 
 ### Milestone 1: Core Infrastructure (Week 1)
 - [ ] Create `Source` interface and `BaseSource`
-- [ ] Implement `SourceRegistry`
 - [ ] Add source configuration to `Config`
+- [ ] Add source map to `Forest`
 - [ ] Unit tests for core infrastructure
 
 ### Milestone 2: HTTP Webhook Source (Week 2)
@@ -729,15 +720,15 @@ CRM_TOKEN=...
 - Cron expression parsing
 
 ### Integration Tests
-- Webhook → River → Tree → Leaf flow
+- Webhook source → River flow
 - Poll source with mock HTTP server
 - Cron source timing accuracy
-- Runtime add/remove of sources
+- Source start/stop lifecycle
 
 ### E2E Tests
-- Complete webhook flow: HTTP POST → River → Tree → Wind → Nim → Humus → Soil
-- Multi-source scenario with different types
-- Source pause/resume functionality
+- Complete webhook flow: HTTP POST → Source → River → Tree → Wind → Nim
+- Multiple sources feeding same River
+- Runtime add/remove of sources via API
 - Configuration reload with sources
 
 ---

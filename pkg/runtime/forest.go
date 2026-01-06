@@ -5,22 +5,31 @@ import (
 	"fmt"
 	"log"
 	"sync"
+	"time"
 
 	"github.com/yourusername/nimsforest/internal/core"
+	"github.com/yourusername/nimsforest/internal/sources"
 	"github.com/yourusername/nimsforest/pkg/brain"
 )
 
-// Forest is the main runtime that manages all Trees, TreeHouses and Nims.
+// Forest is the main runtime that manages all Sources, Trees, TreeHouses and Nims.
 // It uses Wind for all pub/sub operations.
 type Forest struct {
 	config     *Config
 	wind       *core.Wind
-	river      *core.River // Optional: for Trees (requires JetStream)
+	river      *core.River // Optional: for Trees and Sources (requires JetStream)
 	humus      *core.Humus // Optional: for state tracking
 	brain      brain.Brain
-	trees      map[string]*Tree
-	treehouses map[string]*TreeHouse
-	nims       map[string]*Nim
+
+	// Components
+	sources       map[string]core.Source
+	trees         map[string]*Tree
+	treehouses    map[string]*TreeHouse
+	nims          map[string]*Nim
+
+	// HTTP server for webhook sources
+	webhookServer *sources.WebhookServer
+	sourceFactory *sources.Factory
 
 	mu      sync.Mutex
 	running bool
@@ -49,13 +58,13 @@ func NewForestFromConfig(cfg *Config, wind *core.Wind, b brain.Brain) (*Forest, 
 		config:     cfg,
 		wind:       wind,
 		brain:      b,
+		sources:    make(map[string]core.Source),
 		trees:      make(map[string]*Tree),
 		treehouses: make(map[string]*TreeHouse),
 		nims:       make(map[string]*Nim),
 	}
 
-	// Note: Trees require River, which must be set via SetRiver() before Start()
-	// Trees from config will be created when SetRiver is called or in Start()
+	// Note: Trees and Sources require River, which must be set via SetRiver() before Start()
 
 	// Create TreeHouses
 	for name, thCfg := range cfg.TreeHouses {
@@ -94,12 +103,13 @@ func NewForestWithHumus(cfg *Config, wind *core.Wind, humus *core.Humus, b brain
 		wind:       wind,
 		humus:      humus,
 		brain:      b,
+		sources:    make(map[string]core.Source),
 		trees:      make(map[string]*Tree),
 		treehouses: make(map[string]*TreeHouse),
 		nims:       make(map[string]*Nim),
 	}
 
-	// Note: Trees require River, which must be set via SetRiver() before Start()
+	// Note: Trees and Sources require River, which must be set via SetRiver() before Start()
 
 	// Create TreeHouses
 	for name, thCfg := range cfg.TreeHouses {
@@ -132,7 +142,7 @@ func NewForestWithHumus(cfg *Config, wind *core.Wind, humus *core.Humus, b brain
 	return f, nil
 }
 
-// Start starts all Trees, TreeHouses and Nims.
+// Start starts all Sources, Trees, TreeHouses and Nims.
 func (f *Forest) Start(ctx context.Context) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -141,8 +151,64 @@ func (f *Forest) Start(ctx context.Context) error {
 		return fmt.Errorf("forest already running")
 	}
 
-	// Create Trees from config (requires river)
-	if f.river != nil && f.config != nil {
+	// Create source factory if river is available
+	if f.river != nil {
+		f.sourceFactory = sources.NewFactory(f.river, f.wind)
+
+		// Create Sources from config
+		if f.config != nil {
+			hasWebhooks := false
+			for name, srcCfg := range f.config.Sources {
+				if _, exists := f.sources[name]; exists {
+					continue // Already created
+				}
+
+				// Convert config to sources.SourceConfig
+				factoryCfg := sources.SourceConfig{
+					Name:       name,
+					Type:       srcCfg.Type,
+					Publishes:  srcCfg.Publishes,
+					Path:       srcCfg.Path,
+					Secret:     srcCfg.Secret,
+					Headers:    srcCfg.Headers,
+					URL:        srcCfg.URL,
+					Method:     srcCfg.Method,
+					Interval:   srcCfg.Interval,
+					ReqHeaders: srcCfg.ReqHeaders,
+					Body:       srcCfg.Body,
+					Timeout:    srcCfg.Timeout,
+					Payload:    srcCfg.Payload,
+					Script:     srcCfg.Script,
+					Hz:         srcCfg.Hz,
+				}
+				if srcCfg.Cursor != nil {
+					factoryCfg.Cursor = &sources.CursorConfig{
+						Param:   srcCfg.Cursor.Param,
+						Extract: srcCfg.Cursor.Extract,
+						Store:   srcCfg.Cursor.Store,
+					}
+				}
+
+				src, err := f.sourceFactory.Create(factoryCfg)
+				if err != nil {
+					log.Printf("[Forest] Warning: failed to create source %s: %v", name, err)
+					continue
+				}
+				f.sources[name] = src
+
+				// Track if we have webhook sources
+				if srcCfg.Type == "http_webhook" {
+					hasWebhooks = true
+				}
+			}
+
+			// Start webhook server if we have webhook sources
+			if hasWebhooks && f.webhookServer == nil {
+				f.webhookServer = sources.NewWebhookServer(GetWebhookAddress())
+			}
+		}
+
+		// Create Trees from config
 		for name, treeCfg := range f.config.Trees {
 			if _, exists := f.trees[name]; exists {
 				continue // Already created
@@ -158,6 +224,27 @@ func (f *Forest) Start(ctx context.Context) error {
 		}
 	}
 
+	// Mount and start webhook sources
+	if f.webhookServer != nil {
+		for _, src := range f.sources {
+			if ws, ok := src.(*sources.WebhookSource); ok {
+				if err := f.webhookServer.Mount(ws); err != nil {
+					log.Printf("[Forest] Warning: failed to mount webhook source %s: %v", ws.Name(), err)
+				}
+			}
+		}
+		if err := f.webhookServer.Start(); err != nil {
+			log.Printf("[Forest] Warning: failed to start webhook server: %v", err)
+		}
+	}
+
+	// Start Sources
+	for name, src := range f.sources {
+		if err := src.Start(ctx); err != nil {
+			log.Printf("[Forest] Warning: failed to start source %s: %v", name, err)
+		}
+	}
+
 	// Start Trees
 	for name, tree := range f.trees {
 		if err := tree.Start(ctx); err != nil {
@@ -169,7 +256,6 @@ func (f *Forest) Start(ctx context.Context) error {
 	// Start TreeHouses
 	for name, th := range f.treehouses {
 		if err := th.Start(ctx); err != nil {
-			// Stop any already started
 			f.stopAll()
 			return fmt.Errorf("failed to start treehouse %s: %w", name, err)
 		}
@@ -178,15 +264,14 @@ func (f *Forest) Start(ctx context.Context) error {
 	// Start Nims
 	for name, nim := range f.nims {
 		if err := nim.Start(ctx); err != nil {
-			// Stop any already started
 			f.stopAll()
 			return fmt.Errorf("failed to start nim %s: %w", name, err)
 		}
 	}
 
 	f.running = true
-	log.Printf("[Forest] Started with %d trees, %d treehouses and %d nims",
-		len(f.trees), len(f.treehouses), len(f.nims))
+	log.Printf("[Forest] Started with %d sources, %d trees, %d treehouses and %d nims",
+		len(f.sources), len(f.trees), len(f.treehouses), len(f.nims))
 	return nil
 }
 
@@ -207,6 +292,16 @@ func (f *Forest) Stop() error {
 
 // stopAll stops all components without locking (internal use).
 func (f *Forest) stopAll() {
+	// Stop sources first
+	for _, src := range f.sources {
+		src.Stop()
+	}
+	// Stop webhook server
+	if f.webhookServer != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		f.webhookServer.Stop(ctx)
+		cancel()
+	}
 	for _, tree := range f.trees {
 		tree.Stop()
 	}
@@ -240,12 +335,24 @@ func (f *Forest) IsRunning() bool {
 	return f.running
 }
 
-// SetRiver sets the River connection for tree support.
-// Must be called before adding trees.
+// SetRiver sets the River connection for tree and source support.
+// Must be called before adding trees or sources.
 func (f *Forest) SetRiver(river *core.River) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.river = river
+	// Create source factory when river is set
+	if f.sourceFactory == nil && river != nil {
+		f.sourceFactory = sources.NewFactory(river, f.wind)
+	}
+}
+
+// GetWebhookAddress returns the webhook server address.
+func GetWebhookAddress() string {
+	if addr := getEnv("NIMSFOREST_WEBHOOK_ADDR", ""); addr != "" {
+		return addr
+	}
+	return "127.0.0.1:8081"
 }
 
 // =============================================================================
@@ -272,9 +379,23 @@ type TreeInfo struct {
 	Running   bool   `json:"running"`
 }
 
+// SourceInfo provides information about a running source.
+type SourceInfo struct {
+	Name      string `json:"name"`
+	Type      string `json:"type"` // "http_webhook", "http_poll", "ceremony"
+	Publishes string `json:"publishes"`
+	Running   bool   `json:"running"`
+
+	// Type-specific fields
+	Path     string `json:"path,omitempty"`     // http_webhook
+	URL      string `json:"url,omitempty"`      // http_poll
+	Interval string `json:"interval,omitempty"` // http_poll, ceremony
+}
+
 // ForestStatus provides a snapshot of the forest state.
 type ForestStatus struct {
 	Running    bool            `json:"running"`
+	Sources    []SourceInfo    `json:"sources"`
 	Trees      []TreeInfo      `json:"trees"`
 	TreeHouses []ComponentInfo `json:"treehouses"`
 	Nims       []ComponentInfo `json:"nims"`
@@ -288,9 +409,23 @@ func (f *Forest) Status() ForestStatus {
 
 	status := ForestStatus{
 		Running:    f.running,
+		Sources:    make([]SourceInfo, 0, len(f.sources)),
 		Trees:      make([]TreeInfo, 0, len(f.trees)),
 		TreeHouses: make([]ComponentInfo, 0, len(f.treehouses)),
 		Nims:       make([]ComponentInfo, 0, len(f.nims)),
+	}
+
+	for name, src := range f.sources {
+		info := sources.GetSourceInfo(src)
+		status.Sources = append(status.Sources, SourceInfo{
+			Name:      name,
+			Type:      info.Type,
+			Publishes: info.Publishes,
+			Running:   info.Running,
+			Path:      info.Path,
+			URL:       info.URL,
+			Interval:  info.Interval,
+		})
 	}
 
 	for name, tree := range f.trees {
@@ -329,6 +464,179 @@ func (f *Forest) Status() ForestStatus {
 	}
 
 	return status
+}
+
+// AddSource adds a new Source at runtime.
+// Requires River to be set via SetRiver() first.
+func (f *Forest) AddSource(name string, cfg SourceConfig) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if _, exists := f.sources[name]; exists {
+		return fmt.Errorf("source '%s' already exists", name)
+	}
+
+	if f.river == nil {
+		return fmt.Errorf("river is required for sources (call SetRiver first)")
+	}
+
+	if f.sourceFactory == nil {
+		f.sourceFactory = sources.NewFactory(f.river, f.wind)
+	}
+
+	// Ensure name is set
+	cfg.Name = name
+
+	// Convert to factory config
+	factoryCfg := sources.SourceConfig{
+		Name:       name,
+		Type:       cfg.Type,
+		Publishes:  cfg.Publishes,
+		Path:       cfg.Path,
+		Secret:     cfg.Secret,
+		Headers:    cfg.Headers,
+		URL:        cfg.URL,
+		Method:     cfg.Method,
+		Interval:   cfg.Interval,
+		ReqHeaders: cfg.ReqHeaders,
+		Body:       cfg.Body,
+		Timeout:    cfg.Timeout,
+		Payload:    cfg.Payload,
+		Script:     cfg.Script,
+		Hz:         cfg.Hz,
+	}
+	if cfg.Cursor != nil {
+		factoryCfg.Cursor = &sources.CursorConfig{
+			Param:   cfg.Cursor.Param,
+			Extract: cfg.Cursor.Extract,
+			Store:   cfg.Cursor.Store,
+		}
+	}
+
+	// Create the source
+	src, err := f.sourceFactory.Create(factoryCfg)
+	if err != nil {
+		return fmt.Errorf("failed to create source: %w", err)
+	}
+
+	// Handle webhook sources
+	if ws, ok := src.(*sources.WebhookSource); ok {
+		// Start webhook server if needed
+		if f.webhookServer == nil {
+			f.webhookServer = sources.NewWebhookServer(GetWebhookAddress())
+			if f.running {
+				if err := f.webhookServer.Start(); err != nil {
+					return fmt.Errorf("failed to start webhook server: %w", err)
+				}
+			}
+		}
+		if err := f.webhookServer.Mount(ws); err != nil {
+			return fmt.Errorf("failed to mount webhook source: %w", err)
+		}
+	}
+
+	// Start it if the forest is running
+	if f.running {
+		if err := src.Start(context.Background()); err != nil {
+			return fmt.Errorf("failed to start source: %w", err)
+		}
+	}
+
+	// Add to maps
+	f.sources[name] = src
+	if f.config.Sources == nil {
+		f.config.Sources = make(map[string]SourceConfig)
+	}
+	f.config.Sources[name] = cfg
+
+	log.Printf("[Forest] Added source '%s' (type: %s, publishes: %s)",
+		name, cfg.Type, cfg.Publishes)
+	return nil
+}
+
+// RemoveSource removes a Source at runtime.
+func (f *Forest) RemoveSource(name string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	src, exists := f.sources[name]
+	if !exists {
+		return fmt.Errorf("source '%s' not found", name)
+	}
+
+	// Stop it
+	if err := src.Stop(); err != nil {
+		log.Printf("[Forest] Warning: error stopping source '%s': %v", name, err)
+	}
+
+	// Unmount if webhook
+	if _, ok := src.(*sources.WebhookSource); ok && f.webhookServer != nil {
+		f.webhookServer.Unmount(name)
+	}
+
+	// Remove from maps
+	delete(f.sources, name)
+	delete(f.config.Sources, name)
+
+	log.Printf("[Forest] Removed source '%s'", name)
+	return nil
+}
+
+// PauseSource pauses a Source (stops it but keeps it in the config).
+func (f *Forest) PauseSource(name string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	src, exists := f.sources[name]
+	if !exists {
+		return fmt.Errorf("source '%s' not found", name)
+	}
+
+	if err := src.Stop(); err != nil {
+		return fmt.Errorf("failed to pause source: %w", err)
+	}
+
+	log.Printf("[Forest] Paused source '%s'", name)
+	return nil
+}
+
+// ResumeSource resumes a paused Source.
+func (f *Forest) ResumeSource(name string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	src, exists := f.sources[name]
+	if !exists {
+		return fmt.Errorf("source '%s' not found", name)
+	}
+
+	if err := src.Start(context.Background()); err != nil {
+		return fmt.Errorf("failed to resume source: %w", err)
+	}
+
+	log.Printf("[Forest] Resumed source '%s'", name)
+	return nil
+}
+
+// ListSources returns information about all sources.
+func (f *Forest) ListSources() []SourceInfo {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	infos := make([]SourceInfo, 0, len(f.sources))
+	for name, src := range f.sources {
+		info := sources.GetSourceInfo(src)
+		infos = append(infos, SourceInfo{
+			Name:      name,
+			Type:      info.Type,
+			Publishes: info.Publishes,
+			Running:   info.Running,
+			Path:      info.Path,
+			URL:       info.URL,
+			Interval:  info.Interval,
+		})
+	}
+	return infos
 }
 
 // AddTree adds a new Tree at runtime.

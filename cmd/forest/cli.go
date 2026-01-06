@@ -37,6 +37,10 @@ func runClientCommand(args []string) {
 		handleAdd(cmdArgs)
 	case "remove", "rm":
 		handleRemove(cmdArgs)
+	case "pause":
+		handlePause(cmdArgs)
+	case "resume":
+		handleResume(cmdArgs)
 	case "reload":
 		handleReload(cmdArgs)
 	default:
@@ -68,11 +72,15 @@ func handleList(args []string) {
 
 	switch what {
 	case "all":
+		printSources(status.Sources)
+		fmt.Println()
 		printTrees(status.Trees)
 		fmt.Println()
 		printTreeHouses(status.TreeHouses)
 		fmt.Println()
 		printNims(status.Nims)
+	case "sources", "source", "src":
+		printSources(status.Sources)
 	case "trees", "tree":
 		printTrees(status.Trees)
 	case "treehouses", "treehouse", "th":
@@ -80,9 +88,38 @@ func handleList(args []string) {
 	case "nims", "nim":
 		printNims(status.Nims)
 	default:
-		fmt.Fprintf(os.Stderr, "Unknown type: %s (use: all, trees, treehouses, nims)\n", what)
+		fmt.Fprintf(os.Stderr, "Unknown type: %s (use: all, sources, trees, treehouses, nims)\n", what)
 		os.Exit(1)
 	}
+}
+
+func printSources(sources []runtime.SourceInfo) {
+	fmt.Println("SOURCES:")
+	if len(sources) == 0 {
+		fmt.Println("  (none)")
+		return
+	}
+
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(w, "  NAME\tTYPE\tPUBLISHES\tDETAILS\tSTATUS")
+	for _, s := range sources {
+		status := "stopped"
+		if s.Running {
+			status = "running"
+		}
+		details := ""
+		switch s.Type {
+		case "http_webhook":
+			details = s.Path
+		case "http_poll":
+			details = fmt.Sprintf("%s (%s)", s.URL, s.Interval)
+		case "ceremony":
+			details = s.Interval
+		}
+		fmt.Fprintf(w, "  %s\t%s\t%s\t%s\t[%s]\n",
+			s.Name, s.Type, s.Publishes, details, status)
+	}
+	w.Flush()
 }
 
 func printTrees(trees []runtime.TreeInfo) {
@@ -186,8 +223,8 @@ func handleStatus(args []string) {
 
 func handleAdd(args []string) {
 	if len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "Usage: forest add <tree|treehouse|nim> [options]")
-		fmt.Fprintln(os.Stderr, "       forest add <tree|treehouse|nim> --config=<path>")
+		fmt.Fprintln(os.Stderr, "Usage: forest add <source|tree|treehouse|nim> [options]")
+		fmt.Fprintln(os.Stderr, "       forest add <source|tree|treehouse|nim> --config=<path>")
 		os.Exit(1)
 	}
 
@@ -195,6 +232,8 @@ func handleAdd(args []string) {
 	cmdArgs := args[1:]
 
 	switch componentType {
+	case "source", "src":
+		handleAddSource(cmdArgs)
 	case "tree":
 		handleAddTree(cmdArgs)
 	case "treehouse", "th":
@@ -202,9 +241,124 @@ func handleAdd(args []string) {
 	case "nim":
 		handleAddNim(cmdArgs)
 	default:
-		fmt.Fprintf(os.Stderr, "Unknown component type: %s (use: tree, treehouse, nim)\n", componentType)
+		fmt.Fprintf(os.Stderr, "Unknown component type: %s (use: source, tree, treehouse, nim)\n", componentType)
 		os.Exit(1)
 	}
+}
+
+func handleAddSource(args []string) {
+	// Parse flags
+	var name, sourceType, publishes, path, secret, url, method, interval, configPath string
+
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if strings.HasPrefix(arg, "--config=") {
+			configPath = strings.TrimPrefix(arg, "--config=")
+		} else if strings.HasPrefix(arg, "--type=") {
+			sourceType = strings.TrimPrefix(arg, "--type=")
+		} else if strings.HasPrefix(arg, "--publishes=") {
+			publishes = strings.TrimPrefix(arg, "--publishes=")
+		} else if strings.HasPrefix(arg, "--path=") {
+			path = strings.TrimPrefix(arg, "--path=")
+		} else if strings.HasPrefix(arg, "--secret=") {
+			secret = strings.TrimPrefix(arg, "--secret=")
+		} else if strings.HasPrefix(arg, "--url=") {
+			url = strings.TrimPrefix(arg, "--url=")
+		} else if strings.HasPrefix(arg, "--method=") {
+			method = strings.TrimPrefix(arg, "--method=")
+		} else if strings.HasPrefix(arg, "--interval=") {
+			interval = strings.TrimPrefix(arg, "--interval=")
+		} else if strings.HasPrefix(arg, "--name=") {
+			name = strings.TrimPrefix(arg, "--name=")
+		} else if !strings.HasPrefix(arg, "-") && name == "" {
+			name = arg
+		}
+	}
+
+	client := runtime.NewClientFromEnv()
+
+	// Load from config file if provided
+	if configPath != "" {
+		cfg, err := loadSourceConfig(configPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
+			os.Exit(1)
+		}
+		if name != "" {
+			cfg.Name = name
+		}
+		if cfg.Name == "" {
+			cfg.Name = strings.TrimSuffix(filepath.Base(configPath), filepath.Ext(configPath))
+		}
+		if err := client.AddSourceFromConfig(cfg); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("✅ Added source '%s'\n", cfg.Name)
+		return
+	}
+
+	// Validate required fields
+	if name == "" {
+		fmt.Fprintln(os.Stderr, "Error: name is required")
+		printSourceHelp()
+		os.Exit(1)
+	}
+	if sourceType == "" {
+		fmt.Fprintln(os.Stderr, "Error: --type is required")
+		printSourceHelp()
+		os.Exit(1)
+	}
+	if publishes == "" {
+		fmt.Fprintln(os.Stderr, "Error: --publishes is required")
+		printSourceHelp()
+		os.Exit(1)
+	}
+
+	opts := make(map[string]interface{})
+	if path != "" {
+		opts["path"] = path
+	}
+	if secret != "" {
+		opts["secret"] = secret
+	}
+	if url != "" {
+		opts["url"] = url
+	}
+	if method != "" {
+		opts["method"] = method
+	}
+	if interval != "" {
+		opts["interval"] = interval
+	}
+
+	if err := client.AddSource(name, sourceType, publishes, opts); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Printf("✅ Added source '%s'\n", name)
+}
+
+func printSourceHelp() {
+	fmt.Fprintln(os.Stderr, "Usage: forest add source <name> --type=<type> --publishes=<subj> [options]")
+	fmt.Fprintln(os.Stderr, "   or: forest add source --config=<path>")
+	fmt.Fprintln(os.Stderr, "")
+	fmt.Fprintln(os.Stderr, "Types:")
+	fmt.Fprintln(os.Stderr, "  http_webhook  HTTP webhook receiver")
+	fmt.Fprintln(os.Stderr, "  http_poll     HTTP polling source")
+	fmt.Fprintln(os.Stderr, "  ceremony      Interval-based trigger (counts WindWaker beats)")
+	fmt.Fprintln(os.Stderr, "")
+	fmt.Fprintln(os.Stderr, "Options for http_webhook:")
+	fmt.Fprintln(os.Stderr, "  --path=/webhooks/name    HTTP endpoint path")
+	fmt.Fprintln(os.Stderr, "  --secret=<secret>        Webhook signature secret")
+	fmt.Fprintln(os.Stderr, "")
+	fmt.Fprintln(os.Stderr, "Options for http_poll:")
+	fmt.Fprintln(os.Stderr, "  --url=<url>              URL to poll")
+	fmt.Fprintln(os.Stderr, "  --interval=<duration>    Poll interval (e.g., 5m, 1h)")
+	fmt.Fprintln(os.Stderr, "  --method=<method>        HTTP method (default: GET)")
+	fmt.Fprintln(os.Stderr, "")
+	fmt.Fprintln(os.Stderr, "Options for ceremony:")
+	fmt.Fprintln(os.Stderr, "  --interval=<duration>    Trigger interval (e.g., 30s, 5m, 1h)")
 }
 
 func handleAddTree(args []string) {
@@ -408,7 +562,7 @@ func handleAddNim(args []string) {
 
 func handleRemove(args []string) {
 	if len(args) < 2 {
-		fmt.Fprintln(os.Stderr, "Usage: forest remove <tree|treehouse|nim> <name>")
+		fmt.Fprintln(os.Stderr, "Usage: forest remove <source|tree|treehouse|nim> <name>")
 		os.Exit(1)
 	}
 
@@ -418,6 +572,12 @@ func handleRemove(args []string) {
 	client := runtime.NewClientFromEnv()
 
 	switch componentType {
+	case "source", "src":
+		if err := client.RemoveSource(name); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("✅ Removed source '%s'\n", name)
 	case "tree":
 		if err := client.RemoveTree(name); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
@@ -437,7 +597,59 @@ func handleRemove(args []string) {
 		}
 		fmt.Printf("✅ Removed nim '%s'\n", name)
 	default:
-		fmt.Fprintf(os.Stderr, "Unknown component type: %s (use: tree, treehouse, nim)\n", componentType)
+		fmt.Fprintf(os.Stderr, "Unknown component type: %s (use: source, tree, treehouse, nim)\n", componentType)
+		os.Exit(1)
+	}
+}
+
+// =============================================================================
+// Pause/Resume Commands (for sources)
+// =============================================================================
+
+func handlePause(args []string) {
+	if len(args) < 2 {
+		fmt.Fprintln(os.Stderr, "Usage: forest pause source <name>")
+		os.Exit(1)
+	}
+
+	componentType := args[0]
+	name := args[1]
+
+	client := runtime.NewClientFromEnv()
+
+	switch componentType {
+	case "source", "src":
+		if err := client.PauseSource(name); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("✅ Paused source '%s'\n", name)
+	default:
+		fmt.Fprintf(os.Stderr, "Cannot pause %s (only sources can be paused)\n", componentType)
+		os.Exit(1)
+	}
+}
+
+func handleResume(args []string) {
+	if len(args) < 2 {
+		fmt.Fprintln(os.Stderr, "Usage: forest resume source <name>")
+		os.Exit(1)
+	}
+
+	componentType := args[0]
+	name := args[1]
+
+	client := runtime.NewClientFromEnv()
+
+	switch componentType {
+	case "source", "src":
+		if err := client.ResumeSource(name); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("✅ Resumed source '%s'\n", name)
+	default:
+		fmt.Fprintf(os.Stderr, "Cannot resume %s (only sources can be resumed)\n", componentType)
 		os.Exit(1)
 	}
 }
@@ -502,19 +714,57 @@ func loadNimConfig(path string) (runtime.NimConfig, error) {
 	return cfg, nil
 }
 
+// loadSourceConfig loads a Source configuration from a YAML file.
+func loadSourceConfig(path string) (runtime.SourceConfig, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return runtime.SourceConfig{}, err
+	}
+
+	var cfg runtime.SourceConfig
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return runtime.SourceConfig{}, err
+	}
+	return cfg, nil
+}
+
 func printClientHelp() {
 	fmt.Print(`
 CLI Commands (talk to running daemon):
 
-  forest list [trees|treehouses|nims|all]   List running components
-  forest status [--json]                    Show daemon status
-  forest add tree <name> ...                Add a tree (River→Wind)
-  forest add treehouse <name> ...           Add a treehouse (Wind→Wind)
-  forest add nim <name> ...                 Add a nim (Wind→Wind, AI)
-  forest remove tree <name>                 Remove a tree
-  forest remove treehouse <name>            Remove a treehouse
-  forest remove nim <name>                  Remove a nim
-  forest reload                             Reload configuration from disk
+  forest list [sources|trees|treehouses|nims|all]  List running components
+  forest status [--json]                           Show daemon status
+  forest add source <name> ...                     Add a source (External→River)
+  forest add tree <name> ...                       Add a tree (River→Wind)
+  forest add treehouse <name> ...                  Add a treehouse (Wind→Wind)
+  forest add nim <name> ...                        Add a nim (Wind→Wind, AI)
+  forest remove source <name>                      Remove a source
+  forest remove tree <name>                        Remove a tree
+  forest remove treehouse <name>                   Remove a treehouse
+  forest remove nim <name>                         Remove a nim
+  forest pause source <name>                       Pause a source
+  forest resume source <name>                      Resume a source
+  forest reload                                    Reload configuration from disk
+
+Add Source Examples (feeds external data into River):
+  forest add source stripe-webhook \
+    --type=http_webhook \
+    --path=/webhooks/stripe \
+    --publishes=river.stripe.webhook \
+    --secret=${STRIPE_WEBHOOK_SECRET}
+
+  forest add source crm-contacts \
+    --type=http_poll \
+    --url=https://api.crm.com/contacts \
+    --publishes=river.crm.contacts \
+    --interval=5m
+
+  forest add source heartbeat \
+    --type=ceremony \
+    --interval=30s \
+    --publishes=river.system.heartbeat
+
+  forest add source --config=./source.yaml
 
 Add Tree Examples (parses external data from River):
   forest add tree stripe --watches=river.stripe.webhook --publishes=payment.completed --script=./parse_stripe.lua
@@ -529,6 +779,7 @@ Add Nim Examples (AI-powered processing):
   forest add nim --config=./nim.yaml
 
 Environment:
-  NIMSFOREST_API    API address (default: 127.0.0.1:8080)
+  NIMSFOREST_API           API address (default: 127.0.0.1:8080)
+  NIMSFOREST_WEBHOOK_ADDR  Webhook server address (default: 127.0.0.1:8081)
 `)
 }

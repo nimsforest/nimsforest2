@@ -4,6 +4,65 @@
 
 Leverage [pogicity-demo](https://github.com/twofactor/pogicity-demo) to create an isometric webview for the viewmodel. The cluster state (Land, Trees, Treehouses, Nims) renders as an interactive isometric world.
 
+## Usage
+
+### Starting the Webview
+
+```bash
+# Start the forest daemon (if not already running)
+forest daemon &
+
+# Launch the webview
+forest viewmodel webview
+# → Webview available at http://localhost:8080
+
+# Or specify a port
+forest viewmodel webview --port 3000
+```
+
+### In the Browser
+
+1. **Open** `http://localhost:8080`
+2. **View** the isometric grid showing all Land (nodes) in your cluster
+3. **Pan** by clicking and dragging the canvas
+4. **Zoom** with mouse wheel
+5. **Click** on a Land tile or process sprite to see details in the sidebar
+6. **Refresh** button fetches latest cluster state
+
+### What You See
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  [Refresh]                              World Summary   │
+│                                         ─────────────   │
+│         🌲                              Land: 3 (1 mana)│
+│        ╱  ╲      🏠                     Trees: 2        │
+│   ○───┼────┼───○      🌲               Treehouses: 1   │
+│       │Land│   ╱  ╲                     Nims: 1         │
+│       │ A  │──┼────┼──○                 Occupancy: 34%  │
+│        ╲  ╱   │Land│  ╱  ╲              ─────────────   │
+│         ○     │ B  │─┼────┼             Selected: Land A│
+│                ╲  ╱  │Mana│             Hostname: node-1│
+│                 ○    │land│             RAM: 4GB/16GB   │
+│                       ╲  ╱              CPU: 4 cores    │
+│                        ○                                │
+└─────────────────────────────────────────────────────────┘
+
+Legend:
+  ○ = Land tile (isometric diamond)
+  🌲 = Tree process
+  🏠 = Treehouse process  
+  ⚙️ = Nim process
+  Purple tile = Manaland (GPU-enabled)
+```
+
+### Typical Workflow
+
+1. **Monitor cluster** - See at a glance which nodes exist and what's running
+2. **Inspect node** - Click a Land to see RAM/CPU usage, hostname
+3. **Inspect process** - Click a Tree/Treehouse/Nim to see its details
+4. **Check changes** - Hit Refresh after deploying new processes
+
 ## Concept Mapping
 
 | Viewmodel | Isometric Visual |

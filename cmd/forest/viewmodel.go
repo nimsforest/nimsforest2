@@ -2,13 +2,16 @@ package main
 
 import (
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/yourusername/nimsforest/internal/natsembed"
 	"github.com/yourusername/nimsforest/internal/viewmodel"
+	"github.com/yourusername/nimsforest/internal/webview"
 )
 
 // handleViewmodel handles the 'viewmodel' command and its subcommands.
@@ -24,6 +27,8 @@ func handleViewmodel(args []string) {
 		handleViewmodelPrint()
 	case "summary":
 		handleViewmodelSummary()
+	case "webview":
+		handleViewmodelWebview(args[1:])
 	case "help", "--help", "-h":
 		printViewmodelHelp()
 	default:
@@ -59,6 +64,61 @@ func handleViewmodelSummary() {
 	}
 
 	vm.PrintSummary(os.Stdout)
+}
+
+// handleViewmodelWebview starts the webview HTTP server.
+func handleViewmodelWebview(args []string) {
+	port := "8080"
+
+	// Parse --port flag
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if strings.HasPrefix(arg, "--port=") {
+			port = strings.TrimPrefix(arg, "--port=")
+		} else if arg == "--port" && i+1 < len(args) {
+			port = args[i+1]
+			i++
+		}
+	}
+
+	ns, cleanup := getOrStartNATSServer()
+	defer cleanup()
+
+	vm := viewmodel.New(ns)
+
+	// Try to find the web/out directory for static files
+	// Check multiple locations
+	var webDir string
+	possiblePaths := []string{
+		"web/out",
+		"./web/out",
+		"/workspace/web/out",
+	}
+	for _, p := range possiblePaths {
+		if _, err := os.Stat(p); err == nil {
+			webDir = p
+			break
+		}
+	}
+
+	var server *webview.Server
+	if webDir != "" {
+		server = webview.New(vm, os.DirFS(webDir))
+		fmt.Printf("🌲 Starting NimsForest webview at http://localhost:%s\n", port)
+		fmt.Printf("   Serving static files from: %s\n", webDir)
+	} else {
+		server = webview.New(vm, nil)
+		fmt.Printf("🌲 Starting NimsForest webview at http://localhost:%s\n", port)
+		fmt.Println("   Note: Web frontend not built. Run 'cd web && npm run build' for isometric view.")
+	}
+
+	fmt.Println("   Press Ctrl+C to stop.")
+	fmt.Println()
+
+	if err := http.ListenAndServe(":"+port, server); err != nil {
+		fmt.Fprintf(os.Stderr, "❌ Server error: %v\n", err)
+		os.Exit(1)
+	}
 }
 
 // getOrStartNATSServer connects to an existing NATS server or starts an embedded one.
@@ -156,17 +216,26 @@ func printViewmodelHelp() {
 	fmt.Println("  forest viewmodel <command>")
 	fmt.Println()
 	fmt.Println("Commands:")
-	fmt.Println("  print     Print full territory view with all Land and processes")
-	fmt.Println("  summary   Print capacity and usage summary")
-	fmt.Println("  help      Show this help message")
+	fmt.Println("  print          Print full territory view with all Land and processes")
+	fmt.Println("  summary        Print capacity and usage summary")
+	fmt.Println("  webview        Launch interactive isometric webview")
+	fmt.Println("  help           Show this help message")
 	fmt.Println()
 	fmt.Println("Examples:")
-	fmt.Println("  forest viewmodel print     # Show all land and processes")
-	fmt.Println("  forest viewmodel summary   # Show capacity/usage summary")
+	fmt.Println("  forest viewmodel print              # Show all land and processes")
+	fmt.Println("  forest viewmodel summary            # Show capacity/usage summary")
+	fmt.Println("  forest viewmodel webview            # Start webview on :8080")
+	fmt.Println("  forest viewmodel webview --port=3000  # Use custom port")
 	fmt.Println()
 	fmt.Println("The viewmodel shows:")
 	fmt.Println("  • Land - Nodes in the NATS cluster (regular or GPU-enabled)")
 	fmt.Println("  • Trees - Data parsers watching the river")
 	fmt.Println("  • Treehouses - Lua script processors")
 	fmt.Println("  • Nims - Business logic handlers")
+	fmt.Println()
+	fmt.Println("Webview provides an isometric visualization in your browser where:")
+	fmt.Println("  • Green tiles represent regular Land")
+	fmt.Println("  • Purple tiles represent Manaland (GPU-enabled)")
+	fmt.Println("  • Tree/Treehouse/Nim sprites stack on their Land")
+	fmt.Println("  • Click entities to see details in the sidebar")
 }

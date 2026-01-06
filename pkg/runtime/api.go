@@ -151,17 +151,17 @@ func (api *API) handleListSources(w http.ResponseWriter, r *http.Request) {
 
 func (api *API) handleAddSource(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Name      string            `json:"name"`
-		Type      string            `json:"type"`
-		Publishes string            `json:"publishes"`
-		Path      string            `json:"path,omitempty"`
-		Secret    string            `json:"secret,omitempty"`
-		Headers   []string          `json:"headers,omitempty"`
-		URL       string            `json:"url,omitempty"`
-		Method    string            `json:"method,omitempty"`
-		Interval  string            `json:"interval,omitempty"`
+		Name       string            `json:"name"`
+		Type       string            `json:"type"`
+		Publishes  string            `json:"publishes"`
+		Path       string            `json:"path,omitempty"`
+		Secret     string            `json:"secret,omitempty"`
+		Headers    []string          `json:"headers,omitempty"`
+		URL        string            `json:"url,omitempty"`
+		Method     string            `json:"method,omitempty"`
+		Interval   string            `json:"interval,omitempty"`
 		ReqHeaders map[string]string `json:"request_headers,omitempty"`
-		Payload   map[string]any    `json:"payload,omitempty"`
+		Payload    map[string]any    `json:"payload,omitempty"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

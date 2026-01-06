@@ -41,12 +41,12 @@ type PollSource struct {
 	client *http.Client
 	cursor string // Current cursor value
 
-	mu       sync.Mutex
-	running  bool
-	stopCh   chan struct{}
-	wg       sync.WaitGroup
-	lastPoll time.Time
-	pollCount uint64
+	mu         sync.Mutex
+	running    bool
+	stopCh     chan struct{}
+	wg         sync.WaitGroup
+	lastPoll   time.Time
+	pollCount  uint64
 	errorCount uint64
 }
 

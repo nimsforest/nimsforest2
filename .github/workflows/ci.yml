@@ -15,6 +15,19 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: web/package-lock.json
+
+    - name: Build web frontend
+      run: |
+        cd web
+        npm ci
+        npm run build
+
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
@@ -120,6 +133,19 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: web/package-lock.json
+
+    - name: Build web frontend
+      run: |
+        cd web
+        npm ci
+        npm run build
+
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
@@ -157,6 +183,19 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: web/package-lock.json
+
+    - name: Build web frontend
+      run: |
+        cd web
+        npm ci
+        npm run build
+
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
@@ -165,7 +204,6 @@ jobs:
 
     - name: Build for Linux
       run: |
-        # This is a library project - verify all packages compile
         echo "Building all packages for linux/${{ matrix.goarch }}..."
         go build -v ./...
         echo "✓ All packages compile successfully for linux/${{ matrix.goarch }}"
@@ -181,6 +219,19 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: web/package-lock.json
+
+    - name: Build web frontend
+      run: |
+        cd web
+        npm ci
+        npm run build
 
     - name: Set up Go
       uses: actions/setup-go@v5

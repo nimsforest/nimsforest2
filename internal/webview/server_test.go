@@ -116,7 +116,7 @@ func TestHandleFallback(t *testing.T) {
 	defer ns.Shutdown()
 
 	vm := viewmodel.New(ns)
-	srv := New(vm, nil) // No webDir, should serve fallback
+	srv := New(vm, nil) // No webDir, will use embedded files or fallback
 
 	// Test the root endpoint
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -128,15 +128,15 @@ func TestHandleFallback(t *testing.T) {
 		t.Errorf("expected status 200, got %d", w.Code)
 	}
 
-	// Should be HTML content
+	// Should be HTML content (embedded files add charset)
 	contentType := w.Header().Get("Content-Type")
-	if contentType != "text/html" {
-		t.Errorf("expected Content-Type text/html, got %s", contentType)
+	if !contains(contentType, "text/html") {
+		t.Errorf("expected Content-Type to contain text/html, got %s", contentType)
 	}
 
-	// Should contain NimsForest
+	// Should contain NimsForest (either embedded frontend or fallback)
 	if !contains(w.Body.String(), "NimsForest") {
-		t.Error("expected fallback page to contain 'NimsForest'")
+		t.Error("expected page to contain 'NimsForest'")
 	}
 }
 

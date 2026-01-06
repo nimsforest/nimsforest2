@@ -86,13 +86,12 @@ func handleViewmodelWebview(args []string) {
 
 	vm := viewmodel.New(ns)
 
-	// Try to find the web/out directory for static files
-	// Check multiple locations
+	// Try to find external web/out directory for development
+	// If not found, the server will use embedded files
 	var webDir string
 	possiblePaths := []string{
 		"web/out",
 		"./web/out",
-		"/workspace/web/out",
 	}
 	for _, p := range possiblePaths {
 		if _, err := os.Stat(p); err == nil {
@@ -103,13 +102,15 @@ func handleViewmodelWebview(args []string) {
 
 	var server *webview.Server
 	if webDir != "" {
+		// Use external files (development mode)
 		server = webview.New(vm, os.DirFS(webDir))
 		fmt.Printf("🌲 Starting NimsForest webview at http://localhost:%s\n", port)
 		fmt.Printf("   Serving static files from: %s\n", webDir)
 	} else {
+		// Use embedded files (production mode)
 		server = webview.New(vm, nil)
 		fmt.Printf("🌲 Starting NimsForest webview at http://localhost:%s\n", port)
-		fmt.Println("   Note: Web frontend not built. Run 'cd web && npm run build' for isometric view.")
+		fmt.Println("   Serving embedded web frontend")
 	}
 
 	fmt.Println("   Press Ctrl+C to stop.")

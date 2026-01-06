@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/yourusername/nimsforest/internal/viewmodel"
+	"github.com/yourusername/nimsforest/web"
 )
 
 // Server serves the webview frontend and API.
@@ -17,12 +18,24 @@ type Server struct {
 }
 
 // New creates a new webview Server.
+// If webDir is nil, the server will use the embedded web files.
 func New(vm *viewmodel.ViewModel, webDir fs.FS) *Server {
 	s := &Server{
 		vm:     vm,
 		mux:    http.NewServeMux(),
 		webDir: webDir,
 	}
+
+	// If no external webDir provided, use embedded files
+	if s.webDir == nil {
+		if embedded, err := web.GetAssets(); err == nil {
+			// Check if embedded files actually exist (have content)
+			if _, err := fs.Stat(embedded, "index.html"); err == nil {
+				s.webDir = embedded
+			}
+		}
+	}
+
 	s.setupRoutes()
 	return s
 }

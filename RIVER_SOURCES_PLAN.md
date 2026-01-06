@@ -1,13 +1,13 @@
 # River Sources Planning Document
 
-> **TL;DR**: Add Sources as configurable components that feed external data into River via HTTP webhooks, HTTP polling, or cron schedules. Manageable through `forest.yaml` config and runtime API. Sources are simply connected to River or not - no registry needed.
+> **TL;DR**: Add Sources as configurable components that feed external data into River via HTTP webhooks, HTTP polling, or ceremonies. Manageable through `forest.yaml` config and runtime API. Sources are simply connected to River or not - no registry needed.
 
 ## Executive Summary
 
 | Aspect | Details |
 |--------|---------|
 | **Goal** | Enable external systems to push/pull data into NimsForest |
-| **Source Types** | HTTP Webhook, HTTP Poll, Cron |
+| **Source Types** | HTTP Webhook, HTTP Poll, Ceremony |
 | **Configuration** | YAML-based (`forest.yaml`) + Runtime API |
 | **Management** | Sources are connected to River directly (no registry) |
 | **Security** | Signature verification, secret management, rate limiting |
@@ -33,7 +33,7 @@ This document outlines the plan for adding **River Sources** - components that f
 - No way to configure data sources in `forest.yaml`
 - No runtime management of sources via API
 - No polling sources for APIs that don't support webhooks
-- No scheduled/cron sources for periodic data fetching
+- No scheduled/ceremony sources for periodic data fetching
 
 ---
 
@@ -46,8 +46,8 @@ External Systems
 ┌─────────────────────────────────────────────────────────┐
 │                      SOURCES                            │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │
-│  │ HTTP Webhook │  │  HTTP Poll   │  │    Cron      │  │
-│  │    Source    │  │    Source    │  │   Source     │  │
+│  │ HTTP Webhook │  │  HTTP Poll   │  │   Ceremony   │  │
+│  │    Source    │  │    Source    │  │    Source    │  │
 │  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘  │
 │         │                 │                 │          │
 │         └────────────┬────┴────────────────┘          │
@@ -134,30 +134,36 @@ sources:
     interval: 15m
 ```
 
-### 3. Cron Source
+### 3. Ceremony Source
 
-Runs on a schedule and can execute scripts or make HTTP calls.
+Runs on a schedule or interval, emitting events into River. Aligns with the WindWaker ceremony pattern.
 
 **Use Cases:**
 - Daily report generation
 - Scheduled data exports
 - Periodic cleanup triggers
+- Heartbeat/health check events
 
 **Configuration:**
 ```yaml
 sources:
   daily-summary:
-    type: cron
-    schedule: "0 8 * * *"            # 8 AM daily
+    type: ceremony
+    schedule: "0 8 * * *"            # Cron expression: 8 AM daily
     publishes: river.trigger.daily_summary
     payload:                          # Static payload
       type: daily_summary
       
   hourly-health-check:
-    type: cron
-    schedule: "0 * * * *"            # Every hour
+    type: ceremony
+    interval: 1h                      # Or use interval instead of cron
     publishes: river.trigger.health_check
     script: scripts/sources/health.lua  # Optional: Lua script to generate payload
+    
+  heartbeat:
+    type: ceremony
+    interval: 30s                     # Every 30 seconds
+    publishes: river.system.heartbeat
 ```
 
 ---
@@ -177,7 +183,7 @@ type Source interface {
     // Name returns the unique identifier for this source
     Name() string
     
-    // Type returns the source type (http_webhook, http_poll, cron)
+    // Type returns the source type (http_webhook, http_poll, ceremony)
     Type() string
     
     // Start begins accepting/fetching data and flowing to River
@@ -323,30 +329,31 @@ type PollSource struct {
 func NewPollSource(cfg PollSourceConfig, river *core.River, soil *core.Soil) *PollSource
 ```
 
-### Phase 4: Cron Source
+### Phase 4: Ceremony Source
 
-#### 4.1 CronSource Implementation
+#### 4.1 CeremonySource Implementation
 
 ```go
-// internal/sources/cron.go
+// internal/sources/ceremony.go
 
-type CronSourceConfig struct {
+type CeremonySourceConfig struct {
     Name      string
-    Schedule  string            // Cron expression
+    Schedule  string            // Cron expression (optional, use this OR interval)
+    Interval  time.Duration     // Simple interval (optional, use this OR schedule)
     Publishes string
     Payload   map[string]any    // Static payload (optional)
     Script    string            // Lua script path (optional)
 }
 
-type CronSource struct {
+type CeremonySource struct {
     *core.BaseSource
-    config    CronSourceConfig
-    scheduler *cron.Cron
-    entryID   cron.EntryID
+    config    CeremonySourceConfig
+    scheduler *cron.Cron        // For cron-based scheduling
+    ticker    *time.Ticker      // For interval-based scheduling
     vm        *runtime.LuaVM    // For script-based payloads
 }
 
-func NewCronSource(cfg CronSourceConfig, river *core.River) *CronSource
+func NewCeremonySource(cfg CeremonySourceConfig, river *core.River) *CeremonySource
 ```
 
 ### Phase 5: Configuration Integration
@@ -378,7 +385,7 @@ sources:
       Authorization: Bearer ${CRM_TOKEN}
       
   daily-report:
-    type: cron
+    type: ceremony
     schedule: "0 9 * * *"
     publishes: river.trigger.daily_report
 
@@ -419,7 +426,7 @@ type Config struct {
 
 type SourceConfig struct {
     Name      string            `yaml:"-"`
-    Type      string            `yaml:"type"`      // http_webhook, http_poll, cron
+    Type      string            `yaml:"type"`      // http_webhook, http_poll, ceremony
     
     // HTTP Webhook fields
     Path      string            `yaml:"path,omitempty"`
@@ -428,11 +435,11 @@ type SourceConfig struct {
     
     // HTTP Poll fields
     URL       string            `yaml:"url,omitempty"`
-    Interval  string            `yaml:"interval,omitempty"`
     Method    string            `yaml:"method,omitempty"`
     
-    // Cron fields
-    Schedule  string            `yaml:"schedule,omitempty"`
+    // Ceremony fields (also used by http_poll for interval)
+    Schedule  string            `yaml:"schedule,omitempty"`  // Cron expression
+    Interval  string            `yaml:"interval,omitempty"`  // Simple interval (e.g., "5m", "1h")
     
     // Common fields
     Publishes string            `yaml:"publishes"`
@@ -474,11 +481,17 @@ forest add source crm-contacts \
   --publishes=river.crm.contacts \
   --interval=5m
 
-# Add cron source
+# Add ceremony source (with cron schedule)
 forest add source daily-cleanup \
-  --type=cron \
+  --type=ceremony \
   --schedule="0 2 * * *" \
   --publishes=river.trigger.cleanup
+
+# Add ceremony source (with simple interval)
+forest add source heartbeat \
+  --type=ceremony \
+  --interval=30s \
+  --publishes=river.system.heartbeat
 
 # Remove source
 forest remove source stripe-webhook
@@ -538,7 +551,7 @@ nimsforest/
 │       ├── webhook_verify.go   # Signature verification
 │       ├── http_server.go      # Webhook HTTP server
 │       ├── poll.go             # HTTP poll source
-│       ├── cron.go             # Cron source
+│       ├── ceremony.go         # Ceremony source (scheduled/interval)
 │       └── factory.go          # Source factory (creates source from config)
 │
 ├── pkg/runtime/
@@ -546,7 +559,7 @@ nimsforest/
 │   ├── forest.go               # Updated with source management
 │   └── api.go                  # Updated with source endpoints
 │
-├── scripts/sources/            # Lua scripts for cron sources
+├── scripts/sources/            # Lua scripts for ceremony sources
 │   └── example.lua
 │
 └── config/
@@ -615,11 +628,17 @@ sources:
       param: since
       extract: $.meta.last_updated
       
-  # Daily summary trigger
+  # Daily summary trigger (ceremony with cron schedule)
   daily-summary:
-    type: cron
+    type: ceremony
     schedule: "0 9 * * *"
     publishes: river.trigger.daily_summary
+    
+  # System heartbeat (ceremony with simple interval)
+  heartbeat:
+    type: ceremony
+    interval: 30s
+    publishes: river.system.heartbeat
 
 # =============================================================================
 # TREES - Parse River data into structured Leaves
@@ -697,8 +716,9 @@ CRM_TOKEN=...
 - [ ] Add Soil integration for cursor persistence
 - [ ] Integration tests
 
-### Milestone 4: Cron Source (Week 4)
-- [ ] Implement `CronSource`
+### Milestone 4: Ceremony Source (Week 4)
+- [ ] Implement `CeremonySource`
+- [ ] Support both cron expressions and simple intervals
 - [ ] Add Lua script support for payload generation
 - [ ] Integration tests
 
@@ -717,12 +737,12 @@ CRM_TOKEN=...
 - Source interface compliance
 - Configuration parsing and validation
 - Signature verification algorithms
-- Cron expression parsing
+- Ceremony scheduling (cron expressions and intervals)
 
 ### Integration Tests
 - Webhook source → River flow
 - Poll source with mock HTTP server
-- Cron source timing accuracy
+- Ceremony source timing accuracy
 - Source start/stop lifecycle
 
 ### E2E Tests
@@ -739,7 +759,7 @@ CRM_TOKEN=...
 2. **Runtime management**: Add/remove/pause/resume sources via API and CLI
 3. **Webhook support**: At least Stripe and GitHub signature verification
 4. **Poll support**: Basic polling with cursor/pagination
-5. **Cron support**: Cron expressions with optional Lua payload generation
+5. **Ceremony support**: Cron expressions and intervals with optional Lua payload generation
 6. **Security**: Signature verification, secret management, rate limiting
 7. **Observability**: Logging, metrics for each source
 8. **Documentation**: Config examples, API docs, security guidelines
@@ -770,4 +790,4 @@ CRM_TOKEN=...
 - [NATS JetStream Documentation](https://docs.nats.io/nats-concepts/jetstream)
 - [Stripe Webhook Security](https://stripe.com/docs/webhooks/signatures)
 - [GitHub Webhook Security](https://docs.github.com/en/webhooks/using-webhooks/validating-webhook-deliveries)
-- [Cron Expression Format](https://pkg.go.dev/github.com/robfig/cron/v3)
+- [robfig/cron](https://pkg.go.dev/github.com/robfig/cron/v3) - For ceremony cron expression parsing

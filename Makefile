@@ -250,19 +250,7 @@ web-build: ## Build the web frontend
 		echo "$(YELLOW)⚠️  web/ directory not found$(NC)"; \
 	fi
 
-web-embed: web-build ## Copy web build to embed directory
-	@echo "$(BLUE)📦 Embedding web files...$(NC)"
-	@mkdir -p internal/webview/dist
-	@if [ -d web/out ]; then \
-		rm -rf internal/webview/dist/*; \
-		cp -r web/out/* internal/webview/dist/; \
-		echo "$(GREEN)✅ Web files embedded$(NC)"; \
-	else \
-		echo "$(YELLOW)⚠️  web/out not found - creating placeholder$(NC)"; \
-		echo "Build web first with: make web-build" > internal/webview/dist/.placeholder; \
-	fi
-
-build: web-embed ## Build the application (includes web frontend)
+build: web-build ## Build the application (includes web frontend)
 	@echo "$(BLUE)🔨 Building $(BINARY_NAME) version $(VERSION)...$(NC)"
 	@if [ -d cmd/forest ]; then \
 		go build $(LDFLAGS) -o $(BINARY_NAME) ./cmd/forest; \
@@ -274,7 +262,7 @@ build: web-embed ## Build the application (includes web frontend)
 		echo "$(GREEN)✅ All packages compile successfully$(NC)"; \
 	fi
 
-build-go: ## Build only the Go binary (skip web frontend)
+build-go: ## Build only the Go binary (skip web frontend rebuild)
 	@echo "$(BLUE)🔨 Building $(BINARY_NAME) version $(VERSION) (Go only)...$(NC)"
 	@if [ -d cmd/forest ]; then \
 		go build $(LDFLAGS) -o $(BINARY_NAME) ./cmd/forest; \
@@ -285,7 +273,7 @@ build-go: ## Build only the Go binary (skip web frontend)
 		echo "$(GREEN)✅ All packages compile successfully$(NC)"; \
 	fi
 
-build-all: web-embed ## Build for all platforms
+build-all: web-build ## Build for all platforms
 	@echo "$(BLUE)🔨 Building for all platforms (version $(VERSION))...$(NC)"
 	@GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o $(BINARY_NAME)-linux-amd64 ./cmd/forest
 	@GOOS=linux GOARCH=arm64 go build $(LDFLAGS) -o $(BINARY_NAME)-linux-arm64 ./cmd/forest
@@ -294,7 +282,7 @@ build-all: web-embed ## Build for all platforms
 	@GOOS=darwin GOARCH=arm64 go build $(LDFLAGS) -o $(BINARY_NAME)-darwin-arm64 ./cmd/forest
 	@echo "$(GREEN)✅ Built all platforms$(NC)"
 
-build-deploy: web-embed ## Build optimized binary for deployment (Linux AMD64)
+build-deploy: web-build ## Build optimized binary for deployment (Linux AMD64)
 	@echo "$(BLUE)🔨 Building deployment binary (version $(VERSION))...$(NC)"
 	@if [ -d cmd/forest ]; then \
 		GOOS=linux GOARCH=amd64 go build -ldflags="-s -w -X main.version=$(VERSION)" -o $(BINARY_NAME) ./cmd/forest; \

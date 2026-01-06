@@ -45,3 +45,6 @@ data/
 # Test coverage
 coverage.txt
 coverage.html
+
+# Embedded web frontend (build artifact)
+internal/webview/dist/

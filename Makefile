@@ -241,7 +241,28 @@ test-coverage: ## Run tests with coverage report
 
 ##@ Building
 
-build: ## Build the application
+web-build: ## Build the web frontend
+	@echo "$(BLUE)🌐 Building web frontend...$(NC)"
+	@if [ -d web ]; then \
+		cd web && npm install --silent && npm run build; \
+		echo "$(GREEN)✅ Web frontend built$(NC)"; \
+	else \
+		echo "$(YELLOW)⚠️  web/ directory not found$(NC)"; \
+	fi
+
+web-embed: web-build ## Copy web build to embed directory
+	@echo "$(BLUE)📦 Embedding web files...$(NC)"
+	@mkdir -p internal/webview/dist
+	@if [ -d web/out ]; then \
+		rm -rf internal/webview/dist/*; \
+		cp -r web/out/* internal/webview/dist/; \
+		echo "$(GREEN)✅ Web files embedded$(NC)"; \
+	else \
+		echo "$(YELLOW)⚠️  web/out not found - creating placeholder$(NC)"; \
+		echo "Build web first with: make web-build" > internal/webview/dist/.placeholder; \
+	fi
+
+build: web-embed ## Build the application (includes web frontend)
 	@echo "$(BLUE)🔨 Building $(BINARY_NAME) version $(VERSION)...$(NC)"
 	@if [ -d cmd/forest ]; then \
 		go build $(LDFLAGS) -o $(BINARY_NAME) ./cmd/forest; \
@@ -253,7 +274,18 @@ build: ## Build the application
 		echo "$(GREEN)✅ All packages compile successfully$(NC)"; \
 	fi
 
-build-all: ## Build for all platforms
+build-go: ## Build only the Go binary (skip web frontend)
+	@echo "$(BLUE)🔨 Building $(BINARY_NAME) version $(VERSION) (Go only)...$(NC)"
+	@if [ -d cmd/forest ]; then \
+		go build $(LDFLAGS) -o $(BINARY_NAME) ./cmd/forest; \
+		echo "$(GREEN)✅ Built: $(BINARY_NAME) ($(VERSION))$(NC)"; \
+	else \
+		echo "$(YELLOW)⚠️  cmd/forest not found - this is a library project$(NC)"; \
+		go build ./...; \
+		echo "$(GREEN)✅ All packages compile successfully$(NC)"; \
+	fi
+
+build-all: web-embed ## Build for all platforms
 	@echo "$(BLUE)🔨 Building for all platforms (version $(VERSION))...$(NC)"
 	@GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o $(BINARY_NAME)-linux-amd64 ./cmd/forest
 	@GOOS=linux GOARCH=arm64 go build $(LDFLAGS) -o $(BINARY_NAME)-linux-arm64 ./cmd/forest
@@ -262,7 +294,7 @@ build-all: ## Build for all platforms
 	@GOOS=darwin GOARCH=arm64 go build $(LDFLAGS) -o $(BINARY_NAME)-darwin-arm64 ./cmd/forest
 	@echo "$(GREEN)✅ Built all platforms$(NC)"
 
-build-deploy: ## Build optimized binary for deployment (Linux AMD64)
+build-deploy: web-embed ## Build optimized binary for deployment (Linux AMD64)
 	@echo "$(BLUE)🔨 Building deployment binary (version $(VERSION))...$(NC)"
 	@if [ -d cmd/forest ]; then \
 		GOOS=linux GOARCH=amd64 go build -ldflags="-s -w -X main.version=$(VERSION)" -o $(BINARY_NAME) ./cmd/forest; \

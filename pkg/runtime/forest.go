@@ -15,17 +15,17 @@ import (
 // Forest is the main runtime that manages all Sources, Trees, TreeHouses and Nims.
 // It uses Wind for all pub/sub operations.
 type Forest struct {
-	config     *Config
-	wind       *core.Wind
-	river      *core.River // Optional: for Trees and Sources (requires JetStream)
-	humus      *core.Humus // Optional: for state tracking
-	brain      brain.Brain
+	config *Config
+	wind   *core.Wind
+	river  *core.River // Optional: for Trees and Sources (requires JetStream)
+	humus  *core.Humus // Optional: for state tracking
+	brain  brain.Brain
 
 	// Components
-	sources       map[string]core.Source
-	trees         map[string]*Tree
-	treehouses    map[string]*TreeHouse
-	nims          map[string]*Nim
+	sources    map[string]core.Source
+	trees      map[string]*Tree
+	treehouses map[string]*TreeHouse
+	nims       map[string]*Nim
 
 	// HTTP server for webhook sources
 	webhookServer *sources.WebhookServer

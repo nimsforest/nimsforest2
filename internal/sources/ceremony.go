@@ -14,12 +14,12 @@ import (
 
 // CeremonySourceConfig configures a ceremony source.
 type CeremonySourceConfig struct {
-	Name      string            // Source name (unique identifier)
-	Interval  time.Duration     // How often to trigger (e.g., 30s, 5m, 1h)
-	Publishes string            // River subject to publish to
-	Payload   map[string]any    // Static payload (optional)
-	Script    string            // Lua script path for dynamic payload (optional)
-	Hz        int               // WindWaker frequency (default: 90)
+	Name      string         // Source name (unique identifier)
+	Interval  time.Duration  // How often to trigger (e.g., 30s, 5m, 1h)
+	Publishes string         // River subject to publish to
+	Payload   map[string]any // Static payload (optional)
+	Script    string         // Lua script path for dynamic payload (optional)
+	Hz        int            // WindWaker frequency (default: 90)
 }
 
 // CeremonySource triggers events at intervals by counting WindWaker beats.
@@ -44,13 +44,13 @@ type CeremonySource struct {
 
 // CeremonyPayload is the payload structure sent to the River.
 type CeremonyPayload struct {
-	Source      string         `json:"source"`
-	Trigger     uint64         `json:"trigger"`     // Trigger count
-	Interval    string         `json:"interval"`    // Configured interval
-	Timestamp   time.Time      `json:"timestamp"`
-	Payload     map[string]any `json:"payload,omitempty"` // Static payload data
-	BeatCount   uint64         `json:"beat_count"`        // Beats since last trigger
-	Uptime      string         `json:"uptime"`            // Source uptime
+	Source    string         `json:"source"`
+	Trigger   uint64         `json:"trigger"`  // Trigger count
+	Interval  string         `json:"interval"` // Configured interval
+	Timestamp time.Time      `json:"timestamp"`
+	Payload   map[string]any `json:"payload,omitempty"` // Static payload data
+	BeatCount uint64         `json:"beat_count"`        // Beats since last trigger
+	Uptime    string         `json:"uptime"`            // Source uptime
 }
 
 // Beat matches the WindWaker's beat structure.

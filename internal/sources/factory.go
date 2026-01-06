@@ -33,13 +33,13 @@ type SourceConfig struct {
 	Headers []string `yaml:"headers,omitempty"`
 
 	// HTTP Poll fields
-	URL      string            `yaml:"url,omitempty"`
-	Method   string            `yaml:"method,omitempty"`
-	Interval string            `yaml:"interval,omitempty"` // Duration string (e.g., "5m", "1h")
+	URL        string            `yaml:"url,omitempty"`
+	Method     string            `yaml:"method,omitempty"`
+	Interval   string            `yaml:"interval,omitempty"` // Duration string (e.g., "5m", "1h")
 	ReqHeaders map[string]string `yaml:"request_headers,omitempty"`
-	Body     string            `yaml:"body,omitempty"`
-	Cursor   *CursorConfig     `yaml:"cursor,omitempty"`
-	Timeout  string            `yaml:"timeout,omitempty"`
+	Body       string            `yaml:"body,omitempty"`
+	Cursor     *CursorConfig     `yaml:"cursor,omitempty"`
+	Timeout    string            `yaml:"timeout,omitempty"`
 
 	// Ceremony fields
 	Payload map[string]any `yaml:"payload,omitempty"`

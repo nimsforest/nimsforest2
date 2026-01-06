@@ -33,11 +33,11 @@ func TestCeremonySource_BeatsPerTrigger(t *testing.T) {
 		hz       int
 		expected uint64
 	}{
-		{30 * time.Second, 90, 2700},    // 30s * 90Hz = 2700 beats
-		{time.Minute, 90, 5400},         // 60s * 90Hz = 5400 beats
-		{time.Hour, 90, 324000},         // 3600s * 90Hz = 324000 beats
-		{5 * time.Minute, 90, 27000},    // 300s * 90Hz = 27000 beats
-		{10 * time.Second, 100, 1000},   // 10s * 100Hz = 1000 beats
+		{30 * time.Second, 90, 2700},  // 30s * 90Hz = 2700 beats
+		{time.Minute, 90, 5400},       // 60s * 90Hz = 5400 beats
+		{time.Hour, 90, 324000},       // 3600s * 90Hz = 324000 beats
+		{5 * time.Minute, 90, 27000},  // 300s * 90Hz = 27000 beats
+		{10 * time.Second, 100, 1000}, // 10s * 100Hz = 1000 beats
 	}
 
 	for _, tt := range tests {

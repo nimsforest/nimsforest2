@@ -726,7 +726,7 @@ gh secret set STAGING_SSH_KNOWN_HOSTS < <(ssh-keyscan YOUR_SERVER_IP)
 git push origin main
 ```
 
-**Guide:** [STAGING_SETUP.md](./STAGING_SETUP.md) - Complete setup instructions
+**Guide:** [STAGING_SETUP.md](./docs/deployment/STAGING_SETUP.md) - Complete setup instructions
 
 **Note:** This repo is private, so we use pastebin to share the setup script.
 
@@ -761,7 +761,7 @@ scp nimsforest-deploy.tar.gz root@SERVER:/tmp/
 ssh root@SERVER 'bash -s' < scripts/deploy.sh deploy
 ```
 
-See: [DEPLOYMENT.md](./DEPLOYMENT.md) for all options
+See: [DEPLOYMENT.md](./docs/deployment/DEPLOYMENT.md) for all options
 
 ## Production Considerations
 
@@ -770,7 +770,7 @@ See: [DEPLOYMENT.md](./DEPLOYMENT.md) for all options
 - Staging on push to `main`
 - Production on release
 - Works with any SSH-accessible Linux server
-- See [DEPLOYMENT_SSH.md](./DEPLOYMENT_SSH.md)
+- See [DEPLOYMENT_SSH.md](./docs/deployment/DEPLOYMENT_SSH.md)
 
 **Scaling**: Use NATS queue groups for load balancing  
 **Monitoring**: systemd + journald logging  
@@ -802,24 +802,27 @@ Environment variables:
 
 ### Deployment
 
-- **[DEPLOYMENT_QUICKREF.md](./DEPLOYMENT_QUICKREF.md)** - Quick reference for all deployment commands
-- **[DEPLOYMENT_SSH.md](./DEPLOYMENT_SSH.md)** - SSH deployment to any Linux server
-- **[DEPLOYMENT.md](./DEPLOYMENT.md)** - Traditional deployment methods
+- **[QUICKREF.md](./docs/deployment/QUICKREF.md)** - Quick reference for all deployment commands
+- **[DEPLOYMENT_SSH.md](./docs/deployment/DEPLOYMENT_SSH.md)** - SSH deployment to any Linux server
+- **[DEPLOYMENT.md](./docs/deployment/DEPLOYMENT.md)** - Traditional deployment methods
+- **[CI_CD.md](./docs/deployment/CI_CD.md)** - CI/CD pipeline documentation
 
-### Development
+### Guides
 
-- **[README.md](./README.md)** - This file
-- **[CI_CD.md](./CI_CD.md)** - CI/CD pipeline documentation
-- **[Makefile](./Makefile)** - All build commands (`make help`)
+- **[QUICK_START.md](./docs/guides/QUICK_START.md)** - Getting started guide
+- **[QUICK_REFERENCE.md](./docs/guides/QUICK_REFERENCE.md)** - Command reference
+- **[EXTENSIBILITY.md](./docs/guides/EXTENSIBILITY.md)** - How to extend the system
+- **[EXAMPLE.md](./docs/guides/EXAMPLE.md)** - Lead scoring pipeline example
 
-### Developer Documentation
+### Architecture
 
-- **[Cursorinstructions.md](./Cursorinstructions.md)** - Complete architecture and API specifications
-- **[TASK_BREAKDOWN.md](./TASK_BREAKDOWN.md)** - Development task breakdown
-- **[PROGRESS.md](./PROGRESS.md)** - Current development status
-- **[PHASE2_SUMMARY.md](./PHASE2_SUMMARY.md)** - Core components completion
-- **[PHASE3_SUMMARY.md](./PHASE3_SUMMARY.md)** - Base interfaces completion
-- **[PHASE4_SUMMARY.md](./PHASE4_SUMMARY.md)** - Example implementations completion
+- **[TECHNICAL_SPEC.md](./docs/architecture/TECHNICAL_SPEC.md)** - Complete architecture and API specifications
+
+### Roadmap
+
+- **[VISION.md](./docs/roadmap/VISION.md)** - Future direction
+- **[embedded-nats.md](./docs/roadmap/embedded-nats.md)** - Embedded NATS clustering plan
+- **[viewmodel.md](./docs/roadmap/viewmodel.md)** - Viewmodel implementation plan
 
 ## Testing
 

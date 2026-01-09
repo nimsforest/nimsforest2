@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"regexp"
 	"sync"
 	"text/template"
 
@@ -140,15 +141,39 @@ func (n *Nim) handleLeaf(ctx context.Context, leaf core.Leaf) {
 		return
 	}
 
+	// Resolve dynamic subject (replace {field} placeholders with values from output)
+	subject := resolveDynamicSubject(n.config.Publishes, output)
+
 	// Create and drop output leaf via Wind
-	outputLeaf := core.NewLeaf(n.config.Publishes, outputData, "nim:"+n.config.Name)
+	outputLeaf := core.NewLeaf(subject, outputData, "nim:"+n.config.Name)
 	if err := n.wind.Drop(*outputLeaf); err != nil {
 		log.Printf("[Nim:%s] Error dropping leaf to %s: %v",
-			n.config.Name, n.config.Publishes, err)
+			n.config.Name, subject, err)
 		return
 	}
 
-	log.Printf("[Nim:%s] Dropped leaf to %s", n.config.Name, n.config.Publishes)
+	log.Printf("[Nim:%s] Dropped leaf to %s", n.config.Name, subject)
+}
+
+// resolveDynamicSubject replaces {field} placeholders in a subject with values from data.
+// For example: "song.telegram.{chat_id}" with data["chat_id"]="123" becomes "song.telegram.123"
+// Also handles NATS wildcards: "song.telegram.>" stays as-is if no placeholder found.
+func resolveDynamicSubject(subject string, data map[string]interface{}) string {
+	// Match {field_name} patterns
+	re := regexp.MustCompile(`\{(\w+)\}`)
+
+	result := re.ReplaceAllStringFunc(subject, func(match string) string {
+		// Extract field name (remove { and })
+		fieldName := match[1 : len(match)-1]
+
+		if value, ok := data[fieldName]; ok {
+			return fmt.Sprintf("%v", value)
+		}
+		// If field not found, keep the placeholder
+		return match
+	})
+
+	return result
 }
 
 // processInput is the common processing logic.

@@ -94,7 +94,7 @@ nims:
 
   chat:
     subscribes: song.incoming
-    publishes: song.telegram.>
+    publishes: song.telegram.{chat_id}
     prompt: ../scripts/nims/chat.md
 
 # =============================================================================

@@ -2,6 +2,7 @@ package sources
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"strings"
 	"time"
@@ -217,11 +218,19 @@ func (f *Factory) createCeremonySource(cfg SourceConfig) (*CeremonySource, error
 
 // createTelegramSource creates a Telegram webhook source.
 func (f *Factory) createTelegramSource(cfg SourceConfig) (*TelegramSource, error) {
+	// Expand environment variables in bot token
+	botToken := os.ExpandEnv(cfg.BotToken)
+
+	// Warn if bot token is empty after expansion
+	if botToken == "" || botToken == cfg.BotToken {
+		log.Printf("[Factory] ⚠️  TelegramSource %q: bot_token appears to be unset (check %s env var)", cfg.Name, cfg.BotToken)
+	}
+
 	telegramCfg := TelegramSourceConfig{
 		Name:       cfg.Name,
 		Path:       cfg.Path,
 		Publishes:  cfg.Publishes,
-		BotToken:   cfg.BotToken,
+		BotToken:   botToken,
 		SecretPath: cfg.SecretPath,
 	}
 

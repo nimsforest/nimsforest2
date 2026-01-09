@@ -999,6 +999,11 @@ func createSongbird(name string, cfg SongbirdConfig, wind *core.Wind) (songbirds
 	// Expand environment variables in bot token
 	botToken := os.ExpandEnv(cfg.BotToken)
 
+	// Warn if bot token is empty after expansion
+	if botToken == "" || botToken == cfg.BotToken {
+		log.Printf("[Forest] ⚠️  Songbird %q: bot_token appears to be unset (check %s env var)", name, cfg.BotToken)
+	}
+
 	switch cfg.Type {
 	case "telegram":
 		telegramCfg := songbirds.TelegramSongbirdConfig{

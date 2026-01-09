@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"sync"
 	"time"
 
 	"github.com/yourusername/nimsforest/internal/core"
+	"github.com/yourusername/nimsforest/internal/songbirds"
 	"github.com/yourusername/nimsforest/internal/sources"
 	"github.com/yourusername/nimsforest/pkg/brain"
 )
@@ -26,6 +28,7 @@ type Forest struct {
 	trees      map[string]*Tree
 	treehouses map[string]*TreeHouse
 	nims       map[string]*Nim
+	songbirds  map[string]songbirds.Songbird
 
 	// HTTP server for webhook sources
 	webhookServer *sources.WebhookServer
@@ -62,6 +65,7 @@ func NewForestFromConfig(cfg *Config, wind *core.Wind, b brain.Brain) (*Forest, 
 		trees:      make(map[string]*Tree),
 		treehouses: make(map[string]*TreeHouse),
 		nims:       make(map[string]*Nim),
+		songbirds:  make(map[string]songbirds.Songbird),
 	}
 
 	// Note: Trees and Sources require River, which must be set via SetRiver() before Start()
@@ -86,6 +90,15 @@ func NewForestFromConfig(cfg *Config, wind *core.Wind, b brain.Brain) (*Forest, 
 		f.nims[name] = nim
 	}
 
+	// Create Songbirds
+	for name, sbCfg := range cfg.Songbirds {
+		sb, err := createSongbird(name, sbCfg, wind)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create songbird %s: %w", name, err)
+		}
+		f.songbirds[name] = sb
+	}
+
 	return f, nil
 }
 
@@ -107,6 +120,7 @@ func NewForestWithHumus(cfg *Config, wind *core.Wind, humus *core.Humus, b brain
 		trees:      make(map[string]*Tree),
 		treehouses: make(map[string]*TreeHouse),
 		nims:       make(map[string]*Nim),
+		songbirds:  make(map[string]songbirds.Songbird),
 	}
 
 	// Note: Trees and Sources require River, which must be set via SetRiver() before Start()
@@ -137,6 +151,15 @@ func NewForestWithHumus(cfg *Config, wind *core.Wind, humus *core.Humus, b brain
 			return nil, fmt.Errorf("failed to create nim %s: %w", name, err)
 		}
 		f.nims[name] = nim
+	}
+
+	// Create Songbirds
+	for name, sbCfg := range cfg.Songbirds {
+		sb, err := createSongbird(name, sbCfg, wind)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create songbird %s: %w", name, err)
+		}
+		f.songbirds[name] = sb
 	}
 
 	return f, nil
@@ -197,7 +220,7 @@ func (f *Forest) Start(ctx context.Context) error {
 				f.sources[name] = src
 
 				// Track if we have webhook sources
-				if srcCfg.Type == "http_webhook" {
+				if srcCfg.Type == "http_webhook" || srcCfg.Type == "telegram" {
 					hasWebhooks = true
 				}
 			}
@@ -230,6 +253,11 @@ func (f *Forest) Start(ctx context.Context) error {
 			if ws, ok := src.(*sources.WebhookSource); ok {
 				if err := f.webhookServer.Mount(ws); err != nil {
 					log.Printf("[Forest] Warning: failed to mount webhook source %s: %v", ws.Name(), err)
+				}
+			}
+			if ts, ok := src.(*sources.TelegramSource); ok {
+				if err := f.webhookServer.MountHandler(ts.Name(), ts.Path(), ts.Handler()); err != nil {
+					log.Printf("[Forest] Warning: failed to mount telegram source %s: %v", ts.Name(), err)
 				}
 			}
 		}
@@ -269,9 +297,17 @@ func (f *Forest) Start(ctx context.Context) error {
 		}
 	}
 
+	// Start Songbirds
+	for name, sb := range f.songbirds {
+		if err := sb.Start(ctx); err != nil {
+			f.stopAll()
+			return fmt.Errorf("failed to start songbird %s: %w", name, err)
+		}
+	}
+
 	f.running = true
-	log.Printf("[Forest] Started with %d sources, %d trees, %d treehouses and %d nims",
-		len(f.sources), len(f.trees), len(f.treehouses), len(f.nims))
+	log.Printf("[Forest] Started with %d sources, %d trees, %d treehouses, %d nims and %d songbirds",
+		len(f.sources), len(f.trees), len(f.treehouses), len(f.nims), len(f.songbirds))
 	return nil
 }
 
@@ -310,6 +346,9 @@ func (f *Forest) stopAll() {
 	}
 	for _, nim := range f.nims {
 		nim.Stop()
+	}
+	for _, sb := range f.songbirds {
+		sb.Stop()
 	}
 }
 
@@ -916,10 +955,59 @@ func (f *Forest) Reload(newCfg *Config) error {
 		}
 	}
 
+	// Find Songbirds to remove
+	for name := range f.songbirds {
+		if _, exists := newCfg.Songbirds[name]; !exists {
+			if sb := f.songbirds[name]; sb != nil {
+				sb.Stop()
+			}
+			delete(f.songbirds, name)
+			log.Printf("[Forest] Removed songbird '%s' (not in new config)", name)
+		}
+	}
+
+	// Find Songbirds to add
+	for name, cfg := range newCfg.Songbirds {
+		if _, exists := f.songbirds[name]; !exists {
+			cfg.Name = name
+			sb, err := createSongbird(name, cfg, f.wind)
+			if err != nil {
+				log.Printf("[Forest] Warning: failed to create songbird '%s': %v", name, err)
+				continue
+			}
+			if f.running {
+				if err := sb.Start(context.Background()); err != nil {
+					log.Printf("[Forest] Warning: failed to start songbird '%s': %v", name, err)
+					continue
+				}
+			}
+			f.songbirds[name] = sb
+			log.Printf("[Forest] Added songbird '%s' from new config", name)
+		}
+	}
+
 	// Update config reference
 	f.config = newCfg
 
-	log.Printf("[Forest] Reloaded with %d treehouses and %d nims",
-		len(f.treehouses), len(f.nims))
+	log.Printf("[Forest] Reloaded with %d treehouses, %d nims and %d songbirds",
+		len(f.treehouses), len(f.nims), len(f.songbirds))
 	return nil
+}
+
+// createSongbird creates a songbird from configuration.
+func createSongbird(name string, cfg SongbirdConfig, wind *core.Wind) (songbirds.Songbird, error) {
+	// Expand environment variables in bot token
+	botToken := os.ExpandEnv(cfg.BotToken)
+
+	switch cfg.Type {
+	case "telegram":
+		telegramCfg := songbirds.TelegramSongbirdConfig{
+			Name:     name,
+			Pattern:  cfg.Listens,
+			BotToken: botToken,
+		}
+		return songbirds.NewTelegramSongbird(telegramCfg, wind), nil
+	default:
+		return nil, fmt.Errorf("unknown songbird type: %s", cfg.Type)
+	}
 }

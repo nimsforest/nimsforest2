@@ -3,6 +3,8 @@ package runtime
 import (
 	"context"
 	"fmt"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/yourusername/nimsforest/pkg/brain"
@@ -106,9 +108,30 @@ func (b *SimpleBrain) Close(ctx context.Context) error {
 }
 
 func (b *SimpleBrain) Ask(ctx context.Context, question string) (string, error) {
-	// Simple rule-based response for lead qualification
-	// In production, this would call a real AI service
+	// Detect chat prompts by looking for platform/chat_id patterns
+	if strings.Contains(question, `"platform":`) && strings.Contains(question, `"chat_id":`) {
+		// Extract platform and chat_id from the prompt for echo response
+		platform := extractJSONField(question, "platform")
+		chatID := extractJSONField(question, "chat_id")
+		if platform != "" && chatID != "" {
+			return fmt.Sprintf(`{"platform": "%s", "chat_id": "%s", "text": "Hello! I'm a forest assistant. (AI not configured - set ANTHROPIC_API_KEY for real responses)"}`, platform, chatID), nil
+		}
+	}
+
+	// Default: lead qualification response
 	return `{"pursue": true, "reason": "Lead evaluation pending AI service configuration", "priority": "medium", "action": "Configure ANTHROPIC_API_KEY to enable AI-powered evaluation"}`, nil
+}
+
+// extractJSONField extracts a simple string field from JSON-like text
+func extractJSONField(text, field string) string {
+	// Look for "field": "value" pattern
+	pattern := `"` + field + `":\s*"([^"]+)"`
+	re := regexp.MustCompile(pattern)
+	matches := re.FindStringSubmatch(text)
+	if len(matches) >= 2 {
+		return matches[1]
+	}
+	return ""
 }
 
 func (b *SimpleBrain) Store(ctx context.Context, content string, tags []string) (*brain.Knowledge, error) {

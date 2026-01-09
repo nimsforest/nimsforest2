@@ -5,6 +5,13 @@
 # SOURCES - Entry points for external data
 # =============================================================================
 sources:
+  # Telegram bot webhook
+  telegram:
+    type: telegram
+    path: /webhooks/telegram
+    publishes: river.telegram.messages
+    bot_token: ${TELEGRAM_BOT_TOKEN}
+
   # Stripe payment webhooks
   stripe:
     type: http_webhook
@@ -51,7 +58,12 @@ sources:
 # =============================================================================
 # TREES - Parse River data into structured Leaves
 # =============================================================================
-# trees:
+trees:
+  chat-parser:
+    watches: river.telegram.messages
+    publishes: song.incoming
+    script: ../scripts/trees/chat_parser.lua
+
 #   stripe-parser:
 #     watches: river.stripe.webhook
 #     publishes: payment.completed
@@ -79,3 +91,17 @@ nims:
     subscribes: lead.scored
     publishes: lead.qualified
     prompt: ../scripts/nims/qualify.md
+
+  chat:
+    subscribes: song.incoming
+    publishes: song.telegram.>
+    prompt: ../scripts/nims/chat.md
+
+# =============================================================================
+# SONGBIRDS - Outbound message handlers
+# =============================================================================
+songbirds:
+  telegram:
+    type: telegram
+    listens: song.telegram.>
+    bot_token: ${TELEGRAM_BOT_TOKEN}

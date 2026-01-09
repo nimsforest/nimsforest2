@@ -62,6 +62,20 @@ func (s *WebhookServer) Mount(source *WebhookSource) error {
 	return nil
 }
 
+// MountHandler registers a generic HTTP handler on the server.
+// Use this for sources that aren't WebhookSource but need HTTP endpoints.
+func (s *WebhookServer) MountHandler(name, path string, handler http.HandlerFunc) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Register the handler
+	pattern := fmt.Sprintf("POST %s", path)
+	s.mux.HandleFunc(pattern, handler)
+
+	log.Printf("[WebhookServer] Mounted handler '%s' at POST %s", name, path)
+	return nil
+}
+
 // Unmount removes a webhook source from the server.
 // Note: Go's http.ServeMux doesn't support unregistering handlers,
 // so this just removes from our tracking. The handler will return 404

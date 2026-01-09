@@ -14,6 +14,7 @@ const (
 	TypeHTTPWebhook = "http_webhook"
 	TypeHTTPPoll    = "http_poll"
 	TypeCeremony    = "ceremony"
+	TypeTelegram    = "telegram"
 )
 
 // SourceConfig is the generic configuration for any source type.
@@ -45,6 +46,10 @@ type SourceConfig struct {
 	Payload map[string]any `yaml:"payload,omitempty"`
 	Script  string         `yaml:"script,omitempty"`
 	Hz      int            `yaml:"hz,omitempty"`
+
+	// Telegram fields
+	BotToken   string `yaml:"bot_token,omitempty"`
+	SecretPath string `yaml:"secret_path,omitempty"`
 }
 
 // Validate checks that the source configuration is valid.
@@ -72,6 +77,13 @@ func (c *SourceConfig) Validate() error {
 		if _, err := time.ParseDuration(c.Interval); err != nil {
 			return fmt.Errorf("source %q: invalid interval %q: %w", c.Name, c.Interval, err)
 		}
+	case TypeTelegram:
+		if c.Path == "" {
+			return fmt.Errorf("source %q: path is required for telegram", c.Name)
+		}
+		if c.BotToken == "" {
+			return fmt.Errorf("source %q: bot_token is required for telegram", c.Name)
+		}
 	default:
 		return fmt.Errorf("source %q: unknown type %q", c.Name, c.Type)
 	}
@@ -98,6 +110,8 @@ func (f *Factory) Create(cfg SourceConfig) (core.Source, error) {
 	// Expand environment variables in sensitive fields
 	cfg.Secret = expandEnv(cfg.Secret)
 	cfg.URL = expandEnv(cfg.URL)
+	cfg.BotToken = expandEnv(cfg.BotToken)
+	cfg.SecretPath = expandEnv(cfg.SecretPath)
 	for k, v := range cfg.ReqHeaders {
 		cfg.ReqHeaders[k] = expandEnv(v)
 	}
@@ -109,6 +123,8 @@ func (f *Factory) Create(cfg SourceConfig) (core.Source, error) {
 		return f.createPollSource(cfg)
 	case TypeCeremony:
 		return f.createCeremonySource(cfg)
+	case TypeTelegram:
+		return f.createTelegramSource(cfg)
 	default:
 		return nil, fmt.Errorf("unknown source type: %s", cfg.Type)
 	}
@@ -199,6 +215,19 @@ func (f *Factory) createCeremonySource(cfg SourceConfig) (*CeremonySource, error
 	return NewCeremonySource(ceremonyCfg, f.wind, f.river), nil
 }
 
+// createTelegramSource creates a Telegram webhook source.
+func (f *Factory) createTelegramSource(cfg SourceConfig) (*TelegramSource, error) {
+	telegramCfg := TelegramSourceConfig{
+		Name:       cfg.Name,
+		Path:       cfg.Path,
+		Publishes:  cfg.Publishes,
+		BotToken:   cfg.BotToken,
+		SecretPath: cfg.SecretPath,
+	}
+
+	return NewTelegramSource(telegramCfg, f.river), nil
+}
+
 // expandEnv expands environment variables in a string.
 // Supports ${VAR_NAME} syntax.
 func expandEnv(s string) string {
@@ -243,6 +272,10 @@ func GetSourceInfo(s core.Source) SourceInfo {
 		cfg := src.Config()
 		info.Publishes = cfg.Publishes
 		info.Interval = cfg.Interval.String()
+	case *TelegramSource:
+		cfg := src.Config()
+		info.Publishes = cfg.Publishes
+		info.Path = cfg.Path
 	}
 
 	return info

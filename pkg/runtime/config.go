@@ -17,6 +17,7 @@ type Config struct {
 	Trees      map[string]TreeConfig      `yaml:"trees"`
 	TreeHouses map[string]TreeHouseConfig `yaml:"treehouses"`
 	Nims       map[string]NimConfig       `yaml:"nims"`
+	Songbirds  map[string]SongbirdConfig  `yaml:"songbirds"`
 
 	// BaseDir is the directory from which the config was loaded.
 	// Used to resolve relative script/prompt paths.
@@ -51,6 +52,10 @@ type SourceConfig struct {
 	Payload map[string]any `yaml:"payload,omitempty"`
 	Script  string         `yaml:"script,omitempty"`
 	Hz      int            `yaml:"hz,omitempty"`
+
+	// Telegram fields
+	BotToken   string `yaml:"bot_token,omitempty"`
+	SecretPath string `yaml:"secret_path,omitempty"`
 }
 
 // CursorConfig configures cursor-based pagination for poll sources.
@@ -82,6 +87,16 @@ type NimConfig struct {
 	Subscribes string `yaml:"subscribes"` // NATS subject to listen on
 	Publishes  string `yaml:"publishes"`  // NATS subject to publish to
 	Prompt     string `yaml:"prompt"`     // Path to prompt template (.md file)
+}
+
+// SongbirdConfig defines a Songbird - an outbound message handler.
+// Songbirds listen for patterns on the wind and carry messages out
+// to external platforms (Telegram, Slack, etc.)
+type SongbirdConfig struct {
+	Name     string `yaml:"-"`        // Set from map key
+	Type     string `yaml:"type"`     // Songbird type: "telegram", "slack", etc.
+	Listens  string `yaml:"listens"`  // Wind subject pattern to listen for (e.g., "song.telegram.>")
+	BotToken string `yaml:"bot_token"` // API token for the messaging platform
 }
 
 // LoadConfig loads a forest configuration from a YAML file.
@@ -124,6 +139,11 @@ func LoadConfig(path string) (*Config, error) {
 		n.Name = name
 		cfg.Nims[name] = n
 	}
+	for name := range cfg.Songbirds {
+		sb := cfg.Songbirds[name]
+		sb.Name = name
+		cfg.Songbirds[name] = sb
+	}
 
 	// Validate config
 	if err := cfg.Validate(); err != nil {
@@ -159,8 +179,15 @@ func (c *Config) Validate() error {
 			if _, err := time.ParseDuration(s.Interval); err != nil {
 				return fmt.Errorf("source %q: invalid interval %q: %w", name, s.Interval, err)
 			}
+		case "telegram":
+			if s.Path == "" {
+				return fmt.Errorf("source %q: telegram requires path", name)
+			}
+			if s.BotToken == "" {
+				return fmt.Errorf("source %q: telegram requires bot_token", name)
+			}
 		default:
-			return fmt.Errorf("source %q: unknown type %q (use http_webhook, http_poll, or ceremony)", name, s.Type)
+			return fmt.Errorf("source %q: unknown type %q (use http_webhook, http_poll, ceremony, or telegram)", name, s.Type)
 		}
 	}
 
@@ -197,6 +224,23 @@ func (c *Config) Validate() error {
 		}
 		if n.Prompt == "" {
 			return fmt.Errorf("nim %q: missing prompt", name)
+		}
+	}
+
+	for name, sb := range c.Songbirds {
+		if sb.Type == "" {
+			return fmt.Errorf("songbird %q: missing type", name)
+		}
+		if sb.Listens == "" {
+			return fmt.Errorf("songbird %q: missing listens", name)
+		}
+		switch sb.Type {
+		case "telegram":
+			if sb.BotToken == "" {
+				return fmt.Errorf("songbird %q: telegram requires bot_token", name)
+			}
+		default:
+			return fmt.Errorf("songbird %q: unknown type %q (use telegram)", name, sb.Type)
 		}
 	}
 

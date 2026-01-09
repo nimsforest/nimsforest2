@@ -1,13 +1,19 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	"github.com/nats-io/nats-server/v2/server"
+	viewer "github.com/nimsforest/nimsforestviewer"
+	smarttv "github.com/nimsforest/nimsforestsmarttv"
 	"github.com/yourusername/nimsforest/internal/natsembed"
+	"github.com/yourusername/nimsforest/internal/viewerdancer"
 	"github.com/yourusername/nimsforest/internal/viewmodel"
 )
 
@@ -24,6 +30,8 @@ func handleViewmodel(args []string) {
 		handleViewmodelPrint()
 	case "summary":
 		handleViewmodelSummary()
+	case "viewer":
+		handleViewmodelViewer(args[1:])
 	case "webview":
 		handleViewmodelWebview(args[1:])
 	case "help", "--help", "-h":
@@ -61,6 +69,156 @@ func handleViewmodelSummary() {
 	}
 
 	vm.PrintSummary(os.Stdout)
+}
+
+// handleViewmodelViewer starts the viewer dancer to push updates to Smart TVs and/or web.
+func handleViewmodelViewer(args []string) {
+	// Parse flags
+	webPort := ""
+	discoverTV := false
+
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--web", "-w":
+			if i+1 < len(args) {
+				webPort = args[i+1]
+				i++
+			} else {
+				webPort = ":8080"
+			}
+		case "--tv", "-t":
+			discoverTV = true
+		case "--help", "-h":
+			printViewerHelp()
+			return
+		}
+	}
+
+	if webPort == "" && !discoverTV {
+		fmt.Println("No targets specified. Use --web and/or --tv")
+		fmt.Println()
+		printViewerHelp()
+		os.Exit(1)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Handle signals
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-sigCh
+		fmt.Println("\nShutting down...")
+		cancel()
+	}()
+
+	fmt.Println("🌲 NimsForest Viewer")
+	fmt.Println()
+
+	// Start NATS server
+	ns, cleanup := getOrStartNATSServer()
+	defer cleanup()
+
+	// Create viewmodel
+	vm := viewmodel.New(ns)
+	if err := vm.Refresh(); err != nil {
+		fmt.Fprintf(os.Stderr, "❌ Failed to refresh viewmodel: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Create viewer
+	v := viewer.New()
+
+	// Add web target if requested
+	if webPort != "" {
+		webTarget, err := viewer.NewWebTarget(webPort)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "❌ Failed to create web target: %v\n", err)
+			os.Exit(1)
+		}
+		v.AddTarget(webTarget)
+		fmt.Printf("📡 Web API: http://localhost%s/api/viewmodel\n", webPort)
+	}
+
+	// Discover and add Smart TV target if requested
+	if discoverTV {
+		fmt.Println("📺 Discovering Smart TVs...")
+		tvs, err := smarttv.Discover(ctx, 5*time.Second)
+		if err != nil {
+			fmt.Printf("⚠️  TV discovery error: %v\n", err)
+		} else if len(tvs) == 0 {
+			fmt.Println("⚠️  No Smart TVs found")
+		} else {
+			tv := &tvs[0]
+			fmt.Printf("📺 Found TV: %s\n", tv.String())
+
+			tvTarget, err := viewer.NewSmartTVTarget(tv, viewer.WithJFIF(true))
+			if err != nil {
+				fmt.Printf("⚠️  Could not create TV target: %v\n", err)
+			} else {
+				v.AddTarget(tvTarget)
+				fmt.Println("📺 Smart TV target added!")
+			}
+		}
+	}
+
+	// Create ViewerDancer
+	dancer := viewerdancer.New(vm, v,
+		viewerdancer.WithUpdateInterval(90), // Once per second at 90Hz
+		viewerdancer.WithOnlyOnChange(true),
+	)
+
+	// Initial update
+	if err := dancer.ForceUpdate(); err != nil {
+		fmt.Fprintf(os.Stderr, "⚠️  Initial update failed: %v\n", err)
+	}
+
+	fmt.Println()
+	fmt.Println("Viewer running. Press Ctrl+C to stop.")
+	fmt.Println()
+
+	// Note: In a full implementation, we would register with windwaker via CatchBeat
+	// For now, we'll use a simple ticker to simulate dance beats
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
+	beat := uint64(0)
+	for {
+		select {
+		case <-ctx.Done():
+			v.Close()
+			return
+		case <-ticker.C:
+			beat++
+			// Simulate dance beat - in real integration this would come from windwaker
+			if err := vm.Refresh(); err != nil {
+				fmt.Fprintf(os.Stderr, "⚠️  Refresh error: %v\n", err)
+				continue
+			}
+			world := vm.GetWorld()
+			state := viewerdancer.ConvertToViewState(world)
+			v.SetStateProvider(viewer.NewStaticStateProvider(state))
+			if err := v.Update(); err != nil {
+				fmt.Fprintf(os.Stderr, "⚠️  Update error: %v\n", err)
+			}
+		}
+	}
+}
+
+// printViewerHelp prints help for the viewer subcommand.
+func printViewerHelp() {
+	fmt.Println("Usage: forest viewmodel viewer [options]")
+	fmt.Println()
+	fmt.Println("Options:")
+	fmt.Println("  --web, -w [PORT]   Start web API server (default :8080)")
+	fmt.Println("  --tv, -t           Discover and connect to Smart TV")
+	fmt.Println("  --help, -h         Show this help")
+	fmt.Println()
+	fmt.Println("Examples:")
+	fmt.Println("  forest viewmodel viewer --web :8080       # Web API only")
+	fmt.Println("  forest viewmodel viewer --tv              # Smart TV only")
+	fmt.Println("  forest viewmodel viewer --web :8080 --tv  # Both targets")
 }
 
 // handleViewmodelWebview informs user about external viewer packages.
@@ -180,12 +338,15 @@ func printViewmodelHelp() {
 	fmt.Println("Commands:")
 	fmt.Println("  print          Print full territory view with all Land and processes")
 	fmt.Println("  summary        Print capacity and usage summary")
+	fmt.Println("  viewer         Start live viewer (web API and/or Smart TV)")
 	fmt.Println("  webview        Info about external web viewer packages")
 	fmt.Println("  help           Show this help message")
 	fmt.Println()
 	fmt.Println("Examples:")
 	fmt.Println("  forest viewmodel print              # Show all land and processes")
 	fmt.Println("  forest viewmodel summary            # Show capacity/usage summary")
+	fmt.Println("  forest viewmodel viewer --web :8080 # Start web API server")
+	fmt.Println("  forest viewmodel viewer --tv        # Display on Smart TV")
 	fmt.Println()
 	fmt.Println("The viewmodel shows:")
 	fmt.Println("  • Land - Nodes in the NATS cluster (regular or GPU-enabled)")

@@ -12,12 +12,16 @@ import (
 
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
+	viewer "github.com/nimsforest/nimsforestviewer"
+	smarttv "github.com/nimsforest/nimsforestsmarttv"
 	"github.com/yourusername/nimsforest/internal/core"
 	"github.com/yourusername/nimsforest/internal/natsclusterconfig"
 	"github.com/yourusername/nimsforest/internal/natsembed"
 	"github.com/yourusername/nimsforest/internal/nims"
 	"github.com/yourusername/nimsforest/internal/trees"
 	"github.com/yourusername/nimsforest/internal/updater"
+	"github.com/yourusername/nimsforest/internal/viewerdancer"
+	"github.com/yourusername/nimsforest/internal/viewmodel"
 	"github.com/yourusername/nimsforest/internal/windwaker"
 	"github.com/yourusername/nimsforest/pkg/brain"
 	aifactory "github.com/yourusername/nimsforest/pkg/integrations/aiservice"
@@ -140,7 +144,7 @@ func printHelp() {
 	fmt.Println("  reload          Reload configuration from disk")
 	fmt.Println()
 	fmt.Println("Other Commands:")
-	fmt.Println("  viewmodel       View cluster state (print, summary)")
+	fmt.Println("  viewmodel       View cluster state (print, summary, viewer)")
 	fmt.Println("  version         Show version information")
 	fmt.Println("  update          Check for updates and install if available")
 	fmt.Println("  check-update    Check for updates without installing")
@@ -335,12 +339,14 @@ func runForest() {
 
 	// Start YAML-configured runtime (TreeHouses + AI Nims)
 	var runtimeForest *runtime.Forest
+	var runtimeConfig *runtime.Config
 	configPath := getConfigPath()
 	if configPath != "" {
 		fmt.Println("\n🌳 Loading YAML-configured runtime...")
 		fmt.Printf("   Config: %s\n", configPath)
 
-		cfg, err := runtime.LoadConfig(configPath)
+		var err error
+		runtimeConfig, err = runtime.LoadConfig(configPath)
 		if err != nil {
 			log.Printf("⚠️  Failed to load runtime config: %v\n", err)
 		} else {
@@ -353,7 +359,7 @@ func runForest() {
 				if err := simpleBrain.Initialize(ctx); err != nil {
 					log.Printf("⚠️  Failed to initialize simple brain: %v\n", err)
 				} else {
-					runtimeForest, err = runtime.NewForestWithHumus(cfg, wind, humus, simpleBrain)
+					runtimeForest, err = runtime.NewForestWithHumus(runtimeConfig, wind, humus, simpleBrain)
 					if err != nil {
 						log.Printf("⚠️  Failed to create runtime forest: %v\n", err)
 					}
@@ -362,7 +368,7 @@ func runForest() {
 				if err := aiBrain.Initialize(ctx); err != nil {
 					log.Printf("⚠️  Failed to initialize AI brain: %v\n", err)
 				} else {
-					runtimeForest, err = runtime.NewForestWithHumus(cfg, wind, humus, aiBrain)
+					runtimeForest, err = runtime.NewForestWithHumus(runtimeConfig, wind, humus, aiBrain)
 					if err != nil {
 						log.Printf("⚠️  Failed to create runtime forest: %v\n", err)
 					}
@@ -378,13 +384,13 @@ func runForest() {
 				} else {
 					defer runtimeForest.Stop()
 					fmt.Printf("   ✅ Runtime started with %d TreeHouses and %d Nims\n",
-						len(cfg.TreeHouses), len(cfg.Nims))
+						len(runtimeConfig.TreeHouses), len(runtimeConfig.Nims))
 
 					// List what's running
-					for name := range cfg.TreeHouses {
+					for name := range runtimeConfig.TreeHouses {
 						fmt.Printf("   🏠 TreeHouse:%s (Lua script)\n", name)
 					}
-					for name := range cfg.Nims {
+					for name := range runtimeConfig.Nims {
 						fmt.Printf("   🧚 Nim:%s (AI-powered)\n", name)
 					}
 
@@ -404,6 +410,12 @@ func runForest() {
 				}
 			}
 		}
+	}
+
+	// Start viewer if configured
+	if runtimeConfig != nil && runtimeConfig.Viewer != nil && runtimeConfig.Viewer.Enabled {
+		fmt.Println("\n📺 Starting visualization viewer...")
+		_ = startViewer(ctx, ns.InternalServer(), runtimeConfig.Viewer, wind)
 	}
 
 	// Give components time to initialize
@@ -915,6 +927,89 @@ func runTest() {
 		fmt.Println("❌ Some tests failed")
 		os.Exit(1)
 	}
+}
+
+// startViewer creates and starts the visualization viewer dancer.
+func startViewer(ctx context.Context, ns *server.Server, cfg *runtime.ViewerConfig, wind *core.Wind) *viewerdancer.ViewerDancer {
+	// Create viewmodel
+	vm := viewmodel.New(ns)
+	if err := vm.Refresh(); err != nil {
+		log.Printf("⚠️  Failed to refresh viewmodel: %v", err)
+	}
+
+	// Create viewer
+	v := viewer.New()
+
+	// Add web target if configured
+	if cfg.WebAddr != "" {
+		webTarget, err := viewer.NewWebTarget(cfg.WebAddr)
+		if err != nil {
+			log.Printf("⚠️  Failed to create web target: %v", err)
+		} else {
+			v.AddTarget(webTarget)
+			fmt.Printf("   📡 Web API: http://localhost%s/api/viewmodel\n", cfg.WebAddr)
+		}
+	}
+
+	// Discover and add Smart TV target if configured
+	if cfg.SmartTV {
+		fmt.Println("   📺 Discovering Smart TVs...")
+		tvs, err := smarttv.Discover(ctx, 5*time.Second)
+		if err != nil {
+			log.Printf("⚠️  TV discovery error: %v", err)
+		} else if len(tvs) == 0 {
+			fmt.Println("   ⚠️  No Smart TVs found")
+		} else {
+			tv := &tvs[0]
+			fmt.Printf("   📺 Found TV: %s\n", tv.String())
+
+			tvTarget, err := viewer.NewSmartTVTarget(tv, viewer.WithJFIF(true))
+			if err != nil {
+				log.Printf("⚠️  Could not create TV target: %v", err)
+			} else {
+				v.AddTarget(tvTarget)
+				fmt.Println("   📺 Smart TV target added!")
+			}
+		}
+	}
+
+	// Configure update interval
+	updateInterval := uint64(90) // Default: once per second at 90Hz
+	if cfg.UpdateInterval > 0 {
+		updateInterval = uint64(cfg.UpdateInterval)
+	}
+
+	// Configure change detection
+	onlyOnChange := true
+	if cfg.OnlyOnChange != nil {
+		onlyOnChange = *cfg.OnlyOnChange
+	}
+
+	// Create ViewerDancer
+	dancer := viewerdancer.New(vm, v,
+		viewerdancer.WithUpdateInterval(updateInterval),
+		viewerdancer.WithOnlyOnChange(onlyOnChange),
+	)
+
+	// Register with windwaker - subscribe to dance beats
+	wind.Catch("dance.beat", func(leaf core.Leaf) {
+		var beat windwaker.Beat
+		if err := json.Unmarshal(leaf.Data, &beat); err != nil {
+			return
+		}
+		// Call Dance on each beat
+		if err := dancer.Dance(beat); err != nil {
+			log.Printf("⚠️  Viewer dance error: %v", err)
+		}
+	})
+
+	// Initial update
+	if err := dancer.ForceUpdate(); err != nil {
+		log.Printf("⚠️  Initial viewer update failed: %v", err)
+	}
+
+	fmt.Println("   ✅ Viewer dancer registered with WindWaker")
+	return dancer
 }
 
 // createBrainWithFallback creates a brain with fallback to SimpleBrain

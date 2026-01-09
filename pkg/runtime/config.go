@@ -18,10 +18,30 @@ type Config struct {
 	TreeHouses map[string]TreeHouseConfig `yaml:"treehouses"`
 	Nims       map[string]NimConfig       `yaml:"nims"`
 	Songbirds  map[string]SongbirdConfig  `yaml:"songbirds"`
+	Viewer     *ViewerConfig              `yaml:"viewer,omitempty"`
 
 	// BaseDir is the directory from which the config was loaded.
 	// Used to resolve relative script/prompt paths.
 	BaseDir string `yaml:"-"`
+}
+
+// ViewerConfig configures the visualization viewer (Smart TV, web API).
+type ViewerConfig struct {
+	Enabled bool `yaml:"enabled"`
+
+	// Web API server address (e.g., ":8090" or "0.0.0.0:8090")
+	// Leave empty to disable web API
+	WebAddr string `yaml:"web_addr,omitempty"`
+
+	// Enable Smart TV discovery and display
+	SmartTV bool `yaml:"smarttv,omitempty"`
+
+	// Update interval in windwaker beats (at 90Hz, 90 = 1 second)
+	// Default: 90 (once per second)
+	UpdateInterval int `yaml:"update_interval,omitempty"`
+
+	// Only push updates when state changes (default: true)
+	OnlyOnChange *bool `yaml:"only_on_change,omitempty"`
 }
 
 // SourceConfig defines a Source - an entry point for external data.

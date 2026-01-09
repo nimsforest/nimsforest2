@@ -4,9 +4,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
+	"strings"
 
 	"github.com/nats-io/nats.go"
 )
+
+// verbose enables detailed logging when FOREST_VERBOSE=true
+var verbose = strings.ToLower(os.Getenv("FOREST_VERBOSE")) == "true"
 
 // Wind wraps NATS Core pub/sub functionality for carrying leaves.
 // Wind is ephemeral - messages are not persisted and are delivered
@@ -43,7 +48,10 @@ func (w *Wind) Drop(leaf Leaf) error {
 		return fmt.Errorf("failed to publish leaf to subject %s: %w", leaf.Subject, err)
 	}
 
-	log.Printf("[Wind] Dropped leaf: subject=%s, source=%s", leaf.Subject, leaf.Source)
+	// Log leaf drops (skip high-frequency beats unless verbose)
+	if verbose || leaf.Subject != "dance.beat" {
+		log.Printf("[Wind] Dropped leaf: subject=%s, source=%s", leaf.Subject, leaf.Source)
+	}
 	return nil
 }
 

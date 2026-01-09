@@ -2,16 +2,13 @@ package main
 
 import (
 	"fmt"
-	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/yourusername/nimsforest/internal/natsembed"
 	"github.com/yourusername/nimsforest/internal/viewmodel"
-	"github.com/yourusername/nimsforest/internal/webview"
 )
 
 // handleViewmodel handles the 'viewmodel' command and its subcommands.
@@ -66,60 +63,24 @@ func handleViewmodelSummary() {
 	vm.PrintSummary(os.Stdout)
 }
 
-// handleViewmodelWebview starts the webview HTTP server.
+// handleViewmodelWebview informs user about external viewer packages.
 func handleViewmodelWebview(args []string) {
-	port := "8080"
-
-	// Parse --port flag
-	for i := 0; i < len(args); i++ {
-		arg := args[i]
-		if strings.HasPrefix(arg, "--port=") {
-			port = strings.TrimPrefix(arg, "--port=")
-		} else if arg == "--port" && i+1 < len(args) {
-			port = args[i+1]
-			i++
-		}
-	}
-
-	ns, cleanup := getOrStartNATSServer()
-	defer cleanup()
-
-	vm := viewmodel.New(ns)
-
-	// Try to find external web/out directory for development
-	// If not found, the server will use embedded files
-	var webDir string
-	possiblePaths := []string{
-		"web/out",
-		"./web/out",
-	}
-	for _, p := range possiblePaths {
-		if _, err := os.Stat(p); err == nil {
-			webDir = p
-			break
-		}
-	}
-
-	var server *webview.Server
-	if webDir != "" {
-		// Use external files (development mode)
-		server = webview.New(vm, os.DirFS(webDir))
-		fmt.Printf("🌲 Starting NimsForest webview at http://localhost:%s\n", port)
-		fmt.Printf("   Serving static files from: %s\n", webDir)
-	} else {
-		// Use embedded files (production mode)
-		server = webview.New(vm, nil)
-		fmt.Printf("🌲 Starting NimsForest webview at http://localhost:%s\n", port)
-		fmt.Println("   Serving embedded web frontend")
-	}
-
-	fmt.Println("   Press Ctrl+C to stop.")
+	fmt.Println("🌲 NimsForest Web Viewer")
 	fmt.Println()
-
-	if err := http.ListenAndServe(":"+port, server); err != nil {
-		fmt.Fprintf(os.Stderr, "❌ Server error: %v\n", err)
-		os.Exit(1)
-	}
+	fmt.Println("The web viewer has been moved to separate packages:")
+	fmt.Println()
+	fmt.Println("  nimsforestviewer    - Go library for Smart TV + web JSON API")
+	fmt.Println("                        github.com/nimsforest/nimsforestviewer")
+	fmt.Println()
+	fmt.Println("  nimsforestwebview   - Interactive Phaser 3 web frontend")
+	fmt.Println("                        github.com/nimsforest/nimsforestwebview")
+	fmt.Println()
+	fmt.Println("To use:")
+	fmt.Println("  1. Use nimsforestviewer to serve the JSON API")
+	fmt.Println("  2. Build nimsforestwebview with 'npm run build'")
+	fmt.Println("  3. Point nimsforestwebview at the API endpoint")
+	fmt.Println()
+	fmt.Println("For Smart TV display, see nimsforestviewer examples.")
 }
 
 // getOrStartNATSServer connects to an existing NATS server or starts an embedded one.
@@ -219,14 +180,12 @@ func printViewmodelHelp() {
 	fmt.Println("Commands:")
 	fmt.Println("  print          Print full territory view with all Land and processes")
 	fmt.Println("  summary        Print capacity and usage summary")
-	fmt.Println("  webview        Launch interactive isometric webview")
+	fmt.Println("  webview        Info about external web viewer packages")
 	fmt.Println("  help           Show this help message")
 	fmt.Println()
 	fmt.Println("Examples:")
 	fmt.Println("  forest viewmodel print              # Show all land and processes")
 	fmt.Println("  forest viewmodel summary            # Show capacity/usage summary")
-	fmt.Println("  forest viewmodel webview            # Start webview on :8080")
-	fmt.Println("  forest viewmodel webview --port=3000  # Use custom port")
 	fmt.Println()
 	fmt.Println("The viewmodel shows:")
 	fmt.Println("  • Land - Nodes in the NATS cluster (regular or GPU-enabled)")
@@ -234,9 +193,7 @@ func printViewmodelHelp() {
 	fmt.Println("  • Treehouses - Lua script processors")
 	fmt.Println("  • Nims - Business logic handlers")
 	fmt.Println()
-	fmt.Println("Webview provides an isometric visualization in your browser where:")
-	fmt.Println("  • Green tiles represent regular Land")
-	fmt.Println("  • Purple tiles represent Manaland (GPU-enabled)")
-	fmt.Println("  • Tree/Treehouse/Nim sprites stack on their Land")
-	fmt.Println("  • Click entities to see details in the sidebar")
+	fmt.Println("For web/TV visualization, see:")
+	fmt.Println("  • nimsforestviewer  - Smart TV + JSON API (Go)")
+	fmt.Println("  • nimsforestwebview - Interactive web UI (Phaser 3)")
 }

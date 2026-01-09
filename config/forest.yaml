@@ -2,6 +2,16 @@
 # Complete example with Sources, Trees, TreeHouses, and Nims
 
 # =============================================================================
+# VIEWER - Visualization for Smart TV and web
+# =============================================================================
+viewer:
+  enabled: true
+  web_addr: ":8090"
+  smarttv: false          # Set to true to discover and display on Smart TV
+  update_interval: 90     # Beats between updates (90 = 1 second at 90Hz)
+  only_on_change: true    # Only push when state changes
+
+# =============================================================================
 # SOURCES - Entry points for external data
 # =============================================================================
 sources:

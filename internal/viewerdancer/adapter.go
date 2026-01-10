@@ -1,3 +1,5 @@
+//go:build viewer
+
 // Package viewerdancer provides integration between nimsforest2's viewmodel
 // and nimsforestviewer for visualization on Smart TVs and web browsers.
 package viewerdancer

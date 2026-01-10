@@ -1,3 +1,5 @@
+//go:build viewer
+
 package viewerdancer
 
 import (

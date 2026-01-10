@@ -1,3 +1,5 @@
+//go:build viewer
+
 package main
 
 import (

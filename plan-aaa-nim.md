@@ -96,12 +96,14 @@ Runtime examples (`scripts/`) stay in repo.
 ┌───────▼───────┐ ┌──▼──────────┐ ┌▼───────────┐ ┌▼───────────┐
 │   AIAgent     │ │ HumanAgent  │ │ RobotAgent │ │BrowserAgent│
 │               │ │             │ │            │ │            │
-│ - Docker      │ │ - Songbird  │ │ - Webhooks │ │ - Playwright│
-│ - Claude      │ │ - Telegram  │ │ - CI/CD    │ │ - Puppeteer│
-│ - Aider       │ │ - Slack     │ │ - APIs     │ │ - Selenium │
-│ - Cursor      │ │ - Email     │ │ - Scripts  │ │ - Headless │
+│ - Docker      │ │ - Songbird  │ │ - Temi     │ │ - Playwright│
+│ - Claude      │ │ - Telegram  │ │ - SO-ARM100│ │ - Puppeteer│
+│ - Aider       │ │ - Slack     │ │ - Humanoid │ │ - Selenium │
+│ - Cursor      │ │ - Email     │ │            │ │ - Headless │
 └───────────────┘ └─────────────┘ └────────────┘ └────────────┘
 ```
+
+**Note:** CI/CD, webhooks, and external APIs flow through **River**, not agents.
 
 ### 1.1 Agent Interface
 
@@ -210,26 +212,35 @@ type Human struct {
 
 ### 1.4 RobotAgent
 
-Calls external systems via webhooks, APIs, or scripts.
+Controls physical robots (humanoids, mobile robots, robotic arms).
 
 ```go
 // pkg/nim/robot_agent.go
 
 type RobotAgent interface {
     Agent
-    Endpoint() string
-    Method() string
+    Model() string      // Robot model (temi, so-arm100, humanoid)
+    Location() string   // Physical location
+    Capabilities() []string
 }
 
 type RobotAgentConfig struct {
     Name           string
-    Role           string   // "builder", "deployer", "notifier"
-    Responsibility string
-    Method         string   // "webhook", "api", "script"
-    Endpoint       string   // URL or command
-    Auth           string   // Auth method/key reference
+    Model          string   // "temi", "so-arm100", "humanoid"
+    Location       string   // "office-a", "warehouse-1"
+    Endpoint       string   // Robot's API endpoint
+    Capabilities   []string // ["navigate", "speak", "pick", "place"]
 }
 ```
+
+**Robot Types:**
+```
+temi           - Mobile telepresence robot
+so-arm100      - Robotic arm for manipulation
+humanoid       - Humanoid robot (various models)
+```
+
+**Note:** CI/CD, webhooks, and external APIs are handled by the **River** system, not agents.
 
 ### 1.5 BrowserAgent
 
@@ -553,7 +564,7 @@ internal/
 │   └── agents/
 │       ├── ai_agent.go    # Docker-based AI agent
 │       ├── human_agent.go # Songbird-based human agent
-│       ├── robot_agent.go # Webhook/API robot agent
+│       ├── robot_agent.go # Physical robot agent
 │       └── browser_agent.go # Playwright browser agent
 ├── land/
 │   └── registry.go        # Land registry implementation
@@ -782,22 +793,29 @@ import (
     "github.com/yourusername/nimsforest/pkg/nim"
 )
 
-type WebhookRobotAgent struct {
+type PhysicalRobotAgent struct {
     config nim.RobotAgentConfig
     client *http.Client
 }
 
-func NewWebhookRobotAgent(config nim.RobotAgentConfig) *WebhookRobotAgent {
-    return &WebhookRobotAgent{
+func NewPhysicalRobotAgent(config nim.RobotAgentConfig) *PhysicalRobotAgent {
+    return &PhysicalRobotAgent{
         config: config,
         client: &http.Client{},
     }
 }
 
-func (a *WebhookRobotAgent) Run(ctx context.Context, task nim.Task) (*nim.Result, error) {
-    payload, _ := json.Marshal(task.Params)
+func (a *PhysicalRobotAgent) Run(ctx context.Context, task nim.Task) (*nim.Result, error) {
+    // Build command for the robot
+    command := map[string]interface{}{
+        "task_id":     task.ID,
+        "description": task.Description,
+        "params":      task.Params,
+    }
+    payload, _ := json.Marshal(command)
     
-    req, err := http.NewRequestWithContext(ctx, "POST", a.config.Endpoint, bytes.NewReader(payload))
+    // Send to robot's API endpoint
+    req, err := http.NewRequestWithContext(ctx, "POST", a.config.Endpoint+"/execute", bytes.NewReader(payload))
     if err != nil {
         return nil, err
     }
@@ -805,27 +823,36 @@ func (a *WebhookRobotAgent) Run(ctx context.Context, task nim.Task) (*nim.Result
     
     resp, err := a.client.Do(req)
     if err != nil {
-        return nil, err
+        return nil, fmt.Errorf("robot %s unreachable: %w", a.config.Name, err)
     }
     defer resp.Body.Close()
     
     if resp.StatusCode >= 400 {
         return &nim.Result{
             Success: false,
-            Error:   fmt.Sprintf("HTTP %d", resp.StatusCode),
+            Error:   fmt.Sprintf("robot returned HTTP %d", resp.StatusCode),
         }, nil
     }
     
     return &nim.Result{
         Success: true,
-        Output:  fmt.Sprintf("Webhook triggered: %s", a.config.Endpoint),
+        Output:  fmt.Sprintf("Task dispatched to robot %s (%s)", a.config.Name, a.config.Model),
     }, nil
 }
 
-func (a *WebhookRobotAgent) Type() nim.AgentType { return nim.AgentTypeRobot }
-func (a *WebhookRobotAgent) Available(ctx context.Context) bool { return true }
-func (a *WebhookRobotAgent) Endpoint() string { return a.config.Endpoint }
-func (a *WebhookRobotAgent) Method() string { return a.config.Method }
+func (a *PhysicalRobotAgent) Type() nim.AgentType { return nim.AgentTypeRobot }
+func (a *PhysicalRobotAgent) Available(ctx context.Context) bool {
+    // Ping robot to check availability
+    resp, err := a.client.Get(a.config.Endpoint + "/status")
+    if err != nil {
+        return false
+    }
+    defer resp.Body.Close()
+    return resp.StatusCode == 200
+}
+func (a *PhysicalRobotAgent) Model() string { return a.config.Model }
+func (a *PhysicalRobotAgent) Location() string { return a.config.Location }
+func (a *PhysicalRobotAgent) Capabilities() []string { return a.config.Capabilities }
 ```
 
 ### 5.5 Browser Agent Implementation
@@ -1095,7 +1122,7 @@ func determineAgentType(action string) nim.AgentType {
     switch action {
     case "approve", "review", "decide":
         return nim.AgentTypeHuman
-    case "deploy", "build", "notify":
+    case "navigate", "pick", "place", "speak":
         return nim.AgentTypeRobot
     case "scrape", "fill_form", "test_ui":
         return nim.AgentTypeBrowser
@@ -1149,17 +1176,17 @@ agents:
           contact: "@dave_security"
           
   robot:
-    ci-runner:
-      role: builder
-      responsibility: "Run CI pipelines"
-      method: webhook
-      endpoint: "https://api.github.com/repos/org/repo/actions/workflows/ci.yml/dispatches"
+    office-temi:
+      model: temi
+      location: "office-floor-1"
+      endpoint: "http://192.168.1.50:8080"
+      capabilities: [navigate, speak, video_call]
       
-    deploy-bot:
-      role: deployer
-      responsibility: "Deploy to production"
-      method: api
-      endpoint: "https://deploy.example.com/trigger"
+    warehouse-arm:
+      model: so-arm100
+      location: "warehouse-a"
+      endpoint: "http://192.168.1.60:8080"
+      capabilities: [pick, place, inspect]
       
   browser:
     web-scraper:
@@ -1230,7 +1257,7 @@ songbirds:
 | 2.1 | Create `internal/ai/asker.go` - Wrap existing aiservice |
 | 2.2 | Create `internal/ai/agents/ai_agent.go` - Docker AI agent |
 | 2.3 | Create `internal/ai/agents/human_agent.go` - Songbird human agent |
-| 2.4 | Create `internal/ai/agents/robot_agent.go` - Webhook robot agent |
+| 2.4 | Create `internal/ai/agents/robot_agent.go` - Physical robot agent |
 | 2.5 | Create `internal/ai/agents/browser_agent.go` - Playwright browser agent |
 | 2.6 | Create `internal/land/registry.go` - Land registry |
 
@@ -1301,7 +1328,7 @@ songbirds:
 |------|---------|----------|
 | AIAgent | Docker | Code tasks (Claude, Aider) |
 | HumanAgent | Songbird (async) | Approvals, reviews |
-| RobotAgent | Webhook/API | CI/CD, deployments |
+| RobotAgent | Physical robot API | Temi, SO-ARM100, humanoids |
 | BrowserAgent | Docker + Playwright | Web automation |
 
 ### AAA Methods

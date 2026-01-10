@@ -410,40 +410,9 @@ func runForest() {
 	}
 
 	// Start viewmodel publisher if configured (for external viewers)
-	var vmPublisher *viewmodel.Publisher
-	if runtimeConfig != nil && runtimeConfig.Viewer != nil && runtimeConfig.Viewer.Enabled {
-		fmt.Println("\n📡 Starting viewmodel publisher...")
-		vm := viewmodel.New(ns.InternalServer())
-		if err := vm.Refresh(); err != nil {
-			log.Printf("⚠️  Failed to initialize viewmodel: %v", err)
-		} else {
-			// Configure publisher
-			pubConfig := viewmodel.PublisherConfig{
-				Subject:      runtimeConfig.Viewer.Subject,
-				EventSubject: runtimeConfig.Viewer.EventSubject,
-			}
-			if runtimeConfig.Viewer.UpdateInterval > 0 {
-				// Convert beats to duration (90 beats = 1 second at 90Hz)
-				pubConfig.Interval = time.Duration(runtimeConfig.Viewer.UpdateInterval) * time.Second / 90
-			} else {
-				pubConfig.Interval = time.Second // Default 1 second
-			}
-			if runtimeConfig.Viewer.OnlyOnChange != nil {
-				pubConfig.OnlyOnChange = *runtimeConfig.Viewer.OnlyOnChange
-			} else {
-				pubConfig.OnlyOnChange = true // Default
-			}
-
-			vmPublisher = viewmodel.NewPublisher(vm, nc, pubConfig)
-			if err := vmPublisher.Start(ctx); err != nil {
-				log.Printf("⚠️  Failed to start viewmodel publisher: %v", err)
-			} else {
-				defer vmPublisher.Stop()
-				fmt.Printf("   📡 Publishing state to: %s\n", vmPublisher.PublishStateSubject())
-				fmt.Printf("   📡 Publishing events to: %s\n", vmPublisher.PublishEventSubject())
-				fmt.Println("   💡 External viewer can subscribe to these subjects")
-			}
-		}
+	vmPublisher := startViewmodelPublisher(ctx, ns.InternalServer(), nc, runtimeConfig)
+	if vmPublisher != nil {
+		defer vmPublisher.Stop()
 	}
 
 	// Give components time to initialize
@@ -995,4 +964,47 @@ func createBrainWithFallback(ctx context.Context) (brain.Brain, string) {
 	b := runtime.NewSimpleBrain()
 	b.Initialize(ctx)
 	return b, "SimpleBrain (rule-based fallback)"
+}
+
+// startViewmodelPublisher starts the viewmodel publisher if configured.
+// Returns nil if not configured or on error.
+func startViewmodelPublisher(ctx context.Context, ns *server.Server, nc *nats.Conn, cfg *runtime.Config) *viewmodel.Publisher {
+	if cfg == nil || cfg.Viewer == nil || !cfg.Viewer.Enabled {
+		return nil
+	}
+
+	fmt.Println("\n📡 Starting viewmodel publisher...")
+	vm := viewmodel.New(ns)
+	if err := vm.Refresh(); err != nil {
+		log.Printf("⚠️  Failed to initialize viewmodel: %v", err)
+		return nil
+	}
+
+	// Configure publisher
+	pubConfig := viewmodel.PublisherConfig{
+		Subject:      cfg.Viewer.Subject,
+		EventSubject: cfg.Viewer.EventSubject,
+	}
+	if cfg.Viewer.UpdateInterval > 0 {
+		// Convert beats to duration (90 beats = 1 second at 90Hz)
+		pubConfig.Interval = time.Duration(cfg.Viewer.UpdateInterval) * time.Second / 90
+	} else {
+		pubConfig.Interval = time.Second // Default 1 second
+	}
+	if cfg.Viewer.OnlyOnChange != nil {
+		pubConfig.OnlyOnChange = *cfg.Viewer.OnlyOnChange
+	} else {
+		pubConfig.OnlyOnChange = true // Default
+	}
+
+	publisher := viewmodel.NewPublisher(vm, nc, pubConfig)
+	if err := publisher.Start(ctx); err != nil {
+		log.Printf("⚠️  Failed to start viewmodel publisher: %v", err)
+		return nil
+	}
+
+	fmt.Printf("   📡 Publishing state to: %s\n", publisher.PublishStateSubject())
+	fmt.Printf("   📡 Publishing events to: %s\n", publisher.PublishEventSubject())
+	fmt.Println("   💡 External viewer can subscribe to these subjects")
+	return publisher
 }

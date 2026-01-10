@@ -6,9 +6,6 @@ package main
 import (
 	"fmt"
 	"os"
-
-	"github.com/nats-io/nats-server/v2/server"
-	"github.com/yourusername/nimsforest/internal/viewmodel"
 )
 
 // handleViewmodel handles the viewmodel CLI commands.
@@ -88,15 +85,4 @@ func printViewmodelHelp() {
 	fmt.Println("  forest.viewmodel.state  - Full state JSON")
 	fmt.Println("  forest.viewmodel.events - Real-time change events")
 	fmt.Println()
-}
-
-// printLocalViewmodel prints viewmodel state from a local NATS server.
-// Used for quick CLI inspection without the full viewer.
-func printLocalViewmodel(ns *server.Server) {
-	vm := viewmodel.New(ns)
-	if err := vm.Refresh(); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to read viewmodel: %v\n", err)
-		os.Exit(1)
-	}
-	vm.Print(os.Stdout)
 }

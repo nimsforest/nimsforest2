@@ -818,7 +818,6 @@ Environment variables:
 ### Architecture
 
 - **[TECHNICAL_SPEC.md](./docs/architecture/TECHNICAL_SPEC.md)** - Complete architecture and API specifications
-- **[VIEWER_DECOUPLING_PLAN.md](./docs/architecture/VIEWER_DECOUPLING_PLAN.md)** - Viewer architecture (decoupled from core)
 
 ### Roadmap
 

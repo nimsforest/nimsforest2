@@ -13,6 +13,7 @@ import (
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	"github.com/yourusername/nimsforest/internal/core"
+	"github.com/yourusername/nimsforest/internal/land"
 	"github.com/yourusername/nimsforest/internal/natsclusterconfig"
 	"github.com/yourusername/nimsforest/internal/natsembed"
 	"github.com/yourusername/nimsforest/internal/nims"
@@ -251,6 +252,21 @@ func runForest() {
 		ns.Shutdown()
 	}()
 
+	// Detect Land capabilities
+	fmt.Println("Detecting Land capabilities...")
+	varz, err := ns.InternalServer().Varz(nil)
+	if err != nil {
+		log.Printf("⚠️  Failed to get server info: %v\n", err)
+	}
+	thisLand := land.Detect(varz.ID, varz.Name)
+	fmt.Printf("  🌍 Land Type: %s\n", thisLand.Type)
+	fmt.Printf("  💾 RAM: %s\n", formatLandBytes(thisLand.RAMTotal))
+	fmt.Printf("  🔧 CPU: %d cores (%s)\n", thisLand.CPUCores, thisLand.CPUModel)
+	fmt.Printf("  🐳 Docker: %v\n", thisLand.HasDocker)
+	if thisLand.GPUVram > 0 {
+		fmt.Printf("  🎮 GPU: %s (%s VRAM)\n", thisLand.GPUModel, formatLandBytes(thisLand.GPUVram))
+	}
+
 	// Initialize core components
 	fmt.Println("Initializing core components...")
 
@@ -373,6 +389,9 @@ func runForest() {
 			}
 
 			if runtimeForest != nil {
+				// Set Land info
+				runtimeForest.SetLand(thisLand)
+
 				// Set River so Trees can be added at runtime
 				runtimeForest.SetRiver(river)
 
@@ -995,4 +1014,18 @@ func createBrainWithFallback(ctx context.Context) (brain.Brain, string) {
 	b := runtime.NewSimpleBrain()
 	b.Initialize(ctx)
 	return b, "SimpleBrain (rule-based fallback)"
+}
+
+// formatLandBytes formats bytes as human-readable string for Land detection
+func formatLandBytes(b uint64) string {
+	const unit = 1024
+	if b < unit {
+		return fmt.Sprintf("%d B", b)
+	}
+	div, exp := uint64(unit), 0
+	for n := b / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB", float64(b)/float64(div), "KMGTPE"[exp])
 }

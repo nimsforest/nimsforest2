@@ -23,6 +23,9 @@ type Forest struct {
 	humus  *core.Humus // Optional: for state tracking
 	brain  brain.Brain
 
+	// Land info - detected capabilities of this compute node
+	thisLand *core.LandInfo
+
 	// Components
 	sources    map[string]core.Source
 	trees      map[string]*Tree
@@ -172,6 +175,14 @@ func (f *Forest) Start(ctx context.Context) error {
 
 	if f.running {
 		return fmt.Errorf("forest already running")
+	}
+
+	// Log Land info if available
+	if f.thisLand != nil {
+		log.Printf("[Forest] Running on %s: %s (RAM: %s, CPU: %d cores, Docker: %v, GPU: %v)",
+			f.thisLand.Type, f.thisLand.Name,
+			formatBytes(f.thisLand.RAMTotal), f.thisLand.CPUCores,
+			f.thisLand.HasDocker, f.thisLand.GPUVram > 0)
 	}
 
 	// Create source factory if river is available
@@ -1015,4 +1026,33 @@ func createSongbird(name string, cfg SongbirdConfig, wind *core.Wind) (songbirds
 	default:
 		return nil, fmt.Errorf("unknown songbird type: %s", cfg.Type)
 	}
+}
+
+// SetLand sets the Land information for this Forest.
+// This should be called after Forest creation but before Start().
+func (f *Forest) SetLand(land *core.LandInfo) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.thisLand = land
+}
+
+// ThisLand returns the Land information for this Forest.
+func (f *Forest) ThisLand() *core.LandInfo {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.thisLand
+}
+
+// formatBytes formats bytes as human-readable string
+func formatBytes(b uint64) string {
+	const unit = 1024
+	if b < unit {
+		return fmt.Sprintf("%d B", b)
+	}
+	div, exp := uint64(unit), 0
+	for n := b / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB", float64(b)/float64(div), "KMGTPE"[exp])
 }

@@ -2148,3 +2148,358 @@ pkg/
 2. **Event-driven discovery** - No central registry, Lands announce themselves via Wind
 3. **Type-based routing** - Tasks routed to appropriate Land type (GPU tasks → Manaland)
 4. **Self-managing cluster** - Lands join/leave dynamically, capacity adapts automatically
+
+---
+
+## Part 10: Land Auto-Discovery (Bootstrap)
+
+Land **already exists** the moment NimsForest starts - we're running on it. The question is: how do we discover what this Land is capable of?
+
+### What NATS Server Already Knows
+
+The embedded NATS server provides rich information via its monitoring APIs:
+
+```go
+// From server.Varz()
+varz.ID         // Unique server ID (e.g., "NCXXX...")
+varz.Name       // Server name (from config.NodeName)
+varz.Host       // Host address
+varz.Port       // Client port
+varz.Start      // When server started
+varz.Cluster    // Cluster info (name, port, routes)
+
+// From server.Routez()
+routez.Routes   // Connected peer nodes (ID, IP, RTT)
+
+// From server.Subsz()
+subsz.Subs      // All subscriptions (subject, queue, msgs)
+
+// From server.Connz()
+connz.Conns     // All connections with their subscriptions
+
+// From server.Jsz()
+jsz.AccountDetails.Streams    // JetStream streams
+jsz.AccountDetails.Consumers  // JetStream consumers
+```
+
+### What We Detect from System
+
+Already using `gopsutil` in `viewmodel/reader.go`:
+
+```go
+// RAM
+vmStat, _ := mem.VirtualMemory()
+vmStat.Total    // Total RAM in bytes
+
+// CPU
+runtime.NumCPU() // Number of CPU cores
+```
+
+### What We Could Add: Docker & GPU Detection
+
+```go
+// internal/land/detect.go
+
+package land
+
+import (
+    "os/exec"
+    "runtime"
+    "strings"
+    
+    "github.com/shirou/gopsutil/v3/cpu"
+    "github.com/shirou/gopsutil/v3/mem"
+)
+
+// DetectLocalLand auto-detects the current machine's capabilities.
+func DetectLocalLand() (*LocalLandInfo, error) {
+    info := &LocalLandInfo{}
+    
+    // RAM
+    if vmStat, err := mem.VirtualMemory(); err == nil {
+        info.RAMTotal = vmStat.Total
+    }
+    
+    // CPU
+    info.CPUCores = runtime.NumCPU()
+    if cpuInfo, err := cpu.Info(); err == nil && len(cpuInfo) > 0 {
+        info.CPUModel = cpuInfo[0].ModelName
+        info.CPUFreqMHz = cpuInfo[0].Mhz
+    }
+    
+    // Docker detection
+    info.HasDocker = detectDocker()
+    
+    // GPU detection
+    info.GPU = detectGPU()
+    
+    return info, nil
+}
+
+// detectDocker checks if Docker is available and running.
+func detectDocker() bool {
+    // Check if docker command exists
+    if _, err := exec.LookPath("docker"); err != nil {
+        return false
+    }
+    
+    // Check if docker daemon is running
+    cmd := exec.Command("docker", "info")
+    if err := cmd.Run(); err != nil {
+        return false
+    }
+    
+    return true
+}
+
+// GPUInfo holds GPU detection results.
+type GPUInfo struct {
+    Available bool
+    Vendor    string  // "nvidia", "amd", "intel"
+    Model     string  // "RTX 4090", "RX 7900 XTX"
+    VRAM      uint64  // Bytes
+    Tflops    float64 // Compute power
+}
+
+// detectGPU attempts to detect GPU information.
+func detectGPU() *GPUInfo {
+    // Try nvidia-smi first (most common for compute)
+    if gpu := detectNvidiaGPU(); gpu != nil {
+        return gpu
+    }
+    
+    // Try AMD ROCm
+    if gpu := detectAMDGPU(); gpu != nil {
+        return gpu
+    }
+    
+    return nil
+}
+
+// detectNvidiaGPU uses nvidia-smi to detect NVIDIA GPUs.
+func detectNvidiaGPU() *GPUInfo {
+    cmd := exec.Command("nvidia-smi", 
+        "--query-gpu=name,memory.total,compute_cap",
+        "--format=csv,noheader,nounits")
+    
+    output, err := cmd.Output()
+    if err != nil {
+        return nil
+    }
+    
+    // Parse: "NVIDIA GeForce RTX 4090, 24564, 8.9"
+    parts := strings.Split(strings.TrimSpace(string(output)), ", ")
+    if len(parts) < 2 {
+        return nil
+    }
+    
+    gpu := &GPUInfo{
+        Available: true,
+        Vendor:    "nvidia",
+        Model:     parts[0],
+    }
+    
+    // Parse VRAM (nvidia-smi reports in MiB)
+    if vramMiB, err := strconv.ParseUint(parts[1], 10, 64); err == nil {
+        gpu.VRAM = vramMiB * 1024 * 1024
+    }
+    
+    return gpu
+}
+
+// LocalLandInfo holds auto-detected land information.
+type LocalLandInfo struct {
+    RAMTotal   uint64
+    CPUCores   int
+    CPUModel   string
+    CPUFreqMHz float64
+    HasDocker  bool
+    GPU        *GPUInfo
+}
+
+// LandType returns the detected land type.
+func (l *LocalLandInfo) LandType() LandType {
+    if l.GPU != nil && l.GPU.Available && l.HasDocker {
+        return LandTypeManaland
+    }
+    if l.HasDocker {
+        return LandTypeNimland
+    }
+    return LandTypeBase
+}
+```
+
+### Bootstrap Flow
+
+When NimsForest starts, Land bootstraps automatically:
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         NimsForest Startup                              │
+└─────────────────────────────────────────────────────────────────────────┘
+                                  │
+                                  ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│  1. Embedded NATS Server Starts                                         │
+│     └── server.Varz() → ID, Name, Host, Port                           │
+│     └── server.Routez() → Peer nodes (if clustered)                    │
+└─────────────────────────────────────────────────────────────────────────┘
+                                  │
+                                  ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│  2. System Detection (gopsutil + probing)                               │
+│     └── mem.VirtualMemory() → RAM                                       │
+│     └── runtime.NumCPU() → CPU cores                                    │
+│     └── exec.LookPath("docker") → Docker available?                     │
+│     └── nvidia-smi / rocm-smi → GPU available?                          │
+└─────────────────────────────────────────────────────────────────────────┘
+                                  │
+                                  ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│  3. Create "This Land" (core.Land)                                      │
+│     └── ID from NATS server ID                                          │
+│     └── Type from detection (Land/Nimland/Manaland)                     │
+│     └── Capacity from system info                                       │
+└─────────────────────────────────────────────────────────────────────────┘
+                                  │
+                                  ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│  4. Land Starts & Announces via Wind                                    │
+│     └── Whisper("land.announce", {id, type, capacity})                  │
+│     └── Subscribe to "land.capacity.query"                              │
+│     └── Subscribe to "land.reserve"                                     │
+│     └── Start heartbeat loop                                            │
+└─────────────────────────────────────────────────────────────────────────┘
+                                  │
+                                  ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│  5. World/ViewModel Listens to Land Events                              │
+│     └── Catch("land.announce") → AddLand to World                       │
+│     └── Catch("land.heartbeat") → UpdateLand                            │
+│     └── When NATS route disconnects → RemoveLand                        │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Integration Code
+
+```go
+// pkg/runtime/forest.go (updated)
+
+func NewForest(configPath string, wind *core.Wind, b brain.Brain) (*Forest, error) {
+    // ... existing code ...
+    
+    // Auto-detect and create "this land"
+    localLandInfo, err := land.DetectLocalLand()
+    if err != nil {
+        log.Printf("[Forest] Warning: land detection failed: %v", err)
+    }
+    
+    // Create the Land for this node
+    thisLand := land.NewFromDetection(
+        f.natsServer.ID(),       // Use NATS server ID
+        f.natsServer.Name(),     // Use configured node name
+        localLandInfo,
+        wind,
+    )
+    
+    f.thisLand = thisLand
+    
+    return f, nil
+}
+
+func (f *Forest) Start(ctx context.Context) error {
+    // ... existing startup code ...
+    
+    // Start this Land (announces to cluster, listens for queries)
+    if f.thisLand != nil {
+        if err := f.thisLand.Start(ctx); err != nil {
+            return fmt.Errorf("failed to start land: %w", err)
+        }
+    }
+    
+    // ... rest of startup ...
+}
+```
+
+### What NATS Peers Know About Each Other
+
+When NATS nodes cluster, they know:
+- **Route info**: Remote ID, IP address, RTT (latency)
+- **But NOT**: RAM, CPU, GPU of the remote node
+
+This is why Lands need to **announce themselves via Wind**:
+
+```
+Node A starts:
+  └── Detects: 16GB RAM, 4 CPU, no Docker, no GPU
+  └── Creates: BaseLand
+  └── Whispers: land.announce {id: "A", type: "land", ram: 16GB, ...}
+
+Node B starts:
+  └── Detects: 32GB RAM, 8 CPU, Docker ✓, GPU ✓
+  └── Creates: Manaland
+  └── Whispers: land.announce {id: "B", type: "manaland", ram: 32GB, gpu_vram: 24GB, ...}
+  └── Catches: land.announce from A
+  └── Now knows: "Node A is a BaseLand with 16GB"
+
+Node A catches: land.announce from B
+  └── Now knows: "Node B is a Manaland with GPU"
+```
+
+### ViewWorld Becomes Event-Driven
+
+The existing `viewmodel.World` becomes a consumer of Land events instead of polling:
+
+```go
+// internal/viewmodel/viewmodel.go (updated)
+
+func New(ns *server.Server, wind *core.Wind) *ViewModel {
+    vm := &ViewModel{
+        server:    ns,
+        territory: NewWorld(),
+        // ...
+    }
+    
+    // Subscribe to Land events instead of polling
+    wind.Catch("land.announce", func(leaf core.Leaf) {
+        var ann core.LandAnnounce
+        json.Unmarshal(leaf.Data, &ann)
+        
+        land := vm.announcementToLand(ann)
+        vm.territory.AddLand(land)
+    })
+    
+    wind.Catch("land.heartbeat", func(leaf core.Leaf) {
+        var hb core.LandHeartbeat
+        json.Unmarshal(leaf.Data, &hb)
+        
+        if land := vm.territory.GetLand(hb.LandID); land != nil {
+            land.LastSeen = time.Now()
+            // Update available capacity
+        }
+    })
+    
+    // Detect when NATS routes drop (node left cluster)
+    // This would come from NATS server events
+    
+    return vm
+}
+```
+
+### Summary: Land Bootstrap
+
+| Source | Information |
+|--------|-------------|
+| **NATS Server** | ID, Name, Cluster peers, Subscriptions |
+| **gopsutil** | RAM total, CPU cores, CPU frequency |
+| **Docker probe** | Docker available? |
+| **nvidia-smi** | GPU vendor, model, VRAM |
+| **Wind events** | Other Lands' capabilities |
+
+The flow is:
+1. **Implicit**: Land exists because we're running on it
+2. **Detection**: Probe system for capabilities  
+3. **NATS identity**: Use server ID as Land ID
+4. **Announce**: Tell the cluster what we are
+5. **Listen**: Learn about other Lands via their announcements
+6. **Respond**: Answer capacity queries from Nims

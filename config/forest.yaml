@@ -2,14 +2,16 @@
 # Complete example with Sources, Trees, TreeHouses, and Nims
 
 # =============================================================================
-# VIEWER - Visualization for Smart TV and web
+# VIEWMODEL PUBLISHER - Publishes state to NATS for external viewers
 # =============================================================================
+# The viewer (with ebiten/graphics) runs as a separate process and subscribes
+# to these NATS subjects. This decouples graphics dependencies from core.
 viewer:
   enabled: true
-  web_addr: ":8090"
-  smarttv: false          # Set to true to discover and display on Smart TV
+  subject: forest.viewmodel.state      # NATS subject for full state snapshots
+  event_subject: forest.viewmodel.events  # NATS subject for change events
   update_interval: 90     # Beats between updates (90 = 1 second at 90Hz)
-  only_on_change: true    # Only push when state changes
+  only_on_change: true    # Only publish when state changes
 
 # =============================================================================
 # SOURCES - Entry points for external data

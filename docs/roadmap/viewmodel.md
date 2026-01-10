@@ -1,5 +1,17 @@
 # NimsForest Viewmodel - Implementation Plan
 
+## Current Status: ✅ Core Implemented
+
+The viewmodel core is implemented with NATS-based state publishing:
+- `internal/viewmodel/` - Model, mapper, detector, updater, publisher
+- State published to `forest.viewmodel.state` NATS subject
+- Events published to `forest.viewmodel.events` NATS subject
+- External viewers subscribe (decoupled from core)
+
+See [docs/guides/VIEWER.md](../guides/VIEWER.md) for viewer development guide.
+
+---
+
 ## Phase 0: E2E Test (Define Success)
 
 ### Test: `test/e2e/viewmodel_test.go`

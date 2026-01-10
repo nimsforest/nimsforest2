@@ -18,6 +18,7 @@ import (
 	"github.com/yourusername/nimsforest/internal/nims"
 	"github.com/yourusername/nimsforest/internal/trees"
 	"github.com/yourusername/nimsforest/internal/updater"
+	"github.com/yourusername/nimsforest/internal/viewmodel"
 	"github.com/yourusername/nimsforest/internal/windwaker"
 	"github.com/yourusername/nimsforest/pkg/brain"
 	aifactory "github.com/yourusername/nimsforest/pkg/integrations/aiservice"
@@ -408,10 +409,41 @@ func runForest() {
 		}
 	}
 
-	// Start viewer if configured
+	// Start viewmodel publisher if configured (for external viewers)
+	var vmPublisher *viewmodel.Publisher
 	if runtimeConfig != nil && runtimeConfig.Viewer != nil && runtimeConfig.Viewer.Enabled {
-		fmt.Println("\n📺 Starting visualization viewer...")
-		startViewer(ctx, ns.InternalServer(), runtimeConfig.Viewer, wind)
+		fmt.Println("\n📡 Starting viewmodel publisher...")
+		vm := viewmodel.New(ns.InternalServer())
+		if err := vm.Refresh(); err != nil {
+			log.Printf("⚠️  Failed to initialize viewmodel: %v", err)
+		} else {
+			// Configure publisher
+			pubConfig := viewmodel.PublisherConfig{
+				Subject:      runtimeConfig.Viewer.Subject,
+				EventSubject: runtimeConfig.Viewer.EventSubject,
+			}
+			if runtimeConfig.Viewer.UpdateInterval > 0 {
+				// Convert beats to duration (90 beats = 1 second at 90Hz)
+				pubConfig.Interval = time.Duration(runtimeConfig.Viewer.UpdateInterval) * time.Second / 90
+			} else {
+				pubConfig.Interval = time.Second // Default 1 second
+			}
+			if runtimeConfig.Viewer.OnlyOnChange != nil {
+				pubConfig.OnlyOnChange = *runtimeConfig.Viewer.OnlyOnChange
+			} else {
+				pubConfig.OnlyOnChange = true // Default
+			}
+
+			vmPublisher = viewmodel.NewPublisher(vm, nc, pubConfig)
+			if err := vmPublisher.Start(ctx); err != nil {
+				log.Printf("⚠️  Failed to start viewmodel publisher: %v", err)
+			} else {
+				defer vmPublisher.Stop()
+				fmt.Printf("   📡 Publishing state to: %s\n", vmPublisher.PublishStateSubject())
+				fmt.Printf("   📡 Publishing events to: %s\n", vmPublisher.PublishEventSubject())
+				fmt.Println("   💡 External viewer can subscribe to these subjects")
+			}
+		}
 	}
 
 	// Give components time to initialize

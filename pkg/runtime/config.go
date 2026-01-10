@@ -25,22 +25,29 @@ type Config struct {
 	BaseDir string `yaml:"-"`
 }
 
-// ViewerConfig configures the visualization viewer (Smart TV, web API).
+// ViewerConfig configures the viewmodel state publisher.
+// The viewer itself runs as a separate process and subscribes to NATS.
+// This decouples the viewer (with ebiten/graphics deps) from the core.
 type ViewerConfig struct {
+	// Enabled enables viewmodel state publishing to NATS.
+	// External viewers can subscribe to receive state updates.
 	Enabled bool `yaml:"enabled"`
 
-	// Web API server address (e.g., ":8090" or "0.0.0.0:8090")
-	// Leave empty to disable web API
-	WebAddr string `yaml:"web_addr,omitempty"`
+	// Subject is the NATS subject to publish state to.
+	// Default: "forest.viewmodel.state"
+	Subject string `yaml:"subject,omitempty"`
 
-	// Enable Smart TV discovery and display
-	SmartTV bool `yaml:"smarttv,omitempty"`
+	// EventSubject is the NATS subject to publish events to.
+	// Default: "forest.viewmodel.events"
+	EventSubject string `yaml:"event_subject,omitempty"`
 
-	// Update interval in windwaker beats (at 90Hz, 90 = 1 second)
+	// UpdateInterval in windwaker beats (at 90Hz, 90 = 1 second).
+	// Set to 0 to only publish on changes.
 	// Default: 90 (once per second)
 	UpdateInterval int `yaml:"update_interval,omitempty"`
 
-	// Only push updates when state changes (default: true)
+	// OnlyOnChange when true only publishes when state has changed.
+	// Default: true
 	OnlyOnChange *bool `yaml:"only_on_change,omitempty"`
 }
 

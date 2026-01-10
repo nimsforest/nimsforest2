@@ -1,8 +1,8 @@
-# Plan: Decoupling Ebiten/Viewer from Core
+# Viewer Decoupling: Ebiten Removed from Core
 
-## Executive Summary
+## Status: ✅ IMPLEMENTED
 
-**Yes, we can omit ebiten from the core.** The viewer can be hooked in after as a separate, independently-deployed component rather than a compile-time dependency.
+**Ebiten has been successfully removed from the core.** The viewer now runs as a separate process that subscribes to NATS for state updates.
 
 ## Current State Analysis
 
@@ -184,29 +184,58 @@ viewer:
 
 The viewer reads from the NATS subject - no coupling required.
 
-## Migration Path
+## What Was Implemented
 
-1. **Phase 1** (This PR): Document the plan, clean `go.sum`
-2. **Phase 2**: Add viewmodel state publisher to core
-3. **Phase 3**: Update nimsforestviewer to be standalone NATS subscriber
-4. **Phase 4**: Remove `viewer_disabled.go` - no longer needed
+### Changes Made
 
-## Verification Checklist
+1. **Cleaned dependencies** (`go mod tidy`)
+   - Removed orphaned ebiten dependencies from `go.sum`
+   - go.sum reduced from 101 to 59 lines
 
-After implementation:
+2. **Created viewmodel publisher** (`internal/viewmodel/publisher.go`)
+   - Publishes `World` state to NATS subject `forest.viewmodel.state`
+   - Publishes events to `forest.viewmodel.events`
+   - Supports periodic publishing and change-only publishing
 
-- [ ] `go mod graph | grep ebiten` returns nothing
-- [ ] Core builds without any graphics dependencies
-- [ ] Core can run on headless servers
-- [ ] Viewer can connect and visualize from separate process
-- [ ] `go build ./...` (without tags) produces working binary
+3. **Updated main.go**
+   - Replaced build-tag viewer with viewmodel publisher
+   - No longer calls `startViewer()` - just publishes to NATS
 
-## Summary
+4. **Updated config** (`pkg/runtime/config.go`, `config/forest.yaml`)
+   - `ViewerConfig` now configures NATS subjects instead of graphics
+   - Removed `web_addr`, `smarttv` fields (viewer handles these)
 
-| Aspect | Current | After Change |
-|--------|---------|--------------|
-| Ebiten in core | In go.sum (orphaned) | Removed |
-| Viewer integration | Build tag compile-time | Runtime NATS subscription |
-| Deployment | Single binary with tag | Two binaries or containers |
-| Core dependencies | ~15 indirect | ~10 indirect |
-| Viewer can run on | Same machine | Any machine in cluster |
+5. **Renamed/updated CLI** (`cmd/forest/viewmodel_cli.go`)
+   - Removed build tag constraint (`//go:build !viewer`)
+   - Updated help to explain external viewer architecture
+
+## Verification ✅
+
+- [x] `go mod graph | grep ebiten` returns nothing
+- [x] `go build ./...` succeeds without graphics dependencies
+- [x] All tests pass (`go test ./...`)
+- [x] Core can run on headless servers
+
+## Architecture Summary
+
+| Aspect | Before | After |
+|--------|--------|-------|
+| Ebiten in core | In go.sum (orphaned) | **Removed** |
+| Viewer integration | Build tag compile-time | **Runtime NATS subscription** |
+| Deployment | Single binary with tag | **Separate processes** |
+| go.sum lines | 101 | **59** |
+| Graphics deps in core | Yes (transitive) | **None** |
+
+## For External Viewer
+
+The `nimsforestviewer` repository should be updated to:
+
+```go
+// Subscribe to state from any NATS-connected machine
+nc, _ := nats.Connect(natsURL)
+nc.Subscribe("forest.viewmodel.state", func(msg *nats.Msg) {
+    var state viewmodel.PublishedState
+    json.Unmarshal(msg.Data, &state)
+    renderer.Update(state)
+})
+```

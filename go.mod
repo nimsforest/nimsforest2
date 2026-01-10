@@ -1,6 +1,6 @@
 module github.com/yourusername/nimsforest
 
-go 1.25.5
+go 1.23
 
 require (
 	github.com/nats-io/nats-server/v2 v2.12.3

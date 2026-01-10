@@ -407,7 +407,7 @@ Forest
 ### LandHouse Implementation
 
 ```go
-// internal/treehouses/land_house.go
+// internal/treehouses/landhouse.go
 
 // LandHouse is a compile-time TreeHouse that handles Land queries.
 // Deterministic: same query + same Land capabilities = same response
@@ -420,7 +420,7 @@ func NewLandHouse(land *core.LandInfo, wind *core.Wind) *LandHouse {
     return &LandHouse{land: land, wind: wind}
 }
 
-func (lh *LandHouse) Name() string { return "land_house" }
+func (lh *LandHouse) Name() string { return "landhouse" }
 
 func (lh *LandHouse) Subjects() []string {
     return []string{"land.query"}
@@ -446,7 +446,7 @@ func (lh *LandHouse) Process(leaf core.Leaf) *core.Leaf {
     return core.NewLeaf(
         fmt.Sprintf("land.info.%s", lh.land.ID),
         data,
-        "treehouse:land_house",
+        "treehouse:landhouse",
     )
 }
 ```
@@ -454,7 +454,7 @@ func (lh *LandHouse) Process(leaf core.Leaf) *core.Leaf {
 ### AgentHouse Implementation
 
 ```go
-// internal/treehouses/agent_house.go
+// internal/treehouses/agenthouse.go
 
 // AgentHouse is a compile-time TreeHouse that executes agent tasks in Docker.
 // Deterministic: dispatch task to Docker, capture result
@@ -467,7 +467,7 @@ func NewAgentHouse(landID string, wind *core.Wind) *AgentHouse {
     return &AgentHouse{landID: landID, wind: wind}
 }
 
-func (ah *AgentHouse) Name() string { return "agent_house" }
+func (ah *AgentHouse) Name() string { return "agenthouse" }
 
 func (ah *AgentHouse) Subjects() []string {
     return []string{fmt.Sprintf("agent.task.%s", ah.landID)}
@@ -487,7 +487,7 @@ func (ah *AgentHouse) Process(leaf core.Leaf) *core.Leaf {
     return core.NewLeaf(
         fmt.Sprintf("agent.result.%s", task.ID),
         data,
-        "treehouse:agent_house",
+        "treehouse:agenthouse",
     )
 }
 
@@ -1389,8 +1389,8 @@ Land is data detected at startup. LandHouse and AgentHouse are Go TreeHouses.
 |------|-------------|
 | 1.1 | Create `internal/core/land.go` - LandInfo struct, LandType constants |
 | 1.2 | Create `internal/land/detect.go` - Detect RAM, CPU, Docker, GPU |
-| 1.3 | Create `internal/treehouses/land_house.go` - Responds to `land.query` |
-| 1.4 | Create `internal/treehouses/agent_house.go` - Handles `agent.task.*`, runs Docker |
+| 1.3 | Create `internal/treehouses/landhouse.go` - Responds to `land.query` |
+| 1.4 | Create `internal/treehouses/agenthouse.go` - Handles `agent.task.*`, runs Docker |
 | 1.5 | Update `pkg/runtime/forest.go` - Detect Land, wire up Houses |
 | 1.6 | Update `internal/viewmodel/` - Subscribe to `land.info.>` Leaves |
 | 1.7 | Tests for Land detection and Houses |
@@ -1549,7 +1549,7 @@ NimsForest starts
 
 | Action | Items |
 |--------|-------|
-| **Create** | `internal/core/land.go`, `internal/land/detect.go`, `internal/treehouses/land_house.go`, `internal/treehouses/agent_house.go`, `pkg/nim/`, `internal/nims/coder/`, `examples/` |
+| **Create** | `internal/core/land.go`, `internal/land/detect.go`, `internal/treehouses/landhouse.go`, `internal/treehouses/agenthouse.go`, `pkg/nim/`, `internal/nims/coder/`, `examples/` |
 | **Update** | `pkg/runtime/forest.go` (detect Land, wire Houses), `internal/viewmodel/` (subscribe to `land.info.>`), `internal/songbirds/` (Send) |
 | **Move** | `pkg/brain/` → `pkg/nim/`, example code → `examples/` |
 
@@ -1566,8 +1566,8 @@ internal/
 │   └── detect.go         # Auto-detect RAM, CPU, Docker, GPU
 │
 ├── treehouses/
-│   ├── land_house.go     # Go TreeHouse: land.query → land.info.*
-│   └── agent_house.go    # Go TreeHouse: agent.task.* → agent.result.*
+│   ├── landhouse.go     # Go TreeHouse: land.query → land.info.*
+│   └── agenthouse.go    # Go TreeHouse: agent.task.* → agent.result.*
 │
 ├── viewmodel/            # Subscribes to land.info.> Leaves
 │   └── ...

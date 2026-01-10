@@ -8,12 +8,11 @@ Implement the AAA (Advice/Action/Automate) pattern for Nims in nimsforest2.
 
 | Decision | Choice |
 |----------|--------|
-| Separate nim library repo | No - integrate into nimsforest2 |
-| Entity pattern | No - config-driven runtime is simpler |
-| aiagentfactory repo | No - Morpheus + Docker handles it |
-| aiservicefactory | Yes - keep as external lib for Advice |
+| TreeHouse vs Nim | TreeHouse = deterministic, Nim = intelligent (AAA required) |
 | Agent execution | Docker containers on NimsForest nodes |
-| Example implementations | Move out of core framework |
+| AI service for Advice | Keep existing `pkg/integrations/aiservice/` |
+| Human communication | Extend Songbird with Send/SendAndWait |
+| Example code | Move compile-time examples to `examples/` |
 
 ---
 
@@ -21,54 +20,26 @@ Implement the AAA (Advice/Action/Automate) pattern for Nims in nimsforest2.
 
 ### TreeHouse vs Nim
 
-The **conceptual distinction** is based on intelligence, not language:
+| Component | Purpose | AAA |
+|-----------|---------|-----|
+| **TreeHouse** | Deterministic event processing | No |
+| **Nim** | Intelligent agent | **Required** |
 
-| Component | Purpose | Intelligence | AAA |
-|-----------|---------|--------------|-----|
-| **TreeHouse** | Deterministic event processing | Rules-based | No |
-| **Nim** | Intelligent agent | AI-backed | **Required** |
+Both can be **compile-time (Go)** or **runtime (Lua/config)**.
 
-Both can be implemented as:
+If a component doesn't need AAA, it's a TreeHouse—regardless of language.
 
-| Implementation | TreeHouse | Nim |
-|----------------|-----------|-----|
-| **Compile-time (Go)** | Go code in `internal/` | Go code in `internal/` |
-| **Runtime (Scripts)** | Lua scripts | Prompt/config files |
+### Files to Move to `examples/`
 
-### Key Insight
+| File | Reason |
+|------|--------|
+| `internal/nims/aftersales.go` | No AAA = TreeHouse |
+| `internal/nims/general.go` | No AAA = TreeHouse |
+| `internal/trees/payment.go` | Domain-specific |
+| `internal/trees/general.go` | Domain-specific |
+| `internal/leaves/chat.go` | Domain-specific |
 
-If a Nim doesn't use AAA (Advice/Action/Automate), it's functionally a TreeHouse. Therefore:
-- **AAA is mandatory for Nims** - it's what defines them
-- Existing "simple" Go Nims without AI are really TreeHouses written in Go
-
-### Core Framework vs Examples
-
-The core framework should contain:
-- Interfaces and base implementations
-- Runtime loaders (for Lua TreeHouses, config-driven Nims)
-- Infrastructure (Wind, Leaf, Land, etc.)
-
-The core framework should **NOT** contain:
-- Concrete example implementations (move to `examples/` or separate repo)
-- Domain-specific logic (payment processing, aftersales, etc.)
-
-**Files to move out of core:**
-
-| Current Location | Type | Action |
-|------------------|------|--------|
-| `internal/nims/aftersales.go` | Go Nim (no AAA = TreeHouse) | Move to examples |
-| `internal/nims/general.go` | Go Nim (no AAA = TreeHouse) | Move to examples |
-| `internal/trees/payment.go` | Go Tree | Move to examples |
-| `internal/trees/general.go` | Go Tree | Move to examples |
-| `internal/leaves/types.go` | Leaf definitions | Keep (core types) |
-| `internal/leaves/chat.go` | Chat leaf | Move to examples |
-
-**Files to keep in repo (runtime examples):**
-
-| Location | Purpose |
-|----------|---------|
-| `scripts/treehouses/*.lua` | Runtime Lua TreeHouse examples |
-| `scripts/nims/*.md` | Runtime Nim prompt examples |
+Runtime examples (`scripts/`) stay in repo.
 
 ---
 
@@ -424,18 +395,17 @@ func (c *CoderNim) Action(ctx context.Context, action string, params map[string]
 
 ```
 pkg/nim/
-├── nim.go              # Nim, AAANim interfaces
+├── nim.go              # Nim interface with AAA
 ├── brain.go            # Brain interface (from pkg/brain)
 ├── leaf.go             # Leaf interface
 ├── wind.go             # Whisperer interface
-├── agent.go            # Agent interface
-├── ai_agent.go         # AIAgent
-├── human_agent.go      # HumanAgent
-├── robot_agent.go      # RobotAgent
-├── browser_agent.go    # BrowserAgent
+├── agent.go            # Agent interface + types
+├── ai_agent.go         # AIAgent interface
+├── human_agent.go      # HumanAgent interface
+├── robot_agent.go      # RobotAgent interface
+├── browser_agent.go    # BrowserAgent interface
 ├── land.go             # Land, LandRegistry
-├── asker.go            # AIAsker (wraps aiservicefactory)
-└── testutil.go
+└── asker.go            # AIAsker interface
 ```
 
 ### 4.1 Nim Interface
@@ -541,11 +511,8 @@ type Whisperer interface {
 
 ### 4.4 Asker Interface
 
-Wraps aiservicefactory for Advice:
-
 ```go
 // pkg/nim/asker.go
-
 package nim
 
 import "context"
@@ -594,39 +561,7 @@ internal/
     └── .gitkeep           # Example leaves moved to examples/
 ```
 
-**Note:** CoderNim stays in `internal/nims/` because it's core AAA infrastructure, not a domain-specific example. It provides the "Automate" capability to dynamically create new TreeHouses and Nims.
-
-### Examples Directory Structure (new)
-
-```
-examples/
-├── README.md              # How to use examples
-├── nims/
-│   ├── aftersales/        # Post-payment processing (moved from internal/)
-│   │   ├── aftersales.go
-│   │   └── aftersales_test.go
-│   └── general/           # General-purpose nim (moved from internal/)
-│       └── general.go
-├── trees/
-│   ├── payment/           # Payment tree (moved from internal/)
-│   │   ├── payment.go
-│   │   └── payment_test.go
-│   └── general/           # General-purpose tree (moved from internal/)
-│       └── general.go
-└── leaves/
-    └── chat.go            # Chat leaf example (moved from internal/)
-```
-
-**Runtime examples stay in scripts/**:
-```
-scripts/
-├── nims/
-│   ├── chat.md            # Runtime nim prompt
-│   └── qualify.md         # Runtime nim prompt
-└── treehouses/
-    ├── enricher.lua       # Runtime treehouse
-    └── scoring.lua        # Runtime treehouse
-```
+**Note:** CoderNim is core AAA infrastructure (not an example). Runtime examples stay in `scripts/`.
 
 ### 5.1 Asker Implementation
 
@@ -1254,7 +1189,7 @@ songbirds:
 
 | Task | Description |
 |------|-------------|
-| 2.1 | Create `internal/ai/asker.go` - Wrap aiservicefactory |
+| 2.1 | Create `internal/ai/asker.go` - Wrap existing aiservice |
 | 2.2 | Create `internal/ai/agents/ai_agent.go` - Docker AI agent |
 | 2.3 | Create `internal/ai/agents/human_agent.go` - Songbird human agent |
 | 2.4 | Create `internal/ai/agents/robot_agent.go` - Webhook robot agent |
@@ -1297,17 +1232,9 @@ songbirds:
 
 | Task | Description |
 |------|-------------|
-| 7.1 | Move `pkg/brain/` → `pkg/nim/` |
-| 7.2 | Delete old `pkg/brain/` |
-| 7.3 | Update all imports |
-| 7.4 | Create `examples/` directory |
-| 7.5 | Move `internal/nims/aftersales.go` → `examples/nims/aftersales/` |
-| 7.6 | Move `internal/nims/general.go` → `examples/nims/general/` |
-| 7.7 | Move `internal/trees/payment.go` → `examples/trees/payment/` |
-| 7.8 | Move `internal/trees/general.go` → `examples/trees/general/` |
-| 7.9 | Move `internal/leaves/chat.go` → `examples/leaves/` |
-| 7.10 | Keep only `.gitkeep` in `internal/nims/`, `internal/trees/` |
-| 7.11 | Update `cmd/forest/main.go` to not auto-load examples |
+| 7.1 | Move `pkg/brain/` → `pkg/nim/`, update imports |
+| 7.2 | Create `examples/` and move example code from `internal/` |
+| 7.3 | Update `cmd/forest/main.go` to not auto-load examples |
 
 ### Phase 8: Testing
 
@@ -1322,64 +1249,27 @@ songbirds:
 
 ## Summary
 
-### What Gets Created
+### Changes Overview
 
-| Component | Purpose |
-|-----------|---------|
-| `pkg/nim/` | Public interfaces for Nim, Agents, Land |
-| `internal/ai/` | Agent implementations |
-| `internal/land/` | Land registry |
-| `internal/nims/coder/` | CoderNim (core AAA infrastructure) |
-| `internal/songbirds/slack.go` | Slack songbird |
-| `internal/songbirds/email.go` | Email songbird |
-| `examples/` | Moved compile-time Go examples |
-
-### What Gets Updated
-
-| Component | Changes |
-|-----------|---------|
-| `internal/core/nim.go` | Add AAA methods to BaseNim |
-| `internal/core/leaf.go` | Implement nim.Leaf |
-| `internal/core/wind.go` | Implement nim.Whisperer |
-| `internal/songbirds/` | Add Send/SendAndWait |
-| `pkg/runtime/config.go` | Agent configuration |
-| `pkg/runtime/forest.go` | Load and manage agents |
-
-### What Gets Deleted/Moved
-
-| Component | Action |
-|-----------|--------|
-| `pkg/brain/` | Move to `pkg/nim/brain.go` |
-| `pkg/infrastructure/aiservice/` | Merge into `pkg/nim/` |
-| `internal/nims/aftersales.go` | Move to `examples/nims/aftersales/` |
-| `internal/nims/general.go` | Move to `examples/nims/general/` |
-| `internal/trees/payment.go` | Move to `examples/trees/payment/` |
-| `internal/trees/general.go` | Move to `examples/trees/general/` |
-| `internal/leaves/chat.go` | Move to `examples/leaves/` |
-
-**Note:** Keep `pkg/integrations/aiservice/` - it works and can wrap aiservicefactory later if needed.
-
-### External Dependencies
-
-| Dependency | Purpose | Status |
-|------------|---------|--------|
-| `pkg/integrations/aiservice/` | API calls for Advice | Existing (keep) |
-| `github.com/nimsforest/aiservicefactory` | Future: external AI service lib | Optional/Later |
-| Morpheus | Provisions NimsForest nodes with Docker | External tool |
+| Action | Items |
+|--------|-------|
+| **Create** | `pkg/nim/` (interfaces), `internal/ai/` (agents), `internal/land/`, `internal/nims/coder/`, `examples/` |
+| **Update** | `internal/core/` (AAA support), `internal/songbirds/` (Send/SendAndWait), `pkg/runtime/` (config) |
+| **Move** | `pkg/brain/` → `pkg/nim/`, example code → `examples/` |
 
 ### Agent Types
 
-| Type | Implementation | Use Case |
-|------|----------------|----------|
-| AIAgent | Docker container | Code tasks (Claude, Aider, Cursor) |
-| HumanAgent | Songbird | Approvals, reviews, decisions |
-| RobotAgent | Webhook/API | CI/CD, deployments, notifications |
-| BrowserAgent | Docker + Playwright | Web scraping, form filling, UI testing |
+| Type | Runs On | Use Case |
+|------|---------|----------|
+| AIAgent | Docker | Code tasks (Claude, Aider) |
+| HumanAgent | Songbird | Approvals, reviews |
+| RobotAgent | Webhook/API | CI/CD, deployments |
+| BrowserAgent | Docker + Playwright | Web automation |
 
-### AAA Pattern
+### AAA Methods
 
-| Method | What It Does |
-|--------|--------------|
-| **Advice** | Ask AI question → get answer (via aiservicefactory) |
-| **Action** | Execute task via Agent (AI/Human/Robot/Browser) |
-| **Automate** | Generate TreeHouse (Lua) or Nim (Go) based on complexity |
+| Method | Implementation |
+|--------|----------------|
+| **Advice** | AI query via existing `pkg/integrations/aiservice/` |
+| **Action** | Dispatch to Agent |
+| **Automate** | Generate TreeHouse (Lua) or Nim (config) |

@@ -813,10 +813,12 @@ Environment variables:
 - **[QUICK_REFERENCE.md](./docs/guides/QUICK_REFERENCE.md)** - Command reference
 - **[EXTENSIBILITY.md](./docs/guides/EXTENSIBILITY.md)** - How to extend the system
 - **[EXAMPLE.md](./docs/guides/EXAMPLE.md)** - Lead scoring pipeline example
+- **[VIEWER.md](./docs/guides/VIEWER.md)** - External viewer development guide
 
 ### Architecture
 
 - **[TECHNICAL_SPEC.md](./docs/architecture/TECHNICAL_SPEC.md)** - Complete architecture and API specifications
+- **[VIEWER_DECOUPLING_PLAN.md](./docs/architecture/VIEWER_DECOUPLING_PLAN.md)** - Viewer architecture (decoupled from core)
 
 ### Roadmap
 

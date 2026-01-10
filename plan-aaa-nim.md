@@ -13,6 +13,62 @@ Implement the AAA (Advice/Action/Automate) pattern for Nims in nimsforest2.
 | aiagentfactory repo | No - Morpheus + Docker handles it |
 | aiservicefactory | Yes - keep as external lib for Advice |
 | Agent execution | Docker containers on NimsForest nodes |
+| Example implementations | Move out of core framework |
+
+---
+
+## Conceptual Model
+
+### TreeHouse vs Nim
+
+The **conceptual distinction** is based on intelligence, not language:
+
+| Component | Purpose | Intelligence | AAA |
+|-----------|---------|--------------|-----|
+| **TreeHouse** | Deterministic event processing | Rules-based | No |
+| **Nim** | Intelligent agent | AI-backed | **Required** |
+
+Both can be implemented as:
+
+| Implementation | TreeHouse | Nim |
+|----------------|-----------|-----|
+| **Compile-time (Go)** | Go code in `internal/` | Go code in `internal/` |
+| **Runtime (Scripts)** | Lua scripts | Prompt/config files |
+
+### Key Insight
+
+If a Nim doesn't use AAA (Advice/Action/Automate), it's functionally a TreeHouse. Therefore:
+- **AAA is mandatory for Nims** - it's what defines them
+- Existing "simple" Go Nims without AI are really TreeHouses written in Go
+
+### Core Framework vs Examples
+
+The core framework should contain:
+- Interfaces and base implementations
+- Runtime loaders (for Lua TreeHouses, config-driven Nims)
+- Infrastructure (Wind, Leaf, Land, etc.)
+
+The core framework should **NOT** contain:
+- Concrete example implementations (move to `examples/` or separate repo)
+- Domain-specific logic (payment processing, aftersales, etc.)
+
+**Files to move out of core:**
+
+| Current Location | Type | Action |
+|------------------|------|--------|
+| `internal/nims/aftersales.go` | Go Nim (no AAA = TreeHouse) | Move to examples |
+| `internal/nims/general.go` | Go Nim (no AAA = TreeHouse) | Move to examples |
+| `internal/trees/payment.go` | Go Tree | Move to examples |
+| `internal/trees/general.go` | Go Tree | Move to examples |
+| `internal/leaves/types.go` | Leaf definitions | Keep (core types) |
+| `internal/leaves/chat.go` | Chat leaf | Move to examples |
+
+**Files to keep in repo (runtime examples):**
+
+| Location | Purpose |
+|----------|---------|
+| `scripts/treehouses/*.lua` | Runtime Lua TreeHouse examples |
+| `scripts/nims/*.md` | Runtime Nim prompt examples |
 
 ---
 
@@ -42,13 +98,15 @@ Implement the AAA (Advice/Action/Automate) pattern for Nims in nimsforest2.
 └───────────────┘       └───────────────┘       └───────────────┘
 ```
 
-### AAA Pattern
+### AAA Pattern (Mandatory for Nims)
 
 | Method | Purpose | Implementation |
 |--------|---------|----------------|
 | **Advice** | Ask question, get answer | aiservicefactory API call |
 | **Action** | Execute task via agent | Dispatch to Agent (AI/Human/Robot/Browser) |
-| **Automate** | Create persistent automation | Generate TreeHouse (Lua) or Nim (Go) |
+| **Automate** | Create persistent automation | Generate TreeHouse (Lua) or Nim (config) |
+
+**Note:** At least one AAA method must be meaningful. If none are needed, use a TreeHouse instead.
 
 ---
 
@@ -261,9 +319,11 @@ Songbird wraps all human communication channels.
 
 type Songbird interface {
     Name() string
-    Platform() string
+    Type() string    // "telegram", "slack", "email" (existing method)
+    Pattern() string // Wind subject pattern (existing method)
     Start(ctx context.Context) error
     Stop() error
+    IsRunning() bool // existing method
     
     // Add for human agent support
     Send(ctx context.Context, msg Message) error
@@ -387,16 +447,17 @@ package nim
 
 import "context"
 
-// Nim is an intelligent agent with AAA capabilities
+// Nim is an intelligent agent with AAA capabilities.
+// AAA is MANDATORY - if you don't need AAA, use a TreeHouse instead.
 type Nim interface {
     Name() string
     
-    // AAA Model
+    // AAA Model - at least one must be meaningful
     Advice(ctx context.Context, query string) (string, error)
     Action(ctx context.Context, action string, params map[string]interface{}) (interface{}, error)
     Automate(ctx context.Context, automation string, enabled bool) (*AutomateResult, error)
     
-    // Event handling
+    // Event handling (can trigger AAA logic)
     Handle(ctx context.Context, leaf Leaf) error
     
     // Lifecycle
@@ -412,6 +473,10 @@ type AutomateResult struct {
     ScriptPath  string // Path to generated script/config
     NeedsReview bool   // Requires human review before activation
 }
+
+// ErrNotSupported is returned when a Nim doesn't support an AAA method.
+// At least one method must NOT return this error.
+var ErrNotSupported = errors.New("operation not supported by this nim")
 ```
 
 ### 4.2 Brain Interface
@@ -500,7 +565,7 @@ type AIAsker interface {
 ```
 internal/
 ├── ai/
-│   ├── asker.go           # Wraps aiservicefactory
+│   ├── asker.go           # Wraps existing aiservice
 │   └── agents/
 │       ├── ai_agent.go    # Docker-based AI agent
 │       ├── human_agent.go # Songbird-based human agent
@@ -513,14 +578,54 @@ internal/
 │   ├── leaf.go            # Implement nim.Leaf
 │   └── wind.go            # Implement nim.Whisperer
 ├── songbirds/
-│   ├── songbird.go        # Existing interface
-│   ├── telegram.go        # Existing
+│   ├── songbird.go        # Existing interface (extend)
+│   ├── telegram.go        # Existing (extend)
 │   ├── slack.go           # To create
 │   └── email.go           # To create
-└── nims/
-    └── coder/
-        ├── coder.go       # CoderNim implementation
-        └── coder_test.go
+├── nims/
+│   ├── .gitkeep           # Example nims moved to examples/
+│   └── coder/             # CoderNim is CORE infrastructure, not an example
+│       ├── coder.go
+│       └── coder_test.go
+├── trees/
+│   └── .gitkeep           # Example trees moved to examples/
+└── leaves/
+    ├── types.go           # Core leaf type definitions (keep)
+    └── .gitkeep           # Example leaves moved to examples/
+```
+
+**Note:** CoderNim stays in `internal/nims/` because it's core AAA infrastructure, not a domain-specific example. It provides the "Automate" capability to dynamically create new TreeHouses and Nims.
+
+### Examples Directory Structure (new)
+
+```
+examples/
+├── README.md              # How to use examples
+├── nims/
+│   ├── aftersales/        # Post-payment processing (moved from internal/)
+│   │   ├── aftersales.go
+│   │   └── aftersales_test.go
+│   └── general/           # General-purpose nim (moved from internal/)
+│       └── general.go
+├── trees/
+│   ├── payment/           # Payment tree (moved from internal/)
+│   │   ├── payment.go
+│   │   └── payment_test.go
+│   └── general/           # General-purpose tree (moved from internal/)
+│       └── general.go
+└── leaves/
+    └── chat.go            # Chat leaf example (moved from internal/)
+```
+
+**Runtime examples stay in scripts/**:
+```
+scripts/
+├── nims/
+│   ├── chat.md            # Runtime nim prompt
+│   └── qualify.md         # Runtime nim prompt
+└── treehouses/
+    ├── enricher.lua       # Runtime treehouse
+    └── scoring.lua        # Runtime treehouse
 ```
 
 ### 5.1 Asker Implementation
@@ -533,7 +638,8 @@ package ai
 import (
     "context"
     
-    aiservice "github.com/nimsforest/aiservicefactory/internal/ai"
+    // Use existing internal AI service (keep pkg/integrations/aiservice)
+    "github.com/yourusername/nimsforest/pkg/integrations/aiservice"
     "github.com/yourusername/nimsforest/pkg/nim"
 )
 
@@ -553,9 +659,11 @@ func NewAsker(serviceType, apiKey, model string) (nim.AIAsker, error) {
 }
 
 func (a *Asker) Ask(ctx context.Context, prompt string) (string, error) {
-    return a.service.MakeRequest(ctx, prompt)
+    return a.service.Ask(ctx, prompt)
 }
 ```
+
+**Note:** Keep existing `pkg/integrations/aiservice/` rather than replacing with external aiservicefactory. The external dependency can be evaluated later.
 
 ### 5.2 AI Agent Implementation
 
@@ -886,6 +994,14 @@ func (c *CoderNim) Action(ctx context.Context, action string, params map[string]
     return agent.Run(ctx, task)
 }
 
+// automationAnalysis holds the AI's analysis of what type of automation is needed
+type automationAnalysis struct {
+    Type       string `json:"type"`
+    Reason     string `json:"reason"`
+    Subscribes string `json:"subscribes"`
+    Publishes  string `json:"publishes"`
+}
+
 // Automate - create TreeHouse or Nim based on complexity
 func (c *CoderNim) Automate(ctx context.Context, automation string, enabled bool) (*nim.AutomateResult, error) {
     if !enabled {
@@ -898,37 +1014,28 @@ func (c *CoderNim) Automate(ctx context.Context, automation string, enabled bool
 
 Determine if this requires:
 1. TreeHouse (Lua) - for simple rule-based event processing
-2. Nim (Go) - for complex logic requiring AI reasoning
+2. Nim (config) - for complex logic requiring AI reasoning
 
-Respond with JSON:
-{
-    "type": "treehouse" or "nim",
-    "reason": "why this type",
-    "subscribes": "event pattern to listen to",
-    "publishes": "event pattern to emit"
-}`, automation)
+Respond with JSON only:
+{"type": "treehouse" or "nim", "reason": "why", "subscribes": "pattern", "publishes": "pattern"}`, automation)
     
     analysisJSON, err := c.asker.Ask(ctx, analysisPrompt)
     if err != nil {
         return nil, err
     }
     
-    var analysis struct {
-        Type       string `json:"type"`
-        Reason     string `json:"reason"`
-        Subscribes string `json:"subscribes"`
-        Publishes  string `json:"publishes"`
+    var analysis automationAnalysis
+    if err := json.Unmarshal([]byte(analysisJSON), &analysis); err != nil {
+        return nil, fmt.Errorf("failed to parse analysis: %w", err)
     }
-    json.Unmarshal([]byte(analysisJSON), &analysis)
     
     if analysis.Type == "treehouse" {
         return c.createTreeHouseAutomation(ctx, automation, analysis)
-    } else {
-        return c.createNimAutomation(ctx, automation, analysis)
     }
+    return c.createNimAutomation(ctx, automation, analysis)
 }
 
-func (c *CoderNim) createTreeHouseAutomation(ctx context.Context, name string, analysis struct{...}) (*nim.AutomateResult, error) {
+func (c *CoderNim) createTreeHouseAutomation(ctx context.Context, name string, analysis automationAnalysis) (*nim.AutomateResult, error) {
     // Generate Lua script
     luaPrompt := fmt.Sprintf(`Generate a Lua TreeHouse script for: %s
 
@@ -967,6 +1074,47 @@ Return only valid Lua code with a process(leaf) function.`, name, analysis.Subsc
         Name:       name,
         Reason:     analysis.Reason,
         ScriptPath: scriptPath,
+    }, nil
+}
+
+func (c *CoderNim) createNimAutomation(ctx context.Context, name string, analysis automationAnalysis) (*nim.AutomateResult, error) {
+    // Generate Nim config/prompt
+    promptContent := fmt.Sprintf(`# %s
+
+## Purpose
+%s
+
+## Subscribes
+%s
+
+## Publishes
+%s
+`, name, analysis.Reason, analysis.Subscribes, analysis.Publishes)
+    
+    // Save prompt
+    promptPath := fmt.Sprintf("scripts/nims/%s.md", name)
+    if err := os.WriteFile(promptPath, []byte(promptContent), 0644); err != nil {
+        return nil, err
+    }
+    
+    // Add Nim to forest via config
+    config := runtime.NimConfig{
+        Name:       name,
+        Subscribes: analysis.Subscribes,
+        Publishes:  analysis.Publishes,
+        Prompt:     promptPath,
+    }
+    
+    if err := c.forest.AddNim(name, config); err != nil {
+        return nil, err
+    }
+    
+    return &nim.AutomateResult{
+        Created:     "nim",
+        Name:        name,
+        Reason:      analysis.Reason,
+        ScriptPath:  promptPath,
+        NeedsReview: true, // AI-generated Nims should be reviewed
     }, nil
 }
 
@@ -1145,14 +1293,21 @@ songbirds:
 | 6.2 | Update `pkg/runtime/forest.go` - Load agents |
 | 6.3 | Update `cmd/forest/main.go` - Wire up CoderNim |
 
-### Phase 7: Cleanup
+### Phase 7: Cleanup & Examples
 
 | Task | Description |
 |------|-------------|
 | 7.1 | Move `pkg/brain/` → `pkg/nim/` |
 | 7.2 | Delete old `pkg/brain/` |
 | 7.3 | Update all imports |
-| 7.4 | Add go.mod dependency on aiservicefactory |
+| 7.4 | Create `examples/` directory |
+| 7.5 | Move `internal/nims/aftersales.go` → `examples/nims/aftersales/` |
+| 7.6 | Move `internal/nims/general.go` → `examples/nims/general/` |
+| 7.7 | Move `internal/trees/payment.go` → `examples/trees/payment/` |
+| 7.8 | Move `internal/trees/general.go` → `examples/trees/general/` |
+| 7.9 | Move `internal/leaves/chat.go` → `examples/leaves/` |
+| 7.10 | Keep only `.gitkeep` in `internal/nims/`, `internal/trees/` |
+| 7.11 | Update `cmd/forest/main.go` to not auto-load examples |
 
 ### Phase 8: Testing
 
@@ -1174,9 +1329,10 @@ songbirds:
 | `pkg/nim/` | Public interfaces for Nim, Agents, Land |
 | `internal/ai/` | Agent implementations |
 | `internal/land/` | Land registry |
-| `internal/nims/coder/` | CoderNim |
+| `internal/nims/coder/` | CoderNim (core AAA infrastructure) |
 | `internal/songbirds/slack.go` | Slack songbird |
 | `internal/songbirds/email.go` | Email songbird |
+| `examples/` | Moved compile-time Go examples |
 
 ### What Gets Updated
 
@@ -1194,15 +1350,22 @@ songbirds:
 | Component | Action |
 |-----------|--------|
 | `pkg/brain/` | Move to `pkg/nim/brain.go` |
-| `pkg/integrations/aiservice/` | Replace with aiservicefactory import |
 | `pkg/infrastructure/aiservice/` | Merge into `pkg/nim/` |
+| `internal/nims/aftersales.go` | Move to `examples/nims/aftersales/` |
+| `internal/nims/general.go` | Move to `examples/nims/general/` |
+| `internal/trees/payment.go` | Move to `examples/trees/payment/` |
+| `internal/trees/general.go` | Move to `examples/trees/general/` |
+| `internal/leaves/chat.go` | Move to `examples/leaves/` |
+
+**Note:** Keep `pkg/integrations/aiservice/` - it works and can wrap aiservicefactory later if needed.
 
 ### External Dependencies
 
-| Dependency | Purpose |
-|------------|---------|
-| `github.com/nimsforest/aiservicefactory` | API calls for Advice |
-| Morpheus | Provisions NimsForest nodes with Docker |
+| Dependency | Purpose | Status |
+|------------|---------|--------|
+| `pkg/integrations/aiservice/` | API calls for Advice | Existing (keep) |
+| `github.com/nimsforest/aiservicefactory` | Future: external AI service lib | Optional/Later |
+| Morpheus | Provisions NimsForest nodes with Docker | External tool |
 
 ### Agent Types
 

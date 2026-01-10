@@ -359,9 +359,9 @@ The correlation ID in the original message links request to response.
 
 ---
 
-## Part 3: Land Registry
+## Part 3: Land Capacity (Event-Driven)
 
-Tracks available capacity across NimsForest nodes. Agents run on **Nimland** or **Manaland** (not regular Land).
+No centralized registry. Capacity discovery via events.
 
 ### Land Types
 
@@ -371,93 +371,127 @@ Tracks available capacity across NimsForest nodes. Agents run on **Nimland** or 
 | **Nimland** | Yes | No | Yes (AI, Browser) |
 | **Manaland** | Yes | Yes | Yes (GPU workloads) |
 
-### Land Model
+### Capacity Discovery Pattern
+
+```
+┌──────────┐                              ┌──────────┐
+│ CoderNim │                              │ Nimland  │
+└────┬─────┘                              └────┬─────┘
+     │                                         │
+     │── Whisper("land.capacity.request") ────►│
+     │   {task_id, needs_gpu: false}           │
+     │                                         │
+     │◄── Leaf("land.capacity.response") ──────│
+     │    {task_id, land_id, available: true}  │
+     │                                         │
+     │── Whisper("land.reserve") ─────────────►│
+     │   {task_id, land_id}                    │
+     │                                         │
+     │◄── Leaf("land.reserved") ───────────────│
+     │    {task_id, land_id, success: true}    │
+```
+
+### Event Subjects
+
+| Subject | Publisher | Purpose |
+|---------|-----------|---------|
+| `land.capacity.request` | CoderNim | "Who has capacity?" |
+| `land.capacity.response` | Nimland/Manaland | "I have capacity" |
+| `land.reserve` | CoderNim | "Reserve this land" |
+| `land.reserved` | Nimland/Manaland | "Reserved for you" |
+| `land.release` | CoderNim | "Done, release" |
+
+### Nimland/Manaland Handler
+
+Each Nimland/Manaland runs a handler that responds to capacity requests:
 
 ```go
-// pkg/nim/land.go
-
-type LandType string
-
-const (
-    LandTypeLand     LandType = "land"     // Backbone, no Docker
-    LandTypeNimland  LandType = "nimland"  // Docker, no GPU
-    LandTypeManaland LandType = "manaland" // Docker + GPU
-)
-
-// Land represents a NimsForest node (from viewmodel.LandViewModel)
-type Land struct {
-    ID       string
-    NodeID   string    // NimsForest node ID
-    Type     LandType  // land, nimland, or manaland
-    Status   string    // "available", "busy", "offline"
-    
-    // Resources (from viewmodel)
-    RAMTotal     uint64
-    RAMAvailable uint64
-    CPUCores     int
-    GPUVram      uint64    // >0 for Manaland
-    
-    // Agent capacity (Nimland/Manaland only)
-    MaxAgents     int
-    RunningAgents int
+// Runs on each Nimland/Manaland node
+func (h *LandHandler) Handle(ctx context.Context, leaf nim.Leaf) error {
+    switch leaf.GetSubject() {
+    case "land.capacity.request":
+        return h.handleCapacityRequest(ctx, leaf)
+    case "land.reserve":
+        return h.handleReserve(ctx, leaf)
+    case "land.release":
+        return h.handleRelease(ctx, leaf)
+    }
+    return nil
 }
 
-func (l *Land) HasDocker() bool {
-    return l.Type == LandTypeNimland || l.Type == LandTypeManaland
-}
-
-func (l *Land) HasGPU() bool {
-    return l.Type == LandTypeManaland
-}
-
-func (l *Land) CanRunAgents() bool {
-    return l.HasDocker()
-}
-
-type LandRegistry interface {
-    // FindForAgent finds a Nimland or Manaland with capacity
-    FindForAgent(ctx context.Context, agentType AgentType, needsGPU bool) (*Land, error)
+func (h *LandHandler) handleCapacityRequest(ctx context.Context, leaf nim.Leaf) error {
+    var req CapacityRequest
+    json.Unmarshal(leaf.GetData(), &req)
     
-    // Reserve capacity
-    Reserve(ctx context.Context, landID string) error
+    // Check if we match requirements
+    if req.NeedsGPU && !h.hasGPU {
+        return nil // Don't respond, we don't have GPU
+    }
     
-    // Release capacity
-    Release(ctx context.Context, landID string) error
+    // Check if we have capacity
+    if h.runningAgents >= h.maxAgents {
+        return nil // Don't respond, at capacity
+    }
     
-    // List methods
-    List(ctx context.Context) ([]Land, error)
-    ListNimland(ctx context.Context) ([]Land, error)
-    ListManaland(ctx context.Context) ([]Land, error)
+    // Respond with availability
+    return h.wind.Whisper(ctx, &Leaf{
+        Subject: "land.capacity.response",
+        Data: CapacityResponse{
+            TaskID:    req.TaskID,
+            LandID:    h.landID,
+            LandType:  h.landType,
+            Available: true,
+        },
+    })
 }
 ```
 
-### CoderNim Uses Land Registry
+### CoderNim Uses Events
 
 ```go
 func (c *CoderNim) Action(ctx context.Context, action string, params map[string]interface{}) (interface{}, error) {
     task := buildTask(action, params)
+    taskID := task.ID
     needsGPU := params["gpu"] == true
     
-    // Find Nimland or Manaland with capacity
-    land, err := c.registry.FindForAgent(ctx, task.RequiredAgent, needsGPU)
-    if err != nil {
-        return nil, fmt.Errorf("no capacity available for agent")
+    // Request capacity (broadcast)
+    c.wind.Whisper(ctx, &Leaf{
+        Subject: "land.capacity.request",
+        Data: CapacityRequest{TaskID: taskID, NeedsGPU: needsGPU},
+    })
+    
+    // Collect responses (with timeout)
+    responses := c.collectResponses(ctx, "land.capacity.response", taskID, 2*time.Second)
+    if len(responses) == 0 {
+        return nil, fmt.Errorf("no land capacity available")
     }
     
-    // Reserve
-    if err := c.registry.Reserve(ctx, land.ID); err != nil {
-        return nil, err
-    }
-    defer c.registry.Release(ctx, land.ID)
+    // Pick first available
+    land := responses[0]
     
-    // Launch agent container
-    agent, err := c.launchAgent(ctx, land, task)
-    if err != nil {
-        return nil, err
+    // Reserve it
+    c.wind.Whisper(ctx, &Leaf{
+        Subject: "land.reserve",
+        Data: ReserveRequest{TaskID: taskID, LandID: land.LandID},
+    })
+    
+    // Wait for confirmation
+    reserved := c.waitForResponse(ctx, "land.reserved", taskID, 5*time.Second)
+    if !reserved.Success {
+        return nil, fmt.Errorf("failed to reserve land")
     }
     
-    // Execute
-    return agent.Run(ctx, task)
+    // Execute agent task (result comes back as event)
+    c.wind.Whisper(ctx, &Leaf{
+        Subject: fmt.Sprintf("agent.execute.%s", land.LandID),
+        Data: task,
+    })
+    
+    // Return - result will come back as event
+    return &nim.Result{
+        Success: true,
+        Output:  fmt.Sprintf("Task %s dispatched to %s", taskID, land.LandID),
+    }, nil
 }
 ```
 
@@ -478,7 +512,7 @@ pkg/nim/
 ├── human_agent.go      # HumanAgent interface
 ├── robot_agent.go      # RobotAgent interface
 ├── browser_agent.go    # BrowserAgent interface
-├── land.go             # Land, LandRegistry
+├── land.go             # Land types and capacity events
 └── asker.go            # AIAsker interface
 ```
 
@@ -613,7 +647,7 @@ internal/
 │       ├── robot_agent.go # Physical robot agent
 │       └── browser_agent.go # Playwright browser agent
 ├── land/
-│   └── registry.go        # Land registry implementation
+│   └── handler.go         # Land capacity handler (event-driven)
 ├── core/
 │   ├── nim.go             # Update BaseNim with AAA
 │   ├── leaf.go            # Implement nim.Leaf
@@ -976,26 +1010,26 @@ package coder
 import (
     "context"
     "fmt"
+    "time"
     
     "github.com/yourusername/nimsforest/internal/core"
-    "github.com/yourusername/nimsforest/internal/land"
     "github.com/yourusername/nimsforest/pkg/nim"
     "github.com/yourusername/nimsforest/pkg/runtime"
 )
 
 type CoderNim struct {
     *core.BaseNim
-    asker    nim.AIAsker
-    registry land.Registry
-    forest   *runtime.Forest
+    asker  nim.AIAsker
+    wind   nim.Whisperer
+    forest *runtime.Forest
 }
 
-func New(base *core.BaseNim, asker nim.AIAsker, registry land.Registry, forest *runtime.Forest) *CoderNim {
+func New(base *core.BaseNim, asker nim.AIAsker, wind nim.Whisperer, forest *runtime.Forest) *CoderNim {
     return &CoderNim{
-        BaseNim:  base,
-        asker:    asker,
-        registry: registry,
-        forest:   forest,
+        BaseNim: base,
+        asker:   asker,
+        wind:    wind,
+        forest:  forest,
     }
 }
 
@@ -1020,25 +1054,35 @@ func (c *CoderNim) Action(ctx context.Context, action string, params map[string]
     agentType := determineAgentType(action)
     needsGPU := params["gpu"] == true
     
-    // Find Nimland or Manaland with capacity
-    land, err := c.registry.FindForAgent(ctx, agentType, needsGPU)
-    if err != nil {
-        return nil, fmt.Errorf("no agent capacity: %w", err)
+    // Request capacity via event
+    c.wind.Whisper(ctx, &Leaf{
+        Subject: "land.capacity.request",
+        Data: CapacityRequest{TaskID: task.ID, NeedsGPU: needsGPU, AgentType: agentType},
+    })
+    
+    // Collect responses
+    responses := c.collectResponses(ctx, "land.capacity.response", task.ID, 2*time.Second)
+    if len(responses) == 0 {
+        return nil, fmt.Errorf("no land capacity available")
     }
     
-    // Reserve
-    if err := c.registry.Reserve(ctx, land.ID); err != nil {
-        return nil, err
-    }
-    defer c.registry.Release(ctx, land.ID)
+    // Reserve first available
+    land := responses[0]
+    c.wind.Whisper(ctx, &Leaf{
+        Subject: "land.reserve",
+        Data: ReserveRequest{TaskID: task.ID, LandID: land.LandID},
+    })
     
-    // Create and run agent
-    agent, err := c.createAgent(ctx, agentType, land, params)
-    if err != nil {
-        return nil, err
-    }
+    // Dispatch to agent (result comes back as event)
+    c.wind.Whisper(ctx, &Leaf{
+        Subject: fmt.Sprintf("agent.execute.%s", land.LandID),
+        Data: task,
+    })
     
-    return agent.Run(ctx, task)
+    return &nim.Result{
+        Success: true,
+        Output:  fmt.Sprintf("Task %s dispatched to %s", task.ID, land.LandID),
+    }, nil
 }
 
 // automationAnalysis holds the AI's analysis of what type of automation is needed
@@ -1298,7 +1342,7 @@ songbirds:
 | 1.8 | Create `pkg/nim/human_agent.go` - HumanAgent interface |
 | 1.9 | Create `pkg/nim/robot_agent.go` - RobotAgent interface |
 | 1.10 | Create `pkg/nim/browser_agent.go` - BrowserAgent interface |
-| 1.11 | Create `pkg/nim/land.go` - Land and LandRegistry |
+| 1.11 | Create `pkg/nim/land.go` - Land types and capacity events |
 
 ### Phase 2: Internal Implementations
 
@@ -1309,7 +1353,7 @@ songbirds:
 | 2.3 | Create `internal/ai/agents/human_agent.go` - Songbird human agent |
 | 2.4 | Create `internal/ai/agents/robot_agent.go` - Physical robot agent |
 | 2.5 | Create `internal/ai/agents/browser_agent.go` - Playwright browser agent |
-| 2.6 | Create `internal/land/registry.go` - Land registry |
+| 2.6 | Create `internal/land/handler.go` - Land capacity handler |
 
 ### Phase 3: Songbirds
 
@@ -1368,7 +1412,7 @@ songbirds:
 
 | Action | Items |
 |--------|-------|
-| **Create** | `pkg/nim/` (interfaces), `internal/ai/` (agents), `internal/land/`, `internal/nims/coder/`, `examples/` |
+| **Create** | `pkg/nim/` (interfaces), `internal/ai/` (agents), `internal/land/` (handler), `internal/nims/coder/`, `examples/` |
 | **Update** | `internal/core/` (AAA support), `internal/songbirds/` (Send), `pkg/runtime/` (config) |
 | **Move** | `pkg/brain/` → `pkg/nim/`, example code → `examples/` |
 

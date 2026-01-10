@@ -29,16 +29,17 @@ Both can be **compile-time (Go)** or **runtime (Lua/config)**.
 
 If a component doesn't need AAA, it's a TreeHouse—regardless of language.
 
-### Files to Move to `examples/`
+### Files to Reorganize
 
-| File | Reason |
-|------|--------|
-| `internal/nims/aftersales.go` | No AAA = TreeHouse |
-| `internal/nims/general.go` | No AAA = TreeHouse |
-| `internal/trees/payment.go` | Domain-specific |
-| `internal/trees/general.go` | Domain-specific |
-| `internal/leaves/chat.go` | Domain-specific |
+| File | Current | Action | New Location |
+|------|---------|--------|--------------|
+| `internal/nims/aftersales.go` | Misnamed "Nim" (no AI) | Rename to Go TreeHouse | `internal/treehouses/aftersaleshouse.go` |
+| `internal/nims/general.go` | Misnamed "Nim" (no AI) | Rename to Go TreeHouse | `internal/treehouses/generalhouse.go` |
+| `internal/trees/payment.go` | Domain-specific example | Move to examples | `examples/trees/payment.go` |
+| `internal/trees/general.go` | Domain-specific example | Move to examples | `examples/trees/general.go` |
+| `internal/leaves/chat.go` | Domain-specific example | Move to examples | `examples/leaves/chat.go` |
 
+**Key insight:** Components without AI are **TreeHouses** (deterministic), not Nims.
 Runtime examples (`scripts/`) stay in repo.
 
 ---
@@ -359,9 +360,16 @@ The correlation ID in the original message links request to response.
 
 ---
 
-## Part 3: Land Capacity (Event-Driven)
+## Part 3: Land Capacity (via Houses)
 
-No centralized registry. Capacity discovery via events.
+Land info flows as Leaves via **Go TreeHouses** (compile-time, deterministic).
+
+### TreeHouse Types
+
+| Type | Definition | Requirement |
+|------|------------|-------------|
+| **TreeHouse** | Lua (runtime) OR Go (compile-time) | **Deterministic** processing |
+| **Nim** | Go with AI | **Non-deterministic** (uses intelligence) |
 
 ### Land Types
 
@@ -371,127 +379,173 @@ No centralized registry. Capacity discovery via events.
 | **Nimland** | Yes | No | Yes (AI, Browser) |
 | **Manaland** | Yes | Yes | Yes (GPU workloads) |
 
-### Capacity Discovery Pattern
+### Houses for Land
+
+Two compile-time Go TreeHouses handle Land communication:
+
+| House | Subscribes | Publishes | Purpose |
+|-------|------------|-----------|---------|
+| **LandHouse** | `land.query` | `land.info.{id}` | Respond to capacity queries |
+| **AgentHouse** | `agent.task.{id}` | `agent.result.{task_id}` | Execute agents in Docker |
+
+### Architecture
 
 ```
-┌──────────┐                              ┌──────────┐
-│ CoderNim │                              │ Nimland  │
-└────┬─────┘                              └────┬─────┘
-     │                                         │
-     │── Whisper("land.capacity.request") ────►│
-     │   {task_id, needs_gpu: false}           │
-     │                                         │
-     │◄── Leaf("land.capacity.response") ──────│
-     │    {task_id, land_id, available: true}  │
-     │                                         │
-     │── Whisper("land.reserve") ─────────────►│
-     │   {task_id, land_id}                    │
-     │                                         │
-     │◄── Leaf("land.reserved") ───────────────│
-     │    {task_id, land_id, success: true}    │
+Forest
+├── thisLand (LandInfo)          ← Data, detected at startup
+│
+├── LandHouse (Go TreeHouse)     ← Deterministic Leaf handler
+│   ├── Subscribes: land.query
+│   ├── Publishes: land.info.{id}
+│   └── Has reference to thisLand
+│
+└── AgentHouse (Go TreeHouse)    ← Deterministic (Nimland/Manaland only)
+    ├── Subscribes: agent.task.{land_id}
+    ├── Publishes: agent.result.{task_id}
+    └── Runs Docker containers
 ```
 
-### Event Subjects
-
-| Subject | Publisher | Purpose |
-|---------|-----------|---------|
-| `land.capacity.request` | CoderNim | "Who has capacity?" |
-| `land.capacity.response` | Nimland/Manaland | "I have capacity" |
-| `land.reserve` | CoderNim | "Reserve this land" |
-| `land.reserved` | Nimland/Manaland | "Reserved for you" |
-| `land.release` | CoderNim | "Done, release" |
-
-### Nimland/Manaland Handler
-
-Each Nimland/Manaland runs a handler that responds to capacity requests:
+### LandHouse Implementation
 
 ```go
-// Runs on each Nimland/Manaland node
-func (h *LandHandler) Handle(ctx context.Context, leaf nim.Leaf) error {
-    switch leaf.GetSubject() {
-    case "land.capacity.request":
-        return h.handleCapacityRequest(ctx, leaf)
-    case "land.reserve":
-        return h.handleReserve(ctx, leaf)
-    case "land.release":
-        return h.handleRelease(ctx, leaf)
-    }
-    return nil
+// internal/treehouses/landhouse.go
+
+// LandHouse is a compile-time TreeHouse that handles Land queries.
+// Deterministic: same query + same Land capabilities = same response
+type LandHouse struct {
+    land *core.LandInfo
+    wind *core.Wind
 }
 
-func (h *LandHandler) handleCapacityRequest(ctx context.Context, leaf nim.Leaf) error {
-    var req CapacityRequest
-    json.Unmarshal(leaf.GetData(), &req)
-    
-    // Check if we match requirements
-    if req.NeedsGPU && !h.hasGPU {
-        return nil // Don't respond, we don't have GPU
+func NewLandHouse(land *core.LandInfo, wind *core.Wind) *LandHouse {
+    return &LandHouse{land: land, wind: wind}
+}
+
+func (lh *LandHouse) Name() string { return "landhouse" }
+
+func (lh *LandHouse) Subjects() []string {
+    return []string{"land.query"}
+}
+
+// Process handles a land.query Leaf and returns land.info.{id} if we match
+func (lh *LandHouse) Process(leaf core.Leaf) *core.Leaf {
+    var query CapacityQuery
+    if err := json.Unmarshal(leaf.Data, &query); err != nil {
+        return nil
     }
     
-    // Check if we have capacity
-    if h.runningAgents >= h.maxAgents {
-        return nil // Don't respond, at capacity
+    // Deterministic matching logic
+    if query.NeedsDocker && !lh.land.HasDocker {
+        return nil // Don't respond
+    }
+    if query.NeedsGPU && lh.land.GPUVram == 0 {
+        return nil // Don't respond
     }
     
-    // Respond with availability
-    return h.wind.Whisper(ctx, &Leaf{
-        Subject: "land.capacity.response",
-        Data: CapacityResponse{
-            TaskID:    req.TaskID,
-            LandID:    h.landID,
-            LandType:  h.landType,
-            Available: true,
-        },
-    })
+    // Return our Land info
+    data, _ := json.Marshal(lh.land)
+    return core.NewLeaf(
+        fmt.Sprintf("land.info.%s", lh.land.ID),
+        data,
+        "treehouse:landhouse",
+    )
 }
 ```
 
-### CoderNim Uses Events
+### AgentHouse Implementation
 
 ```go
-func (c *CoderNim) Action(ctx context.Context, action string, params map[string]interface{}) (interface{}, error) {
-    task := buildTask(action, params)
-    taskID := task.ID
-    needsGPU := params["gpu"] == true
-    
-    // Request capacity (broadcast)
-    c.wind.Whisper(ctx, &Leaf{
-        Subject: "land.capacity.request",
-        Data: CapacityRequest{TaskID: taskID, NeedsGPU: needsGPU},
-    })
-    
-    // Collect responses (with timeout)
-    responses := c.collectResponses(ctx, "land.capacity.response", taskID, 2*time.Second)
-    if len(responses) == 0 {
-        return nil, fmt.Errorf("no land capacity available")
+// internal/treehouses/agenthouse.go
+
+// AgentHouse is a compile-time TreeHouse that executes agent tasks in Docker.
+// Deterministic: dispatch task to Docker, capture result
+type AgentHouse struct {
+    landID string
+    wind   *core.Wind
+}
+
+func NewAgentHouse(landID string, wind *core.Wind) *AgentHouse {
+    return &AgentHouse{landID: landID, wind: wind}
+}
+
+func (ah *AgentHouse) Name() string { return "agenthouse" }
+
+func (ah *AgentHouse) Subjects() []string {
+    return []string{fmt.Sprintf("agent.task.%s", ah.landID)}
+}
+
+// Process handles an agent.task.{land_id} Leaf and returns agent.result.{task_id}
+func (ah *AgentHouse) Process(leaf core.Leaf) *core.Leaf {
+    var task AgentTask
+    if err := json.Unmarshal(leaf.Data, &task); err != nil {
+        return nil
     }
     
-    // Pick first available
-    land := responses[0]
+    // Run in Docker (deterministic dispatch)
+    result := ah.runDocker(task)
     
-    // Reserve it
-    c.wind.Whisper(ctx, &Leaf{
-        Subject: "land.reserve",
-        Data: ReserveRequest{TaskID: taskID, LandID: land.LandID},
-    })
+    data, _ := json.Marshal(result)
+    return core.NewLeaf(
+        fmt.Sprintf("agent.result.%s", task.ID),
+        data,
+        "treehouse:agenthouse",
+    )
+}
+
+func (ah *AgentHouse) runDocker(task AgentTask) AgentResult {
+    cmd := exec.Command("docker", "run", "--rm",
+        "-v", fmt.Sprintf("%s:/workspace", task.Workdir),
+        task.Image,
+        task.Command,
+    )
     
-    // Wait for confirmation
-    reserved := c.waitForResponse(ctx, "land.reserved", taskID, 5*time.Second)
-    if !reserved.Success {
-        return nil, fmt.Errorf("failed to reserve land")
+    output, err := cmd.CombinedOutput()
+    
+    return AgentResult{
+        TaskID:  task.ID,
+        Success: err == nil,
+        Output:  string(output),
+        Error:   errorString(err),
+    }
+}
+```
+
+### Flow
+
+```
+┌──────────┐                              ┌───────────────────────────┐
+│ CoderNim │                              │ Forest B (Nimland)        │
+└────┬─────┘                              │  ├── LandHouse            │
+     │                                    │  └── AgentHouse           │
+     │                                    └────────────┬──────────────┘
+     │                                                 │
+     │── Leaf("land.query", {needs_docker}) ──────────►│
+     │                                                 │ LandHouse.Process()
+     │◄── Leaf("land.info.B", landInfo) ──────────────│
+     │                                                 │
+     │── Leaf("agent.task.B", task) ──────────────────►│
+     │                                                 │ AgentHouse.Process()
+     │                                                 │ (runs Docker)
+     │◄── Leaf("agent.result.{id}", result) ──────────│
+```
+
+### Forest Wires Up Houses
+
+```go
+func (f *Forest) Start(ctx context.Context) error {
+    // ... existing startup ...
+    
+    // Create and start LandHouse
+    f.landHouse = treehouses.NewLandHouse(f.thisLand, f.wind)
+    f.startTreeHouse(f.landHouse)
+    
+    // Create AgentHouse only if we have Docker
+    if f.thisLand.HasDocker {
+        f.agentHouse = treehouses.NewAgentHouse(f.thisLand.ID, f.wind)
+        f.startTreeHouse(f.agentHouse)
     }
     
-    // Execute agent task (result comes back as event)
-    c.wind.Whisper(ctx, &Leaf{
-        Subject: fmt.Sprintf("agent.execute.%s", land.LandID),
-        Data: task,
-    })
-    
-    // Return - result will come back as event
-    return &nim.Result{
-        Success: true,
-        Output:  fmt.Sprintf("Task %s dispatched to %s", taskID, land.LandID),
-    }, nil
+    // ... rest of startup ...
 }
 ```
 
@@ -1328,93 +1382,225 @@ songbirds:
 
 ## Part 8: Task Breakdown
 
-### Phase 1: pkg/nim/ Interfaces
+### Phase 1: TreeHouse Infrastructure (Foundation)
+
+Create GoTreeHouse interface and reorganize misnamed components.
 
 | Task | Description |
 |------|-------------|
-| 1.1 | Create `pkg/nim/nim.go` - Nim interface with AAA |
-| 1.2 | Create `pkg/nim/brain.go` - Move from pkg/brain |
-| 1.3 | Create `pkg/nim/leaf.go` - Leaf interface |
-| 1.4 | Create `pkg/nim/wind.go` - Whisperer interface |
-| 1.5 | Create `pkg/nim/asker.go` - AIAsker interface |
-| 1.6 | Create `pkg/nim/agent.go` - Agent interface |
-| 1.7 | Create `pkg/nim/ai_agent.go` - AIAgent interface |
-| 1.8 | Create `pkg/nim/human_agent.go` - HumanAgent interface |
-| 1.9 | Create `pkg/nim/robot_agent.go` - RobotAgent interface |
-| 1.10 | Create `pkg/nim/browser_agent.go` - BrowserAgent interface |
-| 1.11 | Create `pkg/nim/land.go` - Land types and capacity events |
+| 1.1 | Create `internal/treehouses/interface.go` - GoTreeHouse interface |
+| 1.2 | Rename `internal/nims/aftersales.go` → `internal/treehouses/aftersaleshouse.go` |
+| 1.3 | Rename `internal/nims/general.go` → `internal/treehouses/generalhouse.go` |
+| 1.4 | Update AfterSalesNim → AfterSalesHouse (implement GoTreeHouse) |
+| 1.5 | Update GeneralNim → GeneralHouse (implement GoTreeHouse) |
+| 1.6 | Update `pkg/runtime/forest.go` - Wire up Go TreeHouses |
 
-### Phase 2: Internal Implementations
+### Phase 2: Land Detection & Houses
+
+Land is data detected at startup. LandHouse and AgentHouse handle communication.
 
 | Task | Description |
 |------|-------------|
-| 2.1 | Create `internal/ai/asker.go` - Wrap existing aiservice |
-| 2.2 | Create `internal/ai/agents/ai_agent.go` - Docker AI agent |
-| 2.3 | Create `internal/ai/agents/human_agent.go` - Songbird human agent |
-| 2.4 | Create `internal/ai/agents/robot_agent.go` - Physical robot agent |
-| 2.5 | Create `internal/ai/agents/browser_agent.go` - Playwright browser agent |
-| 2.6 | Create `internal/land/handler.go` - Land capacity handler |
+| 2.1 | Create `internal/core/land.go` - LandInfo struct, LandType constants |
+| 2.2 | Create `internal/land/detect.go` - Detect RAM, CPU, Docker, GPU |
+| 2.3 | Create `internal/treehouses/landhouse.go` - Responds to `land.query` |
+| 2.4 | Create `internal/treehouses/agenthouse.go` - Handles `agent.task.*`, runs Docker |
+| 2.5 | Update `pkg/runtime/forest.go` - Detect Land, start Houses |
+| 2.6 | Update `internal/viewmodel/` - Subscribe to `land.info.>` Leaves |
+| 2.7 | Tests for Land detection and Houses |
 
-### Phase 3: Songbirds
+### Phase 3: pkg/nim/ Interfaces (AAA)
 
-| Task | Description |
-|------|-------------|
-| 3.1 | Update `internal/songbirds/songbird.go` - Add Send + Message type |
-| 3.2 | Update `internal/songbirds/telegram.go` - Implement Send, emit response Leaves |
-| 3.3 | Create `internal/songbirds/slack.go` - Slack songbird |
-| 3.4 | Create `internal/songbirds/email.go` - Email songbird |
-
-### Phase 4: Core Updates
+Nim = Non-deterministic (uses AI). These are the public interfaces.
 
 | Task | Description |
 |------|-------------|
-| 4.1 | Update `internal/core/nim.go` - BaseNim with AAA |
-| 4.2 | Update `internal/core/leaf.go` - Implement nim.Leaf |
-| 4.3 | Update `internal/core/wind.go` - Implement nim.Whisperer |
+| 3.1 | Create `pkg/nim/nim.go` - Nim interface with AAA |
+| 3.2 | Create `pkg/nim/brain.go` - Move from pkg/brain |
+| 3.3 | Create `pkg/nim/leaf.go` - Leaf interface |
+| 3.4 | Create `pkg/nim/wind.go` - Whisperer interface |
+| 3.5 | Create `pkg/nim/asker.go` - AIAsker interface |
+| 3.6 | Create `pkg/nim/agent.go` - Agent interface + types |
 
-### Phase 5: CoderNim
+### Phase 4: Agent Implementations
 
-| Task | Description |
-|------|-------------|
-| 5.1 | Create `internal/nims/coder/coder.go` - Full implementation |
-| 5.2 | Create `internal/nims/coder/coder_test.go` - Tests |
-
-### Phase 6: Configuration
+Agents are dispatched by Nims to do work (AI, Human, Robot, Browser).
 
 | Task | Description |
 |------|-------------|
-| 6.1 | Update `pkg/runtime/config.go` - Add agent configs |
-| 6.2 | Update `pkg/runtime/forest.go` - Load agents |
-| 6.3 | Update `cmd/forest/main.go` - Wire up CoderNim |
+| 4.1 | Create `internal/agents/ai.go` - Docker AI agent |
+| 4.2 | Create `internal/agents/human.go` - Songbird human agent |
+| 4.3 | Create `internal/agents/robot.go` - Physical robot agent |
+| 4.4 | Create `internal/agents/browser.go` - Playwright browser agent |
 
-### Phase 7: Cleanup & Examples
+### Phase 5: Songbirds (Outbound Communication)
 
-| Task | Description |
-|------|-------------|
-| 7.1 | Move `pkg/brain/` → `pkg/nim/`, update imports |
-| 7.2 | Create `examples/` and move example code from `internal/` |
-| 7.3 | Update `cmd/forest/main.go` to not auto-load examples |
-
-### Phase 8: Testing
+Songbirds carry messages OUT to external platforms.
 
 | Task | Description |
 |------|-------------|
-| 8.1 | Test pkg/nim interfaces |
-| 8.2 | Test agent implementations |
-| 8.3 | Test CoderNim AAA methods |
-| 8.4 | Integration tests |
+| 5.1 | Update `internal/songbirds/songbird.go` - Add Send + Message type |
+| 5.2 | Update `internal/songbirds/telegram.go` - Implement Send, emit response Leaves |
+| 5.3 | Create `internal/songbirds/slack.go` - Slack songbird |
+| 5.4 | Create `internal/songbirds/email.go` - Email songbird |
+
+### Phase 6: Core Updates
+
+Update core interfaces to support the new architecture.
+
+| Task | Description |
+|------|-------------|
+| 6.1 | Update `internal/core/nim.go` - BaseNim with AAA methods |
+| 6.2 | Update `internal/core/leaf.go` - Ensure implements nim.Leaf |
+| 6.3 | Update `internal/core/wind.go` - Ensure implements nim.Whisperer |
+
+### Phase 7: CoderNim (Core Infrastructure)
+
+CoderNim is a real Nim (uses AI) - core AAA infrastructure.
+
+| Task | Description |
+|------|-------------|
+| 7.1 | Create `internal/nims/coder/coder.go` - Full AAA implementation |
+| 7.2 | Create `internal/nims/coder/coder_test.go` - Tests |
+
+### Phase 8: Configuration & Wiring
+
+| Task | Description |
+|------|-------------|
+| 8.1 | Update `pkg/runtime/config.go` - Add agent configs, House configs |
+| 8.2 | Update `pkg/runtime/forest.go` - Load agents, integrate Land, wire Houses |
+| 8.3 | Update `cmd/forest/main.go` - Wire up CoderNim |
+
+### Phase 9: Cleanup & Examples
+
+| Task | Description |
+|------|-------------|
+| 9.1 | Move `pkg/brain/` → `pkg/nim/`, update imports |
+| 9.2 | Create `examples/` directory |
+| 9.3 | Move `internal/trees/payment.go` → `examples/trees/` |
+| 9.4 | Move `internal/trees/general.go` → `examples/trees/` |
+| 9.5 | Move `internal/leaves/chat.go` → `examples/leaves/` |
+| 9.6 | Update imports and ensure examples still compile |
+
+### Phase 10: Testing
+
+| Task | Description |
+|------|-------------|
+| 10.1 | Test GoTreeHouse interface and implementations |
+| 10.2 | Test Land detection |
+| 10.3 | Test LandHouse and AgentHouse |
+| 10.4 | Test pkg/nim interfaces |
+| 10.5 | Test CoderNim AAA methods |
+| 10.6 | Integration tests |
 
 ---
 
 ## Summary
 
-### Changes Overview
+### Component Hierarchy
 
-| Action | Items |
-|--------|-------|
-| **Create** | `pkg/nim/` (interfaces), `internal/ai/` (agents), `internal/land/` (handler), `internal/nims/coder/`, `examples/` |
-| **Update** | `internal/core/` (AAA support), `internal/songbirds/` (Send), `pkg/runtime/` (config) |
-| **Move** | `pkg/brain/` → `pkg/nim/`, example code → `examples/` |
+```
+                     External World
+                          │
+        ┌─────────────────┼─────────────────┐
+        ▼                 ▼                 ▼
+┌──────────────┐  ┌──────────────┐  ┌──────────────┐
+│   SOURCES    │  │    RIVER     │  │  SONGBIRDS   │
+│  (inbound)   │  │   (stream)   │  │  (outbound)  │
+│              │  │              │  │              │
+│ Webhook,Poll │  │  JetStream   │  │ Telegram,    │
+│ Telegram     │  │  buffer      │  │ Slack,Email  │
+└──────┬───────┘  └──────┬───────┘  └──────▲───────┘
+       │                 │                 │
+       │                 ▼                 │
+       │         ┌──────────────┐         │
+       │         │    TREES     │         │
+       │         │  (parsers)   │         │
+       │         │              │         │
+       │         │ River → Leaf │         │
+       │         └──────┬───────┘         │
+       │                │                 │
+       └────────────────┼─────────────────┘
+                        ▼
+              ┌─────────────────┐
+              │      WIND       │
+              │    (pub/sub)    │
+              │                 │
+              │  Leaves flow    │
+              └────────┬────────┘
+                       │
+        ┌──────────────┼──────────────┐
+        ▼                             ▼
+┌──────────────────┐        ┌──────────────────┐
+│    TREEHOUSES    │        │      NIMS        │
+│  (deterministic) │        │ (non-determ/AI)  │
+│                  │        │                  │
+│ Lua OR Go        │        │ Uses brain.Ask() │
+│ Same input =     │        │ AAA pattern      │
+│ same output      │        │                  │
+│                  │        │                  │
+│ Examples:        │        │ Examples:        │
+│ - LandHouse      │        │ - CoderNim       │
+│ - AgentHouse     │        │ - Runtime Nim    │
+│ - AfterSalesHouse│        │   (prompt+AI)    │
+│ - GeneralHouse   │        │                  │
+└──────────────────┘        └──────────────────┘
+        │                             │
+        └──────────────┬──────────────┘
+                       ▼
+              ┌─────────────────┐
+              │      LAND       │
+              │   (substrate)   │
+              │                 │
+              │ Everything runs │
+              │ ON Land         │
+              │                 │
+              │ Land/Nimland/   │
+              │ Manaland        │
+              └─────────────────┘
+```
+
+### Key Distinction: TreeHouse vs Nim
+
+| Aspect | TreeHouse | Nim |
+|--------|-----------|-----|
+| **Determinism** | ✅ Deterministic | ❌ Non-deterministic |
+| **AI** | ❌ No AI | ✅ Uses `brain.Ask()` |
+| **Definition** | Lua (runtime) OR Go (compile-time) | Go + AI |
+| **Same input** | Same output | Different output (AI variance) |
+| **Examples** | LandHouse, AfterSalesHouse | CoderNim, Runtime Nim |
+
+### Land: Data + Houses
+
+Land is **data** detected at startup. Communication via **Go TreeHouses** (deterministic).
+
+| Component | Type | Purpose |
+|-----------|------|---------|
+| `thisLand` | LandInfo struct | Detected capabilities |
+| `LandHouse` | Go TreeHouse | Responds to `land.query` |
+| `AgentHouse` | Go TreeHouse | Runs agents in Docker |
+
+```
+NimsForest starts
+      │
+      ├──► natsembed.New() ──► Get server.ID, server.Name
+      │
+      ├──► land.Detect() ──► RAM, CPU, Docker?, GPU? → LandInfo struct
+      │
+      ├──► forest.thisLand = landInfo
+      │
+      └──► forest.Start()
+            ├──► LandHouse subscribes to land.query
+            └──► AgentHouse subscribes to agent.task.{id} (if Docker)
+```
+
+### Land Types
+
+| Type | Docker | GPU | Houses |
+|------|--------|-----|--------|
+| **Land** | ❌ | ❌ | LandHouse only |
+| **Nimland** | ✅ | ❌ | LandHouse + AgentHouse |
+| **Manaland** | ✅ | ✅ | LandHouse + AgentHouse |
 
 ### Agent Types
 
@@ -1425,18 +1611,797 @@ songbirds:
 | HumanAgent | Songbird (async) | Approvals, reviews |
 | RobotAgent | Physical robot | Temi, SO-ARM100, humanoids |
 
-### Land Types
-
-| Type | Docker | GPU | Purpose |
-|------|--------|-----|---------|
-| Land | No | No | Event backbone |
-| Nimland | Yes | No | Docker agents |
-| Manaland | Yes | Yes | GPU workloads |
-
-### AAA Methods
+### AAA Methods (Nim Intelligence)
 
 | Method | Implementation |
 |--------|----------------|
 | **Advice** | AI query via existing `pkg/integrations/aiservice/` |
-| **Action** | Dispatch to Agent |
+| **Action** | Dispatch to Agent on appropriate Land |
 | **Automate** | Generate TreeHouse (Lua) or Nim (config) |
+
+### Changes Overview
+
+| Action | Items |
+|--------|-------|
+| **Create** | `internal/treehouses/interface.go`, `internal/core/land.go`, `internal/land/detect.go`, `internal/treehouses/landhouse.go`, `internal/treehouses/agenthouse.go`, `pkg/nim/`, `internal/nims/coder/`, `internal/agents/`, `examples/` |
+| **Rename** | `internal/nims/aftersales.go` → `internal/treehouses/aftersaleshouse.go`, `internal/nims/general.go` → `internal/treehouses/generalhouse.go` |
+| **Update** | `pkg/runtime/forest.go` (detect Land, wire Houses), `internal/viewmodel/` (subscribe to `land.info.>`), `internal/songbirds/` (Send) |
+| **Move** | `pkg/brain/` → `pkg/nim/`, domain examples → `examples/` |
+
+### Directory Structure
+
+```
+internal/
+├── core/
+│   ├── land.go           # LandInfo struct, LandType constants
+│   ├── nim.go            # BaseNim with AAA
+│   ├── wind.go, river.go, leaf.go, tree.go, ...
+│
+├── land/
+│   └── detect.go         # Auto-detect RAM, CPU, Docker, GPU
+│
+├── treehouses/
+│   ├── interface.go      # GoTreeHouse interface
+│   ├── landhouse.go      # land.query → land.info.*
+│   ├── agenthouse.go     # agent.task.* → agent.result.*
+│   ├── aftersaleshouse.go # payment.* → followup.* (was "nim")
+│   └── generalhouse.go   # General event routing (was "nim")
+│
+├── agents/
+│   ├── ai.go             # Docker AI agent
+│   ├── human.go          # Songbird human agent
+│   ├── robot.go          # Physical robot agent
+│   └── browser.go        # Playwright browser agent
+│
+├── nims/
+│   └── coder/            # CoderNim - REAL Nim (uses AI)
+│       ├── coder.go
+│       └── coder_test.go
+│
+├── trees/
+│   └── .gitkeep          # Domain trees → examples/
+│
+├── leaves/
+│   ├── types.go          # Core leaf type definitions (keep)
+│   └── .gitkeep          # Domain leaves → examples/
+│
+├── songbirds/
+│   ├── songbird.go
+│   ├── telegram.go
+│   ├── slack.go          # New
+│   └── email.go          # New
+│
+└── viewmodel/            # Subscribes to land.info.> Leaves
+
+pkg/
+├── nim/
+│   ├── nim.go            # Nim interface with AAA
+│   ├── brain.go          # Brain interface (moved from pkg/brain)
+│   ├── leaf.go           # Leaf interface
+│   ├── wind.go           # Whisperer interface
+│   ├── asker.go          # AIAsker interface
+│   └── agent.go          # Agent interface + types
+│
+└── runtime/
+    └── forest.go         # Detects thisLand, starts Houses
+
+examples/
+├── trees/
+│   ├── payment.go        # Domain-specific example
+│   └── general.go        # Domain-specific example
+└── leaves/
+    └── chat.go           # Domain-specific example
+```
+
+---
+
+## Part 9: Land as Data in Forest
+
+Land is the compute substrate - it **exists implicitly** when NimsForest starts. Rather than being a separate component with its own lifecycle, Land is **data that Forest knows about itself**.
+
+### Design Principles
+
+1. **Land is data** - Detected at startup, stored as `LandInfo` struct in Forest
+2. **All events are Leaves** - No special "land events", just Leaves on the Wind
+3. **Houses handle communication** - Go TreeHouses (deterministic) handle Land queries and agent execution
+
+| Component | What It Is | Responsibility |
+|-----------|------------|----------------|
+| `Forest.thisLand` | LandInfo struct | Hold detected capabilities |
+| `LandHouse` | Go TreeHouse | Respond to `land.query` Leaves |
+| `AgentHouse` | Go TreeHouse | Execute `agent.task.*` Leaves in Docker |
+
+### Land Info Struct
+
+```go
+// internal/core/land.go
+
+package core
+
+// LandType identifies the capabilities of this node.
+type LandType string
+
+const (
+    LandTypeBase     LandType = "land"     // No Docker, backbone only
+    LandTypeNimland  LandType = "nimland"  // Docker-capable
+    LandTypeManaland LandType = "manaland" // Docker + GPU
+)
+
+// LandInfo holds information about a compute node.
+// This is detected at startup and stored in Forest.
+type LandInfo struct {
+    ID        string   `json:"id"`         // From NATS server ID
+    Name      string   `json:"name"`       // From NATS server name (config)
+    Type      LandType `json:"type"`       // Detected: land/nimland/manaland
+    Hostname  string   `json:"hostname"`   // OS hostname
+    
+    // Capacity (detected from system)
+    RAMTotal   uint64  `json:"ram_total"`    // Bytes
+    CPUCores   int     `json:"cpu_cores"`
+    CPUModel   string  `json:"cpu_model"`
+    CPUFreqMHz float64 `json:"cpu_freq_mhz"`
+    
+    // Capabilities (probed)
+    HasDocker bool `json:"has_docker"`
+    
+    // GPU (if available)
+    GPUVendor string  `json:"gpu_vendor,omitempty"` // "nvidia", "amd"
+    GPUModel  string  `json:"gpu_model,omitempty"`
+    GPUVram   uint64  `json:"gpu_vram,omitempty"`   // Bytes
+    GPUTflops float64 `json:"gpu_tflops,omitempty"`
+}
+
+// Leaf subject for Land announcements
+const SubjectLandInfo = "land.info"
+```
+
+### Detection at Startup
+
+```go
+// internal/land/detect.go
+
+package land
+
+import (
+    "os"
+    "os/exec"
+    "runtime"
+    
+    "github.com/shirou/gopsutil/v3/cpu"
+    "github.com/shirou/gopsutil/v3/mem"
+    "github.com/yourusername/nimsforest/internal/core"
+)
+
+// Detect probes the local system and returns LandInfo.
+// Called once during Forest startup.
+func Detect(natsID, natsName string) *core.LandInfo {
+    info := &core.LandInfo{
+        ID:   natsID,
+        Name: natsName,
+    }
+    
+    // Hostname
+    info.Hostname, _ = os.Hostname()
+    
+    // RAM
+    if vmStat, err := mem.VirtualMemory(); err == nil {
+        info.RAMTotal = vmStat.Total
+    }
+    
+    // CPU
+    info.CPUCores = runtime.NumCPU()
+    if cpuInfo, err := cpu.Info(); err == nil && len(cpuInfo) > 0 {
+        info.CPUModel = cpuInfo[0].ModelName
+        info.CPUFreqMHz = cpuInfo[0].Mhz
+    }
+    
+    // Docker
+    info.HasDocker = detectDocker()
+    
+    // GPU
+    detectGPU(info)
+    
+    // Determine type
+    info.Type = determineType(info)
+    
+    return info
+}
+
+func detectDocker() bool {
+    if _, err := exec.LookPath("docker"); err != nil {
+        return false
+    }
+    cmd := exec.Command("docker", "info")
+    return cmd.Run() == nil
+}
+
+func detectGPU(info *core.LandInfo) {
+    // Try nvidia-smi
+    cmd := exec.Command("nvidia-smi", 
+        "--query-gpu=name,memory.total",
+        "--format=csv,noheader,nounits")
+    if output, err := cmd.Output(); err == nil {
+        // Parse output: "NVIDIA GeForce RTX 4090, 24564"
+        info.GPUVendor = "nvidia"
+        // ... parse info.GPUModel, info.GPUVram
+    }
+}
+
+func determineType(info *core.LandInfo) core.LandType {
+    if info.GPUVram > 0 && info.HasDocker {
+        return core.LandTypeManaland
+    }
+    if info.HasDocker {
+        return core.LandTypeNimland
+    }
+    return core.LandTypeBase
+}
+```
+
+### Integration in Forest Startup
+
+```go
+// pkg/runtime/forest.go
+
+type Forest struct {
+    // ... existing fields ...
+    
+    thisLand   *core.LandInfo            // This node's Land info
+    landHouse  *treehouses.LandHouse     // Handles land.query
+    agentHouse *treehouses.AgentHouse    // Handles agent.task.* (if Docker)
+}
+
+// NewForest creates a Forest - Land is detected automatically.
+func NewForest(configPath string, natsServer *natsembed.Server, wind *core.Wind, b brain.Brain) (*Forest, error) {
+    cfg, err := LoadConfig(configPath)
+    if err != nil {
+        return nil, fmt.Errorf("failed to load config: %w", err)
+    }
+    
+    // Detect this Land (using NATS server identity)
+    varz, _ := natsServer.InternalServer().Varz(&server.VarzOptions{})
+    thisLand := land.Detect(varz.ID, varz.Name)
+    
+    log.Printf("[Forest] This Land: %s (%s) - RAM: %s, CPU: %d cores, Docker: %v",
+        thisLand.Name, thisLand.Type, 
+        formatBytes(thisLand.RAMTotal), thisLand.CPUCores, thisLand.HasDocker)
+    
+    f := &Forest{
+        config:   cfg,
+        wind:     wind,
+        brain:    b,
+        thisLand: thisLand,
+        // ... rest of init
+    }
+    
+    return f, nil
+}
+
+// Start wires up Houses and starts all components.
+func (f *Forest) Start(ctx context.Context) error {
+    // ... existing startup ...
+    
+    // Create and start LandHouse (all nodes)
+    f.landHouse = treehouses.NewLandHouse(f.thisLand, f.wind)
+    if err := f.startHouse(ctx, f.landHouse); err != nil {
+        return fmt.Errorf("failed to start LandHouse: %w", err)
+    }
+    
+    // Create and start AgentHouse (only Nimland/Manaland)
+    if f.thisLand.HasDocker {
+        f.agentHouse = treehouses.NewAgentHouse(f.thisLand.ID, f.wind)
+        if err := f.startHouse(ctx, f.agentHouse); err != nil {
+            return fmt.Errorf("failed to start AgentHouse: %w", err)
+        }
+    }
+    
+    // ... rest of startup ...
+}
+
+// startHouse subscribes a Go TreeHouse to its subjects.
+func (f *Forest) startHouse(ctx context.Context, house GoTreeHouse) error {
+    for _, subject := range house.Subjects() {
+        _, err := f.wind.Catch(subject, func(leaf core.Leaf) {
+            if result := house.Process(leaf); result != nil {
+                f.wind.Drop(*result)
+            }
+        })
+        if err != nil {
+            return err
+        }
+    }
+    log.Printf("[Forest] Started %s on subjects: %v", house.Name(), house.Subjects())
+    return nil
+}
+
+// ThisLand returns this node's Land info.
+func (f *Forest) ThisLand() *core.LandInfo {
+    return f.thisLand
+}
+```
+
+### GoTreeHouse Interface
+
+```go
+// internal/treehouses/interface.go
+
+// GoTreeHouse is a compile-time TreeHouse implemented in Go.
+// Unlike Lua TreeHouses, these have access to system resources.
+// Must be deterministic: same input Leaf = same output Leaf.
+type GoTreeHouse interface {
+    Name() string
+    Subjects() []string
+    Process(leaf core.Leaf) *core.Leaf  // nil = no output
+}
+```
+
+### Persistence with JetStream (Optional)
+
+For new nodes to discover existing Lands, we can use a JetStream stream:
+
+```go
+// Create a LAND stream that retains the latest info per Land
+streamConfig := &nats.StreamConfig{
+    Name:              "LAND",
+    Subjects:          []string{"land.info.>"},
+    MaxMsgsPerSubject: 1,  // Keep only latest per Land
+    Storage:           nats.FileStorage,
+}
+```
+
+New nodes read existing Lands from the stream on startup.
+
+### ViewWorld Subscribes to Land Leaves
+
+```go
+// internal/viewmodel/viewmodel.go
+
+func New(ns *server.Server, wind *core.Wind) *ViewModel {
+    vm := &ViewModel{
+        territory: NewWorld(),
+    }
+    
+    // Subscribe to Land info Leaves
+    wind.Catch("land.info.>", func(leaf core.Leaf) {
+        var info core.LandInfo
+        json.Unmarshal(leaf.Data, &info)
+        
+        land := vm.landInfoToViewModel(&info)
+        vm.territory.AddLand(land)
+    })
+    
+    return vm
+}
+```
+
+### Capacity Queries via Request/Reply
+
+When a Nim needs to find capacity, it uses NATS request/reply:
+
+```go
+// Nim wants to find a Nimland with capacity
+func (n *CoderNim) findCapacity(ctx context.Context, needsGPU bool) (*core.LandInfo, error) {
+    query := CapacityQuery{
+        NeedsDocker: true,
+        NeedsGPU:    needsGPU,
+        MinRAM:      4 * 1024 * 1024 * 1024, // 4GB
+    }
+    
+    queryData, _ := json.Marshal(query)
+    
+    // Request/reply - all Lands that can help will respond
+    msg, err := n.natsConn.Request("land.query", queryData, 2*time.Second)
+    if err != nil {
+        return nil, err
+    }
+    
+    var info core.LandInfo
+    json.Unmarshal(msg.Data, &info)
+    return &info, nil
+}
+```
+
+Each Forest listens on `land.query` and responds if it can help:
+
+```go
+// In Forest.Start()
+f.wind.Catch("land.query", func(leaf core.Leaf) {
+    var query CapacityQuery
+    json.Unmarshal(leaf.Data, &query)
+    
+    if f.canFulfill(query) {
+        // Reply with this Land's info
+        f.replyWithLandInfo(leaf.ReplyTo)
+    }
+})
+```
+
+### Summary: Land is Simple Data
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     Forest Startup                              │
+├─────────────────────────────────────────────────────────────────┤
+│  1. natsembed.New()                                             │
+│     └── NATS server starts                                      │
+│     └── Get: server.ID, server.Name                            │
+│                                                                 │
+│  2. land.Detect(id, name)                                       │
+│     └── gopsutil: RAM, CPU                                      │
+│     └── exec: docker info, nvidia-smi                          │
+│     └── Returns: LandInfo struct                               │
+│                                                                 │
+│  3. forest.thisLand = landInfo                                  │
+│     └── Stored in Forest struct                                │
+│                                                                 │
+│  4. forest.Start()                                              │
+│     └── Drop Leaf("land.info.{id}", thisLand)                  │
+│     └── Subscribe to "land.query" for capacity requests        │
+│                                                                 │
+│  5. ViewWorld catches "land.info.>" Leaves                      │
+│     └── Builds World from Land announcements                   │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Key Points:**
+- Land is a **struct**, not a component with lifecycle
+- Detection happens **once at startup**, next to NATS init
+- Announcement is a **normal Leaf** on `land.info.{id}`
+- Capacity queries use **NATS request/reply** 
+- ViewWorld **subscribes to Leaves** instead of polling NATS APIs
+- No special "land events" - just Leaves with `land.*` subjects
+
+---
+
+## Part 10: Land Detection Details
+
+Land **already exists** the moment NimsForest starts - we're running on it. The question is: how do we discover what this Land is capable of?
+
+### What NATS Server Already Knows
+
+The embedded NATS server provides rich information via its monitoring APIs:
+
+```go
+// From server.Varz()
+varz.ID         // Unique server ID (e.g., "NCXXX...")
+varz.Name       // Server name (from config.NodeName)
+varz.Host       // Host address
+varz.Port       // Client port
+varz.Start      // When server started
+varz.Cluster    // Cluster info (name, port, routes)
+
+// From server.Routez()
+routez.Routes   // Connected peer nodes (ID, IP, RTT)
+
+// From server.Subsz()
+subsz.Subs      // All subscriptions (subject, queue, msgs)
+
+// From server.Connz()
+connz.Conns     // All connections with their subscriptions
+
+// From server.Jsz()
+jsz.AccountDetails.Streams    // JetStream streams
+jsz.AccountDetails.Consumers  // JetStream consumers
+```
+
+### What We Detect from System
+
+Already using `gopsutil` in `viewmodel/reader.go`:
+
+```go
+// RAM
+vmStat, _ := mem.VirtualMemory()
+vmStat.Total    // Total RAM in bytes
+
+// CPU
+runtime.NumCPU() // Number of CPU cores
+```
+
+### What We Could Add: Docker & GPU Detection
+
+```go
+// internal/land/detect.go
+
+package land
+
+import (
+    "os/exec"
+    "runtime"
+    "strings"
+    
+    "github.com/shirou/gopsutil/v3/cpu"
+    "github.com/shirou/gopsutil/v3/mem"
+)
+
+// DetectLocalLand auto-detects the current machine's capabilities.
+func DetectLocalLand() (*LocalLandInfo, error) {
+    info := &LocalLandInfo{}
+    
+    // RAM
+    if vmStat, err := mem.VirtualMemory(); err == nil {
+        info.RAMTotal = vmStat.Total
+    }
+    
+    // CPU
+    info.CPUCores = runtime.NumCPU()
+    if cpuInfo, err := cpu.Info(); err == nil && len(cpuInfo) > 0 {
+        info.CPUModel = cpuInfo[0].ModelName
+        info.CPUFreqMHz = cpuInfo[0].Mhz
+    }
+    
+    // Docker detection
+    info.HasDocker = detectDocker()
+    
+    // GPU detection
+    info.GPU = detectGPU()
+    
+    return info, nil
+}
+
+// detectDocker checks if Docker is available and running.
+func detectDocker() bool {
+    // Check if docker command exists
+    if _, err := exec.LookPath("docker"); err != nil {
+        return false
+    }
+    
+    // Check if docker daemon is running
+    cmd := exec.Command("docker", "info")
+    if err := cmd.Run(); err != nil {
+        return false
+    }
+    
+    return true
+}
+
+// GPUInfo holds GPU detection results.
+type GPUInfo struct {
+    Available bool
+    Vendor    string  // "nvidia", "amd", "intel"
+    Model     string  // "RTX 4090", "RX 7900 XTX"
+    VRAM      uint64  // Bytes
+    Tflops    float64 // Compute power
+}
+
+// detectGPU attempts to detect GPU information.
+func detectGPU() *GPUInfo {
+    // Try nvidia-smi first (most common for compute)
+    if gpu := detectNvidiaGPU(); gpu != nil {
+        return gpu
+    }
+    
+    // Try AMD ROCm
+    if gpu := detectAMDGPU(); gpu != nil {
+        return gpu
+    }
+    
+    return nil
+}
+
+// detectNvidiaGPU uses nvidia-smi to detect NVIDIA GPUs.
+func detectNvidiaGPU() *GPUInfo {
+    cmd := exec.Command("nvidia-smi", 
+        "--query-gpu=name,memory.total,compute_cap",
+        "--format=csv,noheader,nounits")
+    
+    output, err := cmd.Output()
+    if err != nil {
+        return nil
+    }
+    
+    // Parse: "NVIDIA GeForce RTX 4090, 24564, 8.9"
+    parts := strings.Split(strings.TrimSpace(string(output)), ", ")
+    if len(parts) < 2 {
+        return nil
+    }
+    
+    gpu := &GPUInfo{
+        Available: true,
+        Vendor:    "nvidia",
+        Model:     parts[0],
+    }
+    
+    // Parse VRAM (nvidia-smi reports in MiB)
+    if vramMiB, err := strconv.ParseUint(parts[1], 10, 64); err == nil {
+        gpu.VRAM = vramMiB * 1024 * 1024
+    }
+    
+    return gpu
+}
+
+// LocalLandInfo holds auto-detected land information.
+type LocalLandInfo struct {
+    RAMTotal   uint64
+    CPUCores   int
+    CPUModel   string
+    CPUFreqMHz float64
+    HasDocker  bool
+    GPU        *GPUInfo
+}
+
+// LandType returns the detected land type.
+func (l *LocalLandInfo) LandType() LandType {
+    if l.GPU != nil && l.GPU.Available && l.HasDocker {
+        return LandTypeManaland
+    }
+    if l.HasDocker {
+        return LandTypeNimland
+    }
+    return LandTypeBase
+}
+```
+
+### Bootstrap Flow
+
+When NimsForest starts, Land bootstraps automatically:
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         NimsForest Startup                              │
+└─────────────────────────────────────────────────────────────────────────┘
+                                  │
+                                  ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│  1. Embedded NATS Server Starts                                         │
+│     └── server.Varz() → ID, Name, Host, Port                           │
+│     └── server.Routez() → Peer nodes (if clustered)                    │
+└─────────────────────────────────────────────────────────────────────────┘
+                                  │
+                                  ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│  2. System Detection (gopsutil + probing)                               │
+│     └── mem.VirtualMemory() → RAM                                       │
+│     └── runtime.NumCPU() → CPU cores                                    │
+│     └── exec.LookPath("docker") → Docker available?                     │
+│     └── nvidia-smi / rocm-smi → GPU available?                          │
+└─────────────────────────────────────────────────────────────────────────┘
+                                  │
+                                  ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│  3. Create "This Land" (core.Land)                                      │
+│     └── ID from NATS server ID                                          │
+│     └── Type from detection (Land/Nimland/Manaland)                     │
+│     └── Capacity from system info                                       │
+└─────────────────────────────────────────────────────────────────────────┘
+                                  │
+                                  ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│  4. Land Starts & Announces via Wind                                    │
+│     └── Whisper("land.announce", {id, type, capacity})                  │
+│     └── Subscribe to "land.capacity.query"                              │
+│     └── Subscribe to "land.reserve"                                     │
+│     └── Start heartbeat loop                                            │
+└─────────────────────────────────────────────────────────────────────────┘
+                                  │
+                                  ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│  5. World/ViewModel Listens to Land Events                              │
+│     └── Catch("land.announce") → AddLand to World                       │
+│     └── Catch("land.heartbeat") → UpdateLand                            │
+│     └── When NATS route disconnects → RemoveLand                        │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Integration Code
+
+```go
+// pkg/runtime/forest.go (updated)
+
+func NewForest(configPath string, wind *core.Wind, b brain.Brain) (*Forest, error) {
+    // ... existing code ...
+    
+    // Auto-detect and create "this land"
+    localLandInfo, err := land.DetectLocalLand()
+    if err != nil {
+        log.Printf("[Forest] Warning: land detection failed: %v", err)
+    }
+    
+    // Create the Land for this node
+    thisLand := land.NewFromDetection(
+        f.natsServer.ID(),       // Use NATS server ID
+        f.natsServer.Name(),     // Use configured node name
+        localLandInfo,
+        wind,
+    )
+    
+    f.thisLand = thisLand
+    
+    return f, nil
+}
+
+func (f *Forest) Start(ctx context.Context) error {
+    // ... existing startup code ...
+    
+    // Start this Land (announces to cluster, listens for queries)
+    if f.thisLand != nil {
+        if err := f.thisLand.Start(ctx); err != nil {
+            return fmt.Errorf("failed to start land: %w", err)
+        }
+    }
+    
+    // ... rest of startup ...
+}
+```
+
+### What NATS Peers Know About Each Other
+
+When NATS nodes cluster, they know:
+- **Route info**: Remote ID, IP address, RTT (latency)
+- **But NOT**: RAM, CPU, GPU of the remote node
+
+This is why Lands need to **announce themselves via Wind**:
+
+```
+Node A starts:
+  └── Detects: 16GB RAM, 4 CPU, no Docker, no GPU
+  └── Creates: BaseLand
+  └── Whispers: land.announce {id: "A", type: "land", ram: 16GB, ...}
+
+Node B starts:
+  └── Detects: 32GB RAM, 8 CPU, Docker ✓, GPU ✓
+  └── Creates: Manaland
+  └── Whispers: land.announce {id: "B", type: "manaland", ram: 32GB, gpu_vram: 24GB, ...}
+  └── Catches: land.announce from A
+  └── Now knows: "Node A is a BaseLand with 16GB"
+
+Node A catches: land.announce from B
+  └── Now knows: "Node B is a Manaland with GPU"
+```
+
+### ViewWorld Becomes Event-Driven
+
+The existing `viewmodel.World` becomes a consumer of Land events instead of polling:
+
+```go
+// internal/viewmodel/viewmodel.go (updated)
+
+func New(ns *server.Server, wind *core.Wind) *ViewModel {
+    vm := &ViewModel{
+        server:    ns,
+        territory: NewWorld(),
+        // ...
+    }
+    
+    // Subscribe to Land events instead of polling
+    wind.Catch("land.announce", func(leaf core.Leaf) {
+        var ann core.LandAnnounce
+        json.Unmarshal(leaf.Data, &ann)
+        
+        land := vm.announcementToLand(ann)
+        vm.territory.AddLand(land)
+    })
+    
+    wind.Catch("land.heartbeat", func(leaf core.Leaf) {
+        var hb core.LandHeartbeat
+        json.Unmarshal(leaf.Data, &hb)
+        
+        if land := vm.territory.GetLand(hb.LandID); land != nil {
+            land.LastSeen = time.Now()
+            // Update available capacity
+        }
+    })
+    
+    // Detect when NATS routes drop (node left cluster)
+    // This would come from NATS server events
+    
+    return vm
+}
+```
+
+### Summary: Land Bootstrap
+
+| Source | Information |
+|--------|-------------|
+| **NATS Server** | ID, Name, Cluster peers, Subscriptions |
+| **gopsutil** | RAM total, CPU cores, CPU frequency |
+| **Docker probe** | Docker available? |
+| **nvidia-smi** | GPU vendor, model, VRAM |
+| **Wind events** | Other Lands' capabilities |
+
+The flow is:
+1. **Implicit**: Land exists because we're running on it
+2. **Detection**: Probe system for capabilities  
+3. **NATS identity**: Use server ID as Land ID
+4. **Announce**: Tell the cluster what we are
+5. **Listen**: Learn about other Lands via their announcements
+6. **Respond**: Answer capacity queries from Nims

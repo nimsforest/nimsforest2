@@ -359,9 +359,16 @@ The correlation ID in the original message links request to response.
 
 ---
 
-## Part 3: Land Capacity (Leaf-Based)
+## Part 3: Land Capacity (via Houses)
 
-Land info flows as Leaves. Capacity queries use NATS request/reply.
+Land info flows as Leaves via **Go TreeHouses** (compile-time, deterministic).
+
+### TreeHouse Types
+
+| Type | Definition | Requirement |
+|------|------------|-------------|
+| **TreeHouse** | Lua (runtime) OR Go (compile-time) | **Deterministic** processing |
+| **Nim** | Go with AI | **Non-deterministic** (uses intelligence) |
 
 ### Land Types
 
@@ -371,118 +378,173 @@ Land info flows as Leaves. Capacity queries use NATS request/reply.
 | **Nimland** | Yes | No | Yes (AI, Browser) |
 | **Manaland** | Yes | Yes | Yes (GPU workloads) |
 
-### Land Info Flow
+### Houses for Land
 
-Each Forest publishes its Land info as a Leaf on startup:
+Two compile-time Go TreeHouses handle Land communication:
 
-```
-Forest A starts:
-  └── land.Detect() → LandInfo{type: "nimland", ram: 16GB, docker: true}
-  └── Drop Leaf("land.info.A", landInfo)
+| House | Subscribes | Publishes | Purpose |
+|-------|------------|-----------|---------|
+| **LandHouse** | `land.query` | `land.info.{id}` | Respond to capacity queries |
+| **AgentHouse** | `agent.task.{id}` | `agent.result.{task_id}` | Execute agents in Docker |
 
-Forest B starts:
-  └── land.Detect() → LandInfo{type: "manaland", ram: 32GB, gpu: 24GB}
-  └── Drop Leaf("land.info.B", landInfo)
-
-ViewWorld on any node:
-  └── Catch("land.info.>") → Builds World from all Land Leaves
-```
-
-### Leaf Subjects
-
-| Subject | Publisher | Purpose |
-|---------|-----------|---------|
-| `land.info.{id}` | Forest on startup | Announce this Land |
-| `land.query` | Nim needing capacity | "Who can run this?" (request/reply) |
-| `agent.task.{land_id}` | Nim | "Run this task" |
-| `agent.result.{task_id}` | Forest | "Task completed" |
-
-### Capacity Query (NATS Request/Reply)
+### Architecture
 
 ```
-┌──────────┐                              ┌──────────┐
-│ CoderNim │                              │ Forest B │
-└────┬─────┘                              └────┬─────┘
-     │                                         │
-     │── Request("land.query", {needs_gpu}) ──►│
-     │                                         │ (checks thisLand.HasDocker, etc.)
-     │◄── Reply(landInfo) ────────────────────│
-     │                                         │
-     │── Drop Leaf("agent.task.B", task) ─────►│
-     │                                         │ (runs agent in Docker)
-     │◄── Leaf("agent.result.{id}") ──────────│
+Forest
+├── thisLand (LandInfo)          ← Data, detected at startup
+│
+├── LandHouse (Go TreeHouse)     ← Deterministic Leaf handler
+│   ├── Subscribes: land.query
+│   ├── Publishes: land.info.{id}
+│   └── Has reference to thisLand
+│
+└── AgentHouse (Go TreeHouse)    ← Deterministic (Nimland/Manaland only)
+    ├── Subscribes: agent.task.{land_id}
+    ├── Publishes: agent.result.{task_id}
+    └── Runs Docker containers
 ```
 
-### Forest Handles Queries
+### LandHouse Implementation
 
 ```go
-// In Forest.Start() - subscribe to capacity queries
-func (f *Forest) Start(ctx context.Context) error {
-    // ... existing startup ...
+// internal/treehouses/land_house.go
+
+// LandHouse is a compile-time TreeHouse that handles Land queries.
+// Deterministic: same query + same Land capabilities = same response
+type LandHouse struct {
+    land *core.LandInfo
+    wind *core.Wind
+}
+
+func NewLandHouse(land *core.LandInfo, wind *core.Wind) *LandHouse {
+    return &LandHouse{land: land, wind: wind}
+}
+
+func (lh *LandHouse) Name() string { return "land_house" }
+
+func (lh *LandHouse) Subjects() []string {
+    return []string{"land.query"}
+}
+
+// Process handles a land.query Leaf and returns land.info.{id} if we match
+func (lh *LandHouse) Process(leaf core.Leaf) *core.Leaf {
+    var query CapacityQuery
+    if err := json.Unmarshal(leaf.Data, &query); err != nil {
+        return nil
+    }
     
-    // Announce this Land
-    f.announceLand()
+    // Deterministic matching logic
+    if query.NeedsDocker && !lh.land.HasDocker {
+        return nil // Don't respond
+    }
+    if query.NeedsGPU && lh.land.GPUVram == 0 {
+        return nil // Don't respond
+    }
     
-    // Handle capacity queries via NATS request/reply
-    f.wind.Subscribe("land.query", func(msg *nats.Msg) {
-        var query CapacityQuery
-        json.Unmarshal(msg.Data, &query)
-        
-        // Check if we can fulfill
-        if query.NeedsDocker && !f.thisLand.HasDocker {
-            return // Don't reply
-        }
-        if query.NeedsGPU && f.thisLand.GPUVram == 0 {
-            return // Don't reply
-        }
-        
-        // Reply with our Land info
-        data, _ := json.Marshal(f.thisLand)
-        msg.Respond(data)
-    })
+    // Return our Land info
+    data, _ := json.Marshal(lh.land)
+    return core.NewLeaf(
+        fmt.Sprintf("land.info.%s", lh.land.ID),
+        data,
+        "treehouse:land_house",
+    )
+}
+```
+
+### AgentHouse Implementation
+
+```go
+// internal/treehouses/agent_house.go
+
+// AgentHouse is a compile-time TreeHouse that executes agent tasks in Docker.
+// Deterministic: dispatch task to Docker, capture result
+type AgentHouse struct {
+    landID string
+    wind   *core.Wind
+}
+
+func NewAgentHouse(landID string, wind *core.Wind) *AgentHouse {
+    return &AgentHouse{landID: landID, wind: wind}
+}
+
+func (ah *AgentHouse) Name() string { return "agent_house" }
+
+func (ah *AgentHouse) Subjects() []string {
+    return []string{fmt.Sprintf("agent.task.%s", ah.landID)}
+}
+
+// Process handles an agent.task.{land_id} Leaf and returns agent.result.{task_id}
+func (ah *AgentHouse) Process(leaf core.Leaf) *core.Leaf {
+    var task AgentTask
+    if err := json.Unmarshal(leaf.Data, &task); err != nil {
+        return nil
+    }
     
-    // Handle agent task requests (if we're Nimland/Manaland)
-    if f.thisLand.HasDocker {
-        f.wind.Catch(fmt.Sprintf("agent.task.%s", f.thisLand.ID), func(leaf core.Leaf) {
-            f.executeAgentTask(ctx, leaf)
-        })
+    // Run in Docker (deterministic dispatch)
+    result := ah.runDocker(task)
+    
+    data, _ := json.Marshal(result)
+    return core.NewLeaf(
+        fmt.Sprintf("agent.result.%s", task.ID),
+        data,
+        "treehouse:agent_house",
+    )
+}
+
+func (ah *AgentHouse) runDocker(task AgentTask) AgentResult {
+    cmd := exec.Command("docker", "run", "--rm",
+        "-v", fmt.Sprintf("%s:/workspace", task.Workdir),
+        task.Image,
+        task.Command,
+    )
+    
+    output, err := cmd.CombinedOutput()
+    
+    return AgentResult{
+        TaskID:  task.ID,
+        Success: err == nil,
+        Output:  string(output),
+        Error:   errorString(err),
     }
 }
 ```
 
-### CoderNim Finds Capacity
+### Flow
+
+```
+┌──────────┐                              ┌───────────────────────────┐
+│ CoderNim │                              │ Forest B (Nimland)        │
+└────┬─────┘                              │  ├── LandHouse            │
+     │                                    │  └── AgentHouse           │
+     │                                    └────────────┬──────────────┘
+     │                                                 │
+     │── Leaf("land.query", {needs_docker}) ──────────►│
+     │                                                 │ LandHouse.Process()
+     │◄── Leaf("land.info.B", landInfo) ──────────────│
+     │                                                 │
+     │── Leaf("agent.task.B", task) ──────────────────►│
+     │                                                 │ AgentHouse.Process()
+     │                                                 │ (runs Docker)
+     │◄── Leaf("agent.result.{id}", result) ──────────│
+```
+
+### Forest Wires Up Houses
 
 ```go
-func (c *CoderNim) Action(ctx context.Context, action string, params map[string]interface{}) (interface{}, error) {
-    task := buildTask(action, params)
-    needsGPU := params["gpu"] == true
+func (f *Forest) Start(ctx context.Context) error {
+    // ... existing startup ...
     
-    // Query for capacity (NATS request/reply)
-    query := CapacityQuery{NeedsDocker: true, NeedsGPU: needsGPU}
-    queryData, _ := json.Marshal(query)
+    // Create and start LandHouse
+    f.landHouse = treehouses.NewLandHouse(f.thisLand, f.wind)
+    f.startTreeHouse(f.landHouse)
     
-    // Request - any Forest that can help will reply
-    msg, err := c.natsConn.Request("land.query", queryData, 2*time.Second)
-    if err != nil {
-        return nil, fmt.Errorf("no land capacity available: %w", err)
+    // Create AgentHouse only if we have Docker
+    if f.thisLand.HasDocker {
+        f.agentHouse = treehouses.NewAgentHouse(f.thisLand.ID, f.wind)
+        f.startTreeHouse(f.agentHouse)
     }
     
-    var landInfo core.LandInfo
-    json.Unmarshal(msg.Data, &landInfo)
-    
-    // Send task to that Land
-    taskLeaf := core.NewLeaf(
-        fmt.Sprintf("agent.task.%s", landInfo.ID),
-        taskData,
-        c.Name(),
-    )
-    c.wind.Drop(*taskLeaf)
-    
-    // Result comes back as Leaf on agent.result.{task.ID}
-    return &nim.Result{
-        Success: true,
-        Output:  fmt.Sprintf("Task %s dispatched to %s", task.ID, landInfo.ID),
-    }, nil
+    // ... rest of startup ...
 }
 ```
 
@@ -1319,18 +1381,19 @@ songbirds:
 
 ## Part 8: Task Breakdown
 
-### Phase 1: Land Detection (Foundation - Do First)
+### Phase 1: Land & Houses (Foundation - Do First)
 
-Land is data about this node, detected at startup next to NATS init.
+Land is data detected at startup. LandHouse and AgentHouse are Go TreeHouses.
 
 | Task | Description |
 |------|-------------|
 | 1.1 | Create `internal/core/land.go` - LandInfo struct, LandType constants |
 | 1.2 | Create `internal/land/detect.go` - Detect RAM, CPU, Docker, GPU |
-| 1.3 | Update `pkg/runtime/forest.go` - Call land.Detect(), store thisLand, publish Leaf |
-| 1.4 | Update `pkg/runtime/forest.go` - Handle `land.query` requests |
-| 1.5 | Update `internal/viewmodel/` - Subscribe to `land.info.>` Leaves |
-| 1.6 | Tests for Land detection |
+| 1.3 | Create `internal/treehouses/land_house.go` - Responds to `land.query` |
+| 1.4 | Create `internal/treehouses/agent_house.go` - Handles `agent.task.*`, runs Docker |
+| 1.5 | Update `pkg/runtime/forest.go` - Detect Land, wire up Houses |
+| 1.6 | Update `internal/viewmodel/` - Subscribe to `land.info.>` Leaves |
+| 1.7 | Tests for Land detection and Houses |
 
 ### Phase 2: pkg/nim/ Interfaces
 
@@ -1433,17 +1496,15 @@ NimsForest has five core systems that work together:
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-### Land: Data About This Node
+### Land: Data + Houses
 
-Land is **data**, not a component. Detected at startup, stored in Forest, published as a Leaf.
+Land is **data** detected at startup. Communication via **Go TreeHouses** (deterministic).
 
-| Source | What We Learn |
-|--------|---------------|
-| **NATS Server** | ID, Name |
-| **gopsutil** | RAM, CPU cores |
-| **Docker probe** | Docker available? |
-| **nvidia-smi** | GPU vendor, model, VRAM |
-| **Leaves on Wind** | Other nodes' Land info |
+| Component | Type | Purpose |
+|-----------|------|---------|
+| `thisLand` | LandInfo struct | Detected capabilities |
+| `LandHouse` | Go TreeHouse | Responds to `land.query` |
+| `AgentHouse` | Go TreeHouse | Runs agents in Docker |
 
 ```
 NimsForest starts
@@ -1454,16 +1515,18 @@ NimsForest starts
       │
       ├──► forest.thisLand = landInfo
       │
-      └──► forest.Start() ──► Drop Leaf("land.info.{id}", thisLand)
+      └──► forest.Start()
+            ├──► LandHouse subscribes to land.query
+            └──► AgentHouse subscribes to agent.task.{id} (if Docker)
 ```
 
 ### Land Types
 
-| Type | Docker | GPU | Auto-Detected By |
-|------|--------|-----|------------------|
-| **Land** | ❌ | ❌ | No docker, no GPU |
-| **Nimland** | ✅ | ❌ | `docker info` succeeds |
-| **Manaland** | ✅ | ✅ | Docker + `nvidia-smi` succeeds |
+| Type | Docker | GPU | Houses |
+|------|--------|-----|--------|
+| **Land** | ❌ | ❌ | LandHouse only |
+| **Nimland** | ✅ | ❌ | LandHouse + AgentHouse |
+| **Manaland** | ✅ | ✅ | LandHouse + AgentHouse |
 
 ### Agent Types
 
@@ -1486,8 +1549,8 @@ NimsForest starts
 
 | Action | Items |
 |--------|-------|
-| **Create** | `internal/core/land.go` (LandInfo struct), `internal/land/detect.go`, `pkg/nim/`, `internal/ai/agents/`, `internal/nims/coder/`, `examples/` |
-| **Update** | `pkg/runtime/forest.go` (detect Land, publish Leaf), `internal/viewmodel/` (subscribe to `land.info.>`), `internal/songbirds/` (Send) |
+| **Create** | `internal/core/land.go`, `internal/land/detect.go`, `internal/treehouses/land_house.go`, `internal/treehouses/agent_house.go`, `pkg/nim/`, `internal/nims/coder/`, `examples/` |
+| **Update** | `pkg/runtime/forest.go` (detect Land, wire Houses), `internal/viewmodel/` (subscribe to `land.info.>`), `internal/songbirds/` (Send) |
 | **Move** | `pkg/brain/` → `pkg/nim/`, example code → `examples/` |
 
 ### Directory Structure
@@ -1502,13 +1565,9 @@ internal/
 ├── land/
 │   └── detect.go         # Auto-detect RAM, CPU, Docker, GPU
 │
-├── ai/
-│   ├── asker.go          # Wraps aiservice
-│   └── agents/
-│       ├── ai_agent.go
-│       ├── human_agent.go
-│       ├── robot_agent.go
-│       └── browser_agent.go
+├── treehouses/
+│   ├── land_house.go     # Go TreeHouse: land.query → land.info.*
+│   └── agent_house.go    # Go TreeHouse: agent.task.* → agent.result.*
 │
 ├── viewmodel/            # Subscribes to land.info.> Leaves
 │   └── ...
@@ -1520,7 +1579,7 @@ pkg/
 ├── nim/
 │   └── ...               # Public Nim interfaces
 └── runtime/
-    └── forest.go         # Detects thisLand, publishes Leaf on Start()
+    └── forest.go         # Detects thisLand, starts Houses
 ```
 
 ---
@@ -1529,13 +1588,17 @@ pkg/
 
 Land is the compute substrate - it **exists implicitly** when NimsForest starts. Rather than being a separate component with its own lifecycle, Land is **data that Forest knows about itself**.
 
-### Design Principle
+### Design Principles
 
-All events in NimsForest flow as **Leaves on the Wind**. Land information is no different:
-- Detected at startup (next to embedded NATS init)
-- Stored as a struct in Forest
-- Published as a Leaf when Forest starts
-- Other nodes learn via normal Leaf subscription
+1. **Land is data** - Detected at startup, stored as `LandInfo` struct in Forest
+2. **All events are Leaves** - No special "land events", just Leaves on the Wind
+3. **Houses handle communication** - Go TreeHouses (deterministic) handle Land queries and agent execution
+
+| Component | What It Is | Responsibility |
+|-----------|------------|----------------|
+| `Forest.thisLand` | LandInfo struct | Hold detected capabilities |
+| `LandHouse` | Go TreeHouse | Respond to `land.query` Leaves |
+| `AgentHouse` | Go TreeHouse | Execute `agent.task.*` Leaves in Docker |
 
 ### Land Info Struct
 
@@ -1672,7 +1735,9 @@ func determineType(info *core.LandInfo) core.LandType {
 type Forest struct {
     // ... existing fields ...
     
-    thisLand *core.LandInfo  // This node's Land info
+    thisLand   *core.LandInfo            // This node's Land info
+    landHouse  *treehouses.LandHouse     // Handles land.query
+    agentHouse *treehouses.AgentHouse    // Handles agent.task.* (if Docker)
 }
 
 // NewForest creates a Forest - Land is detected automatically.
@@ -1701,33 +1766,61 @@ func NewForest(configPath string, natsServer *natsembed.Server, wind *core.Wind,
     return f, nil
 }
 
-// Start announces this Land via a Leaf.
+// Start wires up Houses and starts all components.
 func (f *Forest) Start(ctx context.Context) error {
     // ... existing startup ...
     
-    // Announce this Land as a Leaf
-    if f.thisLand != nil {
-        f.announceLand()
+    // Create and start LandHouse (all nodes)
+    f.landHouse = treehouses.NewLandHouse(f.thisLand, f.wind)
+    if err := f.startHouse(ctx, f.landHouse); err != nil {
+        return fmt.Errorf("failed to start LandHouse: %w", err)
+    }
+    
+    // Create and start AgentHouse (only Nimland/Manaland)
+    if f.thisLand.HasDocker {
+        f.agentHouse = treehouses.NewAgentHouse(f.thisLand.ID, f.wind)
+        if err := f.startHouse(ctx, f.agentHouse); err != nil {
+            return fmt.Errorf("failed to start AgentHouse: %w", err)
+        }
     }
     
     // ... rest of startup ...
 }
 
-// announceLand publishes this Land's info as a Leaf.
-func (f *Forest) announceLand() {
-    data, _ := json.Marshal(f.thisLand)
-    leaf := core.NewLeaf(
-        fmt.Sprintf("%s.%s", core.SubjectLandInfo, f.thisLand.ID),
-        data,
-        "forest",
-    )
-    f.wind.Drop(*leaf)
-    log.Printf("[Forest] Announced Land: %s", f.thisLand.ID)
+// startHouse subscribes a Go TreeHouse to its subjects.
+func (f *Forest) startHouse(ctx context.Context, house GoTreeHouse) error {
+    for _, subject := range house.Subjects() {
+        _, err := f.wind.Catch(subject, func(leaf core.Leaf) {
+            if result := house.Process(leaf); result != nil {
+                f.wind.Drop(*result)
+            }
+        })
+        if err != nil {
+            return err
+        }
+    }
+    log.Printf("[Forest] Started %s on subjects: %v", house.Name(), house.Subjects())
+    return nil
 }
 
 // ThisLand returns this node's Land info.
 func (f *Forest) ThisLand() *core.LandInfo {
     return f.thisLand
+}
+```
+
+### GoTreeHouse Interface
+
+```go
+// internal/treehouses/interface.go
+
+// GoTreeHouse is a compile-time TreeHouse implemented in Go.
+// Unlike Lua TreeHouses, these have access to system resources.
+// Must be deterministic: same input Leaf = same output Leaf.
+type GoTreeHouse interface {
+    Name() string
+    Subjects() []string
+    Process(leaf core.Leaf) *core.Leaf  // nil = no output
 }
 ```
 

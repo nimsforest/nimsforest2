@@ -24,8 +24,36 @@ type ClaudeService struct {
 // Ensure ClaudeService implements the public interface
 var _ pkgaiservice.AIService = (*ClaudeService)(nil)
 
-// DefaultClaudeModel is the default model to use if not specified
-const DefaultClaudeModel = "claude-3-haiku-20240307"
+// Claude model constants
+const (
+	// DefaultClaudeModel is the default model to use if not specified
+	DefaultClaudeModel = "claude-3-haiku-20240307"
+
+	// ClaudeOpusModel is Claude's most capable model for complex tasks
+	ClaudeOpusModel = "claude-3-opus-20240229"
+
+	// ClaudeSonnetModel is Claude's balanced model for most tasks
+	ClaudeSonnetModel = "claude-3-5-sonnet-20241022"
+
+	// ClaudeHaikuModel is Claude's fastest model for simple tasks
+	ClaudeHaikuModel = "claude-3-haiku-20240307"
+)
+
+// ModelAliases maps short names to full model identifiers
+var ModelAliases = map[string]string{
+	"opus":   ClaudeOpusModel,
+	"sonnet": ClaudeSonnetModel,
+	"haiku":  ClaudeHaikuModel,
+}
+
+// ResolveModel converts a model alias to the full model name.
+// If the input is not an alias, it is returned unchanged.
+func ResolveModel(model string) string {
+	if resolved, ok := ModelAliases[model]; ok {
+		return resolved
+	}
+	return model
+}
 
 // init registers the internal constructor with the public registry.
 func init() {
@@ -42,7 +70,13 @@ func newClaudeService(config aifactory.Config) (*ClaudeService, error) {
 	model := config.Model
 	if model == "" {
 		model = DefaultClaudeModel // Use default model if not specified
+	} else {
+		// Resolve model aliases (e.g., "opus" -> "claude-3-opus-20240229")
+		model = ResolveModel(model)
 	}
+
+	// Update config with resolved model
+	config.Model = model
 
 	return &ClaudeService{
 		config: config,

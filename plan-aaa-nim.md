@@ -29,16 +29,17 @@ Both can be **compile-time (Go)** or **runtime (Lua/config)**.
 
 If a component doesn't need AAA, it's a TreeHouse—regardless of language.
 
-### Files to Move to `examples/`
+### Files to Reorganize
 
-| File | Reason |
-|------|--------|
-| `internal/nims/aftersales.go` | No AAA = TreeHouse |
-| `internal/nims/general.go` | No AAA = TreeHouse |
-| `internal/trees/payment.go` | Domain-specific |
-| `internal/trees/general.go` | Domain-specific |
-| `internal/leaves/chat.go` | Domain-specific |
+| File | Current | Action | New Location |
+|------|---------|--------|--------------|
+| `internal/nims/aftersales.go` | Misnamed "Nim" (no AI) | Rename to Go TreeHouse | `internal/treehouses/aftersaleshouse.go` |
+| `internal/nims/general.go` | Misnamed "Nim" (no AI) | Rename to Go TreeHouse | `internal/treehouses/generalhouse.go` |
+| `internal/trees/payment.go` | Domain-specific example | Move to examples | `examples/trees/payment.go` |
+| `internal/trees/general.go` | Domain-specific example | Move to examples | `examples/trees/general.go` |
+| `internal/leaves/chat.go` | Domain-specific example | Move to examples | `examples/leaves/chat.go` |
 
+**Key insight:** Components without AI are **TreeHouses** (deterministic), not Nims.
 Runtime examples (`scripts/`) stay in repo.
 
 ---
@@ -1381,120 +1382,193 @@ songbirds:
 
 ## Part 8: Task Breakdown
 
-### Phase 1: Land & Houses (Foundation - Do First)
+### Phase 1: TreeHouse Infrastructure (Foundation)
 
-Land is data detected at startup. LandHouse and AgentHouse are Go TreeHouses.
-
-| Task | Description |
-|------|-------------|
-| 1.1 | Create `internal/core/land.go` - LandInfo struct, LandType constants |
-| 1.2 | Create `internal/land/detect.go` - Detect RAM, CPU, Docker, GPU |
-| 1.3 | Create `internal/treehouses/landhouse.go` - Responds to `land.query` |
-| 1.4 | Create `internal/treehouses/agenthouse.go` - Handles `agent.task.*`, runs Docker |
-| 1.5 | Update `pkg/runtime/forest.go` - Detect Land, wire up Houses |
-| 1.6 | Update `internal/viewmodel/` - Subscribe to `land.info.>` Leaves |
-| 1.7 | Tests for Land detection and Houses |
-
-### Phase 2: pkg/nim/ Interfaces
+Create GoTreeHouse interface and reorganize misnamed components.
 
 | Task | Description |
 |------|-------------|
-| 2.1 | Create `pkg/nim/nim.go` - Nim interface with AAA |
-| 2.2 | Create `pkg/nim/brain.go` - Move from pkg/brain |
-| 2.3 | Create `pkg/nim/leaf.go` - Leaf interface |
-| 2.4 | Create `pkg/nim/wind.go` - Whisperer interface |
-| 2.5 | Create `pkg/nim/asker.go` - AIAsker interface |
-| 2.6 | Create `pkg/nim/agent.go` - Agent interface |
-| 2.7 | Create `pkg/nim/ai_agent.go` - AIAgent interface |
-| 2.8 | Create `pkg/nim/human_agent.go` - HumanAgent interface |
-| 2.9 | Create `pkg/nim/robot_agent.go` - RobotAgent interface |
-| 2.10 | Create `pkg/nim/browser_agent.go` - BrowserAgent interface |
+| 1.1 | Create `internal/treehouses/interface.go` - GoTreeHouse interface |
+| 1.2 | Rename `internal/nims/aftersales.go` → `internal/treehouses/aftersaleshouse.go` |
+| 1.3 | Rename `internal/nims/general.go` → `internal/treehouses/generalhouse.go` |
+| 1.4 | Update AfterSalesNim → AfterSalesHouse (implement GoTreeHouse) |
+| 1.5 | Update GeneralNim → GeneralHouse (implement GoTreeHouse) |
+| 1.6 | Update `pkg/runtime/forest.go` - Wire up Go TreeHouses |
 
-### Phase 3: Agent Implementations
+### Phase 2: Land Detection & Houses
+
+Land is data detected at startup. LandHouse and AgentHouse handle communication.
 
 | Task | Description |
 |------|-------------|
-| 3.1 | Create `internal/ai/asker.go` - Wrap existing aiservice |
-| 3.2 | Create `internal/ai/agents/ai_agent.go` - Docker AI agent |
-| 3.3 | Create `internal/ai/agents/human_agent.go` - Songbird human agent |
-| 3.4 | Create `internal/ai/agents/robot_agent.go` - Physical robot agent |
-| 3.5 | Create `internal/ai/agents/browser_agent.go` - Playwright browser agent |
+| 2.1 | Create `internal/core/land.go` - LandInfo struct, LandType constants |
+| 2.2 | Create `internal/land/detect.go` - Detect RAM, CPU, Docker, GPU |
+| 2.3 | Create `internal/treehouses/landhouse.go` - Responds to `land.query` |
+| 2.4 | Create `internal/treehouses/agenthouse.go` - Handles `agent.task.*`, runs Docker |
+| 2.5 | Update `pkg/runtime/forest.go` - Detect Land, start Houses |
+| 2.6 | Update `internal/viewmodel/` - Subscribe to `land.info.>` Leaves |
+| 2.7 | Tests for Land detection and Houses |
 
-### Phase 4: Songbirds
+### Phase 3: pkg/nim/ Interfaces (AAA)
 
-| Task | Description |
-|------|-------------|
-| 4.1 | Update `internal/songbirds/songbird.go` - Add Send + Message type |
-| 4.2 | Update `internal/songbirds/telegram.go` - Implement Send, emit response Leaves |
-| 4.3 | Create `internal/songbirds/slack.go` - Slack songbird |
-| 4.4 | Create `internal/songbirds/email.go` - Email songbird |
-
-### Phase 5: Core Updates
+Nim = Non-deterministic (uses AI). These are the public interfaces.
 
 | Task | Description |
 |------|-------------|
-| 5.1 | Update `internal/core/nim.go` - BaseNim with AAA |
-| 5.2 | Update `internal/core/leaf.go` - Implement nim.Leaf |
-| 5.3 | Update `internal/core/wind.go` - Implement nim.Whisperer |
+| 3.1 | Create `pkg/nim/nim.go` - Nim interface with AAA |
+| 3.2 | Create `pkg/nim/brain.go` - Move from pkg/brain |
+| 3.3 | Create `pkg/nim/leaf.go` - Leaf interface |
+| 3.4 | Create `pkg/nim/wind.go` - Whisperer interface |
+| 3.5 | Create `pkg/nim/asker.go` - AIAsker interface |
+| 3.6 | Create `pkg/nim/agent.go` - Agent interface + types |
 
-### Phase 6: CoderNim
+### Phase 4: Agent Implementations
 
-| Task | Description |
-|------|-------------|
-| 6.1 | Create `internal/nims/coder/coder.go` - Full implementation |
-| 6.2 | Create `internal/nims/coder/coder_test.go` - Tests |
-
-### Phase 7: Configuration
+Agents are dispatched by Nims to do work (AI, Human, Robot, Browser).
 
 | Task | Description |
 |------|-------------|
-| 7.1 | Update `pkg/runtime/config.go` - Add agent configs |
-| 7.2 | Update `pkg/runtime/forest.go` - Load agents, integrate Land |
-| 7.3 | Update `cmd/forest/main.go` - Wire up CoderNim |
+| 4.1 | Create `internal/agents/ai.go` - Docker AI agent |
+| 4.2 | Create `internal/agents/human.go` - Songbird human agent |
+| 4.3 | Create `internal/agents/robot.go` - Physical robot agent |
+| 4.4 | Create `internal/agents/browser.go` - Playwright browser agent |
 
-### Phase 8: Cleanup & Examples
+### Phase 5: Songbirds (Outbound Communication)
 
-| Task | Description |
-|------|-------------|
-| 8.1 | Move `pkg/brain/` → `pkg/nim/`, update imports |
-| 8.2 | Create `examples/` and move example code from `internal/` |
-| 8.3 | Update `cmd/forest/main.go` to not auto-load examples |
-
-### Phase 9: Testing
+Songbirds carry messages OUT to external platforms.
 
 | Task | Description |
 |------|-------------|
-| 9.1 | Test pkg/nim interfaces |
-| 9.2 | Test agent implementations |
-| 9.3 | Test CoderNim AAA methods |
-| 9.4 | Test Land auto-discovery |
-| 9.5 | Integration tests |
+| 5.1 | Update `internal/songbirds/songbird.go` - Add Send + Message type |
+| 5.2 | Update `internal/songbirds/telegram.go` - Implement Send, emit response Leaves |
+| 5.3 | Create `internal/songbirds/slack.go` - Slack songbird |
+| 5.4 | Create `internal/songbirds/email.go` - Email songbird |
+
+### Phase 6: Core Updates
+
+Update core interfaces to support the new architecture.
+
+| Task | Description |
+|------|-------------|
+| 6.1 | Update `internal/core/nim.go` - BaseNim with AAA methods |
+| 6.2 | Update `internal/core/leaf.go` - Ensure implements nim.Leaf |
+| 6.3 | Update `internal/core/wind.go` - Ensure implements nim.Whisperer |
+
+### Phase 7: CoderNim (Core Infrastructure)
+
+CoderNim is a real Nim (uses AI) - core AAA infrastructure.
+
+| Task | Description |
+|------|-------------|
+| 7.1 | Create `internal/nims/coder/coder.go` - Full AAA implementation |
+| 7.2 | Create `internal/nims/coder/coder_test.go` - Tests |
+
+### Phase 8: Configuration & Wiring
+
+| Task | Description |
+|------|-------------|
+| 8.1 | Update `pkg/runtime/config.go` - Add agent configs, House configs |
+| 8.2 | Update `pkg/runtime/forest.go` - Load agents, integrate Land, wire Houses |
+| 8.3 | Update `cmd/forest/main.go` - Wire up CoderNim |
+
+### Phase 9: Cleanup & Examples
+
+| Task | Description |
+|------|-------------|
+| 9.1 | Move `pkg/brain/` → `pkg/nim/`, update imports |
+| 9.2 | Create `examples/` directory |
+| 9.3 | Move `internal/trees/payment.go` → `examples/trees/` |
+| 9.4 | Move `internal/trees/general.go` → `examples/trees/` |
+| 9.5 | Move `internal/leaves/chat.go` → `examples/leaves/` |
+| 9.6 | Update imports and ensure examples still compile |
+
+### Phase 10: Testing
+
+| Task | Description |
+|------|-------------|
+| 10.1 | Test GoTreeHouse interface and implementations |
+| 10.2 | Test Land detection |
+| 10.3 | Test LandHouse and AgentHouse |
+| 10.4 | Test pkg/nim interfaces |
+| 10.5 | Test CoderNim AAA methods |
+| 10.6 | Integration tests |
 
 ---
 
 ## Summary
 
-### Core Systems
-
-NimsForest has five core systems that work together:
+### Component Hierarchy
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                            FOREST                                   │
-│                                                                     │
-│   ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐ │
-│   │  WIND   │  │  RIVER  │  │   NIM   │  │TREEHOUSE│  │  LAND   │ │
-│   │(pub/sub)│  │ (data)  │  │  (AAA)  │  │ (Lua)   │  │(compute)│ │
-│   └─────────┘  └─────────┘  └─────────┘  └─────────┘  └─────────┘ │
-│                                                                     │
-│   Wind: Message passing (NATS pub/sub)                             │
-│   River: External data ingestion (NATS JetStream)                  │
-│   Nim: Intelligent agents with AAA pattern                         │
-│   TreeHouse: Deterministic Lua processors                          │
-│   Land: Compute substrate (auto-discovered, event-driven)          │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
+                     External World
+                          │
+        ┌─────────────────┼─────────────────┐
+        ▼                 ▼                 ▼
+┌──────────────┐  ┌──────────────┐  ┌──────────────┐
+│   SOURCES    │  │    RIVER     │  │  SONGBIRDS   │
+│  (inbound)   │  │   (stream)   │  │  (outbound)  │
+│              │  │              │  │              │
+│ Webhook,Poll │  │  JetStream   │  │ Telegram,    │
+│ Telegram     │  │  buffer      │  │ Slack,Email  │
+└──────┬───────┘  └──────┬───────┘  └──────▲───────┘
+       │                 │                 │
+       │                 ▼                 │
+       │         ┌──────────────┐         │
+       │         │    TREES     │         │
+       │         │  (parsers)   │         │
+       │         │              │         │
+       │         │ River → Leaf │         │
+       │         └──────┬───────┘         │
+       │                │                 │
+       └────────────────┼─────────────────┘
+                        ▼
+              ┌─────────────────┐
+              │      WIND       │
+              │    (pub/sub)    │
+              │                 │
+              │  Leaves flow    │
+              └────────┬────────┘
+                       │
+        ┌──────────────┼──────────────┐
+        ▼                             ▼
+┌──────────────────┐        ┌──────────────────┐
+│    TREEHOUSES    │        │      NIMS        │
+│  (deterministic) │        │ (non-determ/AI)  │
+│                  │        │                  │
+│ Lua OR Go        │        │ Uses brain.Ask() │
+│ Same input =     │        │ AAA pattern      │
+│ same output      │        │                  │
+│                  │        │                  │
+│ Examples:        │        │ Examples:        │
+│ - LandHouse      │        │ - CoderNim       │
+│ - AgentHouse     │        │ - Runtime Nim    │
+│ - AfterSalesHouse│        │   (prompt+AI)    │
+│ - GeneralHouse   │        │                  │
+└──────────────────┘        └──────────────────┘
+        │                             │
+        └──────────────┬──────────────┘
+                       ▼
+              ┌─────────────────┐
+              │      LAND       │
+              │   (substrate)   │
+              │                 │
+              │ Everything runs │
+              │ ON Land         │
+              │                 │
+              │ Land/Nimland/   │
+              │ Manaland        │
+              └─────────────────┘
 ```
+
+### Key Distinction: TreeHouse vs Nim
+
+| Aspect | TreeHouse | Nim |
+|--------|-----------|-----|
+| **Determinism** | ✅ Deterministic | ❌ Non-deterministic |
+| **AI** | ❌ No AI | ✅ Uses `brain.Ask()` |
+| **Definition** | Lua (runtime) OR Go (compile-time) | Go + AI |
+| **Same input** | Same output | Different output (AI variance) |
+| **Examples** | LandHouse, AfterSalesHouse | CoderNim, Runtime Nim |
 
 ### Land: Data + Houses
 
@@ -1549,9 +1623,10 @@ NimsForest starts
 
 | Action | Items |
 |--------|-------|
-| **Create** | `internal/core/land.go`, `internal/land/detect.go`, `internal/treehouses/landhouse.go`, `internal/treehouses/agenthouse.go`, `pkg/nim/`, `internal/nims/coder/`, `examples/` |
+| **Create** | `internal/treehouses/interface.go`, `internal/core/land.go`, `internal/land/detect.go`, `internal/treehouses/landhouse.go`, `internal/treehouses/agenthouse.go`, `pkg/nim/`, `internal/nims/coder/`, `internal/agents/`, `examples/` |
+| **Rename** | `internal/nims/aftersales.go` → `internal/treehouses/aftersaleshouse.go`, `internal/nims/general.go` → `internal/treehouses/generalhouse.go` |
 | **Update** | `pkg/runtime/forest.go` (detect Land, wire Houses), `internal/viewmodel/` (subscribe to `land.info.>`), `internal/songbirds/` (Send) |
-| **Move** | `pkg/brain/` → `pkg/nim/`, example code → `examples/` |
+| **Move** | `pkg/brain/` → `pkg/nim/`, domain examples → `examples/` |
 
 ### Directory Structure
 
@@ -1559,27 +1634,63 @@ NimsForest starts
 internal/
 ├── core/
 │   ├── land.go           # LandInfo struct, LandType constants
-│   ├── nim.go            # Nim with AAA
-│   ├── wind.go, river.go, leaf.go, ...
+│   ├── nim.go            # BaseNim with AAA
+│   ├── wind.go, river.go, leaf.go, tree.go, ...
 │
 ├── land/
 │   └── detect.go         # Auto-detect RAM, CPU, Docker, GPU
 │
 ├── treehouses/
-│   ├── landhouse.go     # Go TreeHouse: land.query → land.info.*
-│   └── agenthouse.go    # Go TreeHouse: agent.task.* → agent.result.*
+│   ├── interface.go      # GoTreeHouse interface
+│   ├── landhouse.go      # land.query → land.info.*
+│   ├── agenthouse.go     # agent.task.* → agent.result.*
+│   ├── aftersaleshouse.go # payment.* → followup.* (was "nim")
+│   └── generalhouse.go   # General event routing (was "nim")
 │
-├── viewmodel/            # Subscribes to land.info.> Leaves
-│   └── ...
+├── agents/
+│   ├── ai.go             # Docker AI agent
+│   ├── human.go          # Songbird human agent
+│   ├── robot.go          # Physical robot agent
+│   └── browser.go        # Playwright browser agent
 │
-└── nims/
-    └── coder/            # CoderNim (core AAA infrastructure)
+├── nims/
+│   └── coder/            # CoderNim - REAL Nim (uses AI)
+│       ├── coder.go
+│       └── coder_test.go
+│
+├── trees/
+│   └── .gitkeep          # Domain trees → examples/
+│
+├── leaves/
+│   ├── types.go          # Core leaf type definitions (keep)
+│   └── .gitkeep          # Domain leaves → examples/
+│
+├── songbirds/
+│   ├── songbird.go
+│   ├── telegram.go
+│   ├── slack.go          # New
+│   └── email.go          # New
+│
+└── viewmodel/            # Subscribes to land.info.> Leaves
 
 pkg/
 ├── nim/
-│   └── ...               # Public Nim interfaces
+│   ├── nim.go            # Nim interface with AAA
+│   ├── brain.go          # Brain interface (moved from pkg/brain)
+│   ├── leaf.go           # Leaf interface
+│   ├── wind.go           # Whisperer interface
+│   ├── asker.go          # AIAsker interface
+│   └── agent.go          # Agent interface + types
+│
 └── runtime/
     └── forest.go         # Detects thisLand, starts Houses
+
+examples/
+├── trees/
+│   ├── payment.go        # Domain-specific example
+│   └── general.go        # Domain-specific example
+└── leaves/
+    └── chat.go           # Domain-specific example
 ```
 
 ---

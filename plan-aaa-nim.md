@@ -1440,3 +1440,711 @@ songbirds:
 | **Advice** | AI query via existing `pkg/integrations/aiservice/` |
 | **Action** | Dispatch to Agent |
 | **Automate** | Generate TreeHouse (Lua) or Nim (config) |
+
+---
+
+## Part 9: Land as Core Concept
+
+Land is becoming central to the system as the representation of compute capacity. Currently, Land exists only as a ViewModel concept for display purposes. This section proposes elevating Land to a first-class core concept like Wind, River, Nim, and TreeHouse.
+
+### Why Land Should Be Core
+
+| Current Status | Proposed Status |
+|----------------|-----------------|
+| `viewmodel.LandViewModel` (display only) | `core.Land` interface + implementations |
+| Passive (read-only view) | Active (participates in capacity negotiation) |
+| No events | Publishes/subscribes to Wind events |
+| No lifecycle | Has Start/Stop lifecycle |
+
+### Land Hierarchy
+
+Like other core concepts, Land will have an interface and multiple implementations:
+
+```
+                        ┌─────────────┐
+                        │    Land     │
+                        │ (interface) │
+                        └──────┬──────┘
+                               │
+        ┌──────────────────────┼──────────────────────┐
+        │                      │                      │
+┌───────▼───────┐      ┌───────▼───────┐      ┌───────▼───────┐
+│   BaseLand    │      │   Nimland     │      │   Manaland    │
+│ (backbone)    │      │ (Docker)      │      │ (Docker+GPU)  │
+│               │      │               │      │               │
+│ - Wind ✓      │      │ - Wind ✓      │      │ - Wind ✓      │
+│ - River ✓     │      │ - River ✓     │      │ - River ✓     │
+│ - No Docker   │      │ - Docker ✓    │      │ - Docker ✓    │
+│ - No GPU      │      │ - No GPU      │      │ - GPU ✓       │
+└───────────────┘      └───────────────┘      └───────────────┘
+```
+
+### Core Land Interface
+
+```go
+// internal/core/land.go
+
+package core
+
+import (
+    "context"
+    "time"
+)
+
+// LandType identifies the capabilities of a Land node.
+type LandType string
+
+const (
+    LandTypeBase     LandType = "land"     // No Docker, backbone only
+    LandTypeNimland  LandType = "nimland"  // Docker-capable
+    LandTypeManaland LandType = "manaland" // Docker + GPU
+)
+
+// Land represents a compute node in the NimsForest cluster.
+// It actively participates in capacity negotiation via Wind events.
+type Land interface {
+    // Identity
+    ID() string
+    Type() LandType
+    Hostname() string
+    
+    // Capacity
+    Capacity() Capacity
+    Available() Capacity
+    Occupancy() float64
+    
+    // Capabilities
+    HasDocker() bool
+    HasGPU() bool
+    CanRun(requirements Requirements) bool
+    
+    // Process management
+    Processes() []Process
+    Reserve(ctx context.Context, req ReserveRequest) (*Reservation, error)
+    Release(ctx context.Context, reservationID string) error
+    
+    // Lifecycle
+    Start(ctx context.Context) error
+    Stop() error
+    IsRunning() bool
+    
+    // Events - Land listens on Wind and responds to capacity queries
+    HandleCapacityRequest(ctx context.Context, req CapacityRequest) error
+}
+
+// Capacity represents compute resources.
+type Capacity struct {
+    RAM       uint64  // Bytes
+    CPUCores  int
+    CPUFreqHz uint64  // Hz
+    GPUVram   uint64  // Bytes (0 if no GPU)
+    GPUTflops float64 // TFLOPS
+}
+
+// Requirements specifies what a task needs.
+type Requirements struct {
+    MinRAM      uint64
+    MinCPUCores int
+    NeedsDocker bool
+    NeedsGPU    bool
+    MinGPUVram  uint64
+}
+
+// ReserveRequest is a request to reserve capacity on a Land.
+type ReserveRequest struct {
+    TaskID       string
+    Requirements Requirements
+    Duration     time.Duration // Expected duration (for scheduling hints)
+}
+
+// Reservation represents reserved capacity on a Land.
+type Reservation struct {
+    ID         string
+    LandID     string
+    TaskID     string
+    Reserved   Capacity
+    ExpiresAt  time.Time
+}
+
+// Process represents something running on a Land.
+type Process struct {
+    ID        string
+    Type      string // "tree", "treehouse", "nim", "agent"
+    Name      string
+    Allocated Capacity
+    StartedAt time.Time
+}
+```
+
+### Land Wind Events
+
+Land uses Wind for event-driven capacity discovery (no central registry):
+
+```go
+// internal/core/land_events.go
+
+package core
+
+// Wind subjects for Land operations
+const (
+    // Discovery
+    SubjectLandAnnounce       = "land.announce"          // Land broadcasts presence
+    SubjectLandCapacityQuery  = "land.capacity.query"    // "Who has capacity?"
+    SubjectLandCapacityReply  = "land.capacity.reply"    // "I have capacity"
+    
+    // Reservation
+    SubjectLandReserve        = "land.reserve"           // "Reserve this for me"
+    SubjectLandReserved       = "land.reserved"          // "Reserved"
+    SubjectLandRelease        = "land.release"           // "Done, release"
+    
+    // Agent execution (on Nimland/Manaland)
+    SubjectAgentExecute       = "agent.execute.>"        // Dispatch agent task
+    SubjectAgentResult        = "agent.result.>"         // Agent task result
+    
+    // Heartbeat
+    SubjectLandHeartbeat      = "land.heartbeat"         // Periodic health check
+)
+
+// CapacityQuery is broadcast when someone needs compute capacity.
+type CapacityQuery struct {
+    QueryID      string       `json:"query_id"`
+    Requirements Requirements `json:"requirements"`
+    ReplyTo      string       `json:"reply_to"` // Subject for responses
+}
+
+// CapacityReply is sent by Lands that can fulfill a capacity query.
+type CapacityReply struct {
+    QueryID    string   `json:"query_id"`
+    LandID     string   `json:"land_id"`
+    LandType   LandType `json:"land_type"`
+    Available  Capacity `json:"available"`
+    Latency    int64    `json:"latency_ms"` // Network latency hint
+}
+
+// LandAnnounce is broadcast when a Land joins or updates.
+type LandAnnounce struct {
+    LandID    string   `json:"land_id"`
+    LandType  LandType `json:"land_type"`
+    Hostname  string   `json:"hostname"`
+    Capacity  Capacity `json:"capacity"`
+    Available Capacity `json:"available"`
+}
+
+// LandHeartbeat is sent periodically by each Land.
+type LandHeartbeat struct {
+    LandID    string   `json:"land_id"`
+    Available Capacity `json:"available"`
+    Processes int      `json:"processes"`
+    Timestamp int64    `json:"timestamp"`
+}
+```
+
+### BaseLand Implementation
+
+```go
+// internal/core/land_base.go
+
+package core
+
+import (
+    "context"
+    "encoding/json"
+    "fmt"
+    "log"
+    "sync"
+    "time"
+)
+
+// BaseLand is the default Land implementation for backbone nodes.
+// It does NOT have Docker or GPU. Embed this for Nimland/Manaland.
+type BaseLand struct {
+    id       string
+    hostname string
+    landType LandType
+    capacity Capacity
+    
+    wind      *Wind
+    processes map[string]*Process
+    reservations map[string]*Reservation
+    
+    mu      sync.RWMutex
+    running bool
+    stopCh  chan struct{}
+}
+
+// NewBaseLand creates a new backbone Land node.
+func NewBaseLand(id string, wind *Wind, capacity Capacity) *BaseLand {
+    return &BaseLand{
+        id:           id,
+        landType:     LandTypeBase,
+        capacity:     capacity,
+        wind:         wind,
+        processes:    make(map[string]*Process),
+        reservations: make(map[string]*Reservation),
+        stopCh:       make(chan struct{}),
+    }
+}
+
+func (l *BaseLand) ID() string       { return l.id }
+func (l *BaseLand) Type() LandType   { return l.landType }
+func (l *BaseLand) Hostname() string { return l.hostname }
+func (l *BaseLand) Capacity() Capacity { return l.capacity }
+func (l *BaseLand) HasDocker() bool  { return false }
+func (l *BaseLand) HasGPU() bool     { return false }
+
+// Available returns current available capacity.
+func (l *BaseLand) Available() Capacity {
+    l.mu.RLock()
+    defer l.mu.RUnlock()
+    
+    used := Capacity{}
+    for _, p := range l.processes {
+        used.RAM += p.Allocated.RAM
+        used.CPUCores += p.Allocated.CPUCores
+    }
+    
+    return Capacity{
+        RAM:       l.capacity.RAM - used.RAM,
+        CPUCores:  l.capacity.CPUCores - used.CPUCores,
+        GPUVram:   l.capacity.GPUVram, // GPU not used on BaseLand
+        GPUTflops: l.capacity.GPUTflops,
+    }
+}
+
+// Occupancy returns RAM usage as percentage.
+func (l *BaseLand) Occupancy() float64 {
+    avail := l.Available()
+    if l.capacity.RAM == 0 {
+        return 0
+    }
+    used := l.capacity.RAM - avail.RAM
+    return float64(used) / float64(l.capacity.RAM) * 100
+}
+
+// CanRun checks if this Land can run a task with given requirements.
+func (l *BaseLand) CanRun(req Requirements) bool {
+    if req.NeedsDocker && !l.HasDocker() {
+        return false
+    }
+    if req.NeedsGPU && !l.HasGPU() {
+        return false
+    }
+    
+    avail := l.Available()
+    return avail.RAM >= req.MinRAM && avail.CPUCores >= req.MinCPUCores
+}
+
+// Start begins the Land's event loop.
+func (l *BaseLand) Start(ctx context.Context) error {
+    l.mu.Lock()
+    if l.running {
+        l.mu.Unlock()
+        return fmt.Errorf("land %s already running", l.id)
+    }
+    l.running = true
+    l.mu.Unlock()
+    
+    // Subscribe to capacity queries
+    _, err := l.wind.Catch(SubjectLandCapacityQuery, func(leaf Leaf) {
+        l.handleCapacityQuery(ctx, leaf)
+    })
+    if err != nil {
+        return fmt.Errorf("failed to subscribe to capacity queries: %w", err)
+    }
+    
+    // Subscribe to reserve requests
+    _, err = l.wind.Catch(SubjectLandReserve, func(leaf Leaf) {
+        l.handleReserveRequest(ctx, leaf)
+    })
+    if err != nil {
+        return fmt.Errorf("failed to subscribe to reserve requests: %w", err)
+    }
+    
+    // Announce presence
+    l.announce(ctx)
+    
+    // Start heartbeat goroutine
+    go l.heartbeatLoop(ctx)
+    
+    log.Printf("[Land:%s] Started (%s)", l.id, l.landType)
+    return nil
+}
+
+// handleCapacityQuery responds to capacity queries if we can fulfill them.
+func (l *BaseLand) handleCapacityQuery(ctx context.Context, leaf Leaf) {
+    var query CapacityQuery
+    if err := json.Unmarshal(leaf.Data, &query); err != nil {
+        log.Printf("[Land:%s] Invalid capacity query: %v", l.id, err)
+        return
+    }
+    
+    // Check if we can fulfill the requirements
+    if !l.CanRun(query.Requirements) {
+        return // Don't respond if we can't help
+    }
+    
+    // Send reply
+    reply := CapacityReply{
+        QueryID:   query.QueryID,
+        LandID:    l.id,
+        LandType:  l.landType,
+        Available: l.Available(),
+    }
+    
+    replyData, _ := json.Marshal(reply)
+    replyLeaf := NewLeaf(query.ReplyTo, replyData, "land:"+l.id)
+    
+    if err := l.wind.Drop(*replyLeaf); err != nil {
+        log.Printf("[Land:%s] Failed to reply to capacity query: %v", l.id, err)
+    }
+}
+
+// announce broadcasts this Land's presence.
+func (l *BaseLand) announce(ctx context.Context) {
+    ann := LandAnnounce{
+        LandID:    l.id,
+        LandType:  l.landType,
+        Hostname:  l.hostname,
+        Capacity:  l.capacity,
+        Available: l.Available(),
+    }
+    
+    data, _ := json.Marshal(ann)
+    leaf := NewLeaf(SubjectLandAnnounce, data, "land:"+l.id)
+    l.wind.Drop(*leaf)
+}
+
+// heartbeatLoop sends periodic heartbeats.
+func (l *BaseLand) heartbeatLoop(ctx context.Context) {
+    ticker := time.NewTicker(30 * time.Second)
+    defer ticker.Stop()
+    
+    for {
+        select {
+        case <-ticker.C:
+            hb := LandHeartbeat{
+                LandID:    l.id,
+                Available: l.Available(),
+                Processes: len(l.processes),
+                Timestamp: time.Now().Unix(),
+            }
+            data, _ := json.Marshal(hb)
+            leaf := NewLeaf(SubjectLandHeartbeat, data, "land:"+l.id)
+            l.wind.Drop(*leaf)
+            
+        case <-l.stopCh:
+            return
+        case <-ctx.Done():
+            return
+        }
+    }
+}
+
+func (l *BaseLand) Stop() error {
+    l.mu.Lock()
+    defer l.mu.Unlock()
+    
+    if !l.running {
+        return nil
+    }
+    
+    close(l.stopCh)
+    l.running = false
+    log.Printf("[Land:%s] Stopped", l.id)
+    return nil
+}
+
+func (l *BaseLand) IsRunning() bool {
+    l.mu.RLock()
+    defer l.mu.RUnlock()
+    return l.running
+}
+```
+
+### Nimland Implementation
+
+```go
+// internal/land/nimland.go
+
+package land
+
+import (
+    "context"
+    "fmt"
+    "os/exec"
+    
+    "github.com/yourusername/nimsforest/internal/core"
+)
+
+// Nimland is a Land with Docker capability for running agents.
+type Nimland struct {
+    *core.BaseLand
+    dockerAvailable bool
+}
+
+// NewNimland creates a Docker-capable Land node.
+func NewNimland(id string, wind *core.Wind, capacity core.Capacity) (*Nimland, error) {
+    // Check Docker availability
+    _, err := exec.LookPath("docker")
+    if err != nil {
+        return nil, fmt.Errorf("docker not available: %w", err)
+    }
+    
+    base := core.NewBaseLand(id, wind, capacity)
+    return &Nimland{
+        BaseLand:        base,
+        dockerAvailable: true,
+    }, nil
+}
+
+func (n *Nimland) Type() core.LandType { return core.LandTypeNimland }
+func (n *Nimland) HasDocker() bool     { return n.dockerAvailable }
+
+// Start extends BaseLand.Start to also listen for agent execution requests.
+func (n *Nimland) Start(ctx context.Context) error {
+    if err := n.BaseLand.Start(ctx); err != nil {
+        return err
+    }
+    
+    // Subscribe to agent execution for this land
+    _, err := n.GetWind().Catch(
+        fmt.Sprintf("agent.execute.%s", n.ID()),
+        func(leaf core.Leaf) {
+            n.handleAgentExecute(ctx, leaf)
+        },
+    )
+    if err != nil {
+        return fmt.Errorf("failed to subscribe to agent execute: %w", err)
+    }
+    
+    return nil
+}
+
+func (n *Nimland) handleAgentExecute(ctx context.Context, leaf core.Leaf) {
+    // Execute agent in Docker container
+    // Result published to agent.result.{task_id}
+}
+```
+
+### Manaland Implementation
+
+```go
+// internal/land/manaland.go
+
+package land
+
+import (
+    "github.com/yourusername/nimsforest/internal/core"
+)
+
+// Manaland is a Land with Docker and GPU capability.
+type Manaland struct {
+    *Nimland
+    gpuInfo GPUInfo
+}
+
+type GPUInfo struct {
+    Vendor  string  // "nvidia", "amd"
+    Model   string  // "RTX 4090"
+    Vram    uint64  // Bytes
+    Tflops  float64
+}
+
+// NewManaland creates a GPU-capable Land node.
+func NewManaland(id string, wind *core.Wind, capacity core.Capacity, gpu GPUInfo) (*Manaland, error) {
+    nimland, err := NewNimland(id, wind, capacity)
+    if err != nil {
+        return nil, err
+    }
+    
+    return &Manaland{
+        Nimland: nimland,
+        gpuInfo: gpu,
+    }, nil
+}
+
+func (m *Manaland) Type() core.LandType { return core.LandTypeManaland }
+func (m *Manaland) HasGPU() bool        { return true }
+func (m *Manaland) GPUInfo() GPUInfo    { return m.gpuInfo }
+```
+
+### pkg/land/ Public Package
+
+```go
+// pkg/land/land.go
+
+package land
+
+import (
+    "context"
+)
+
+// Land is the public interface for a compute node.
+type Land interface {
+    ID() string
+    Type() Type
+    Capacity() Capacity
+    Available() Capacity
+    
+    HasDocker() bool
+    HasGPU() bool
+    CanRun(Requirements) bool
+    
+    Start(ctx context.Context) error
+    Stop() error
+}
+
+type Type string
+
+const (
+    TypeBase     Type = "land"
+    TypeNimland  Type = "nimland"
+    TypeManaland Type = "manaland"
+)
+
+type Capacity struct {
+    RAM       uint64
+    CPUCores  int
+    GPUVram   uint64
+    GPUTflops float64
+}
+
+type Requirements struct {
+    MinRAM      uint64
+    MinCPUCores int
+    NeedsDocker bool
+    NeedsGPU    bool
+}
+```
+
+### Integration with Forest Runtime
+
+```go
+// pkg/runtime/forest.go (additions)
+
+type Forest struct {
+    // ... existing fields ...
+    
+    // Land nodes managed by this Forest
+    lands map[string]land.Land
+}
+
+// AddLand registers a Land node with the forest.
+func (f *Forest) AddLand(l land.Land) error {
+    f.mu.Lock()
+    defer f.mu.Unlock()
+    
+    if _, exists := f.lands[l.ID()]; exists {
+        return fmt.Errorf("land '%s' already exists", l.ID())
+    }
+    
+    if f.running {
+        if err := l.Start(context.Background()); err != nil {
+            return fmt.Errorf("failed to start land: %w", err)
+        }
+    }
+    
+    f.lands[l.ID()] = l
+    log.Printf("[Forest] Added land '%s' (%s)", l.ID(), l.Type())
+    return nil
+}
+
+// FindCapacity queries the cluster for available capacity.
+func (f *Forest) FindCapacity(ctx context.Context, req land.Requirements) ([]land.CapacityReply, error) {
+    // Broadcast capacity query via Wind
+    // Collect responses with timeout
+    // Return sorted by latency/availability
+}
+```
+
+### Configuration Update
+
+```yaml
+# forest.yaml
+
+# Land configuration for this node
+land:
+  id: ${HOSTNAME}
+  type: nimland  # land, nimland, or manaland
+  capacity:
+    ram: 16GB
+    cpu_cores: 8
+  
+  # Only for manaland
+  gpu:
+    vendor: nvidia
+    model: "RTX 4090"
+    vram: 24GB
+```
+
+### Directory Structure Update
+
+```
+internal/
+├── core/
+│   ├── land.go           # Land interface + types
+│   ├── land_base.go      # BaseLand implementation
+│   ├── land_events.go    # Wind events for Land
+│   └── ... (existing)
+├── land/
+│   ├── nimland.go        # Nimland (Docker) implementation
+│   ├── manaland.go       # Manaland (GPU) implementation
+│   └── detector.go       # Auto-detect node capabilities
+└── ... (existing)
+
+pkg/
+├── land/
+│   ├── land.go           # Public Land interface
+│   └── types.go          # Public types
+└── ... (existing)
+```
+
+### Task Breakdown for Land Core Concept
+
+| Phase | Task | Description |
+|-------|------|-------------|
+| **9.1** | Create `internal/core/land.go` | Land interface, types, events |
+| **9.2** | Create `internal/core/land_base.go` | BaseLand implementation |
+| **9.3** | Create `internal/land/nimland.go` | Nimland (Docker) |
+| **9.4** | Create `internal/land/manaland.go` | Manaland (GPU) |
+| **9.5** | Create `internal/land/detector.go` | Auto-detect capabilities |
+| **9.6** | Create `pkg/land/` | Public interfaces |
+| **9.7** | Update `pkg/runtime/forest.go` | Land management |
+| **9.8** | Update `pkg/runtime/config.go` | Land configuration |
+| **9.9** | Migrate `viewmodel.LandViewModel` | Use core.Land |
+| **9.10** | Tests | Land unit and integration tests |
+
+### How Land Relates to Other Systems
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                            FOREST                                   │
+│                                                                     │
+│  ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐         │
+│  │  WIND   │◄──►│  RIVER  │    │   NIM   │    │TREEHOUSE│         │
+│  │(pub/sub)│    │ (data)  │    │  (AAA)  │    │ (Lua)   │         │
+│  └────┬────┘    └────┬────┘    └────┬────┘    └────┬────┘         │
+│       │              │              │              │               │
+│       └──────────────┴──────────────┴──────────────┘               │
+│                           │                                        │
+│                           ▼                                        │
+│  ┌─────────────────────────────────────────────────────────────┐  │
+│  │                         LAND                                 │  │
+│  │  (compute substrate - everything runs ON Land)               │  │
+│  │                                                              │  │
+│  │   ┌──────────┐   ┌──────────┐   ┌──────────┐               │  │
+│  │   │ BaseLand │   │ Nimland  │   │ Manaland │               │  │
+│  │   │(backbone)│   │(+Docker) │   │(+GPU)    │               │  │
+│  │   └──────────┘   └──────────┘   └──────────┘               │  │
+│  │                                                              │  │
+│  └─────────────────────────────────────────────────────────────┘  │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**Key Insight:** Land is the physical substrate. Everything else (Wind, River, Nim, TreeHouse) runs **on** Land. Making Land a core concept allows:
+
+1. **Capacity-aware scheduling** - Nims can query available Land before dispatching agents
+2. **Event-driven discovery** - No central registry, Lands announce themselves via Wind
+3. **Type-based routing** - Tasks routed to appropriate Land type (GPU tasks → Manaland)
+4. **Self-managing cluster** - Lands join/leave dynamically, capacity adapts automatically

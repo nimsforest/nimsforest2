@@ -17,11 +17,6 @@ func startViewer(ctx context.Context, ns *server.Server, cfg *runtime.ViewerConf
 	// Viewer disabled at build time
 }
 
-// viewerEnabled returns false when built without viewer tag
-func viewerEnabled() bool {
-	return false
-}
-
 // handleViewmodel prints a message that viewer is not enabled
 func handleViewmodel(args []string) {
 	fmt.Println("❌ Viewer functionality not available.")

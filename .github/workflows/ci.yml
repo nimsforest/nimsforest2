@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [ main ]
 
+env:
+  GOTOOLCHAIN: local
+
 jobs:
   test:
     name: Test
@@ -15,15 +18,8 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-        cache: 'npm'
-        cache-dependency-path: web/package-lock.json
-
-    - name: Build web frontend
-      run: cd web && npm ci && npm run build
+    - name: Install X11 dependencies
+      run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxcursor-dev libxinerama-dev libxi-dev libxxf86vm-dev libgl1-mesa-dev
 
     - name: Set up Go
       uses: actions/setup-go@v5
@@ -31,8 +27,8 @@ jobs:
         go-version: '1.24.x'
         cache: true
 
-    - name: Download dependencies
-      run: go mod download && go mod verify
+    - name: Update go.mod and download dependencies
+      run: go mod tidy && go mod download && go mod verify
 
     - name: Run tests
       run: go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
@@ -55,21 +51,17 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-        cache: 'npm'
-        cache-dependency-path: web/package-lock.json
-
-    - name: Build web frontend
-      run: cd web && npm ci && npm run build
+    - name: Install X11 dependencies
+      run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxcursor-dev libxinerama-dev libxi-dev libxxf86vm-dev libgl1-mesa-dev
 
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
         go-version: '1.24.x'
         cache: true
+
+    - name: Update go.mod
+      run: go mod tidy
 
     - name: Check formatting
       run: test -z "$(gofmt -s -l .)" || (gofmt -s -d . && exit 1)
@@ -86,23 +78,12 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
 
-    strategy:
-      matrix:
-        goarch: [amd64, arm64]
-
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-        cache: 'npm'
-        cache-dependency-path: web/package-lock.json
-
-    - name: Build web frontend
-      run: cd web && npm ci && npm run build
+    - name: Install X11 dependencies
+      run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxcursor-dev libxinerama-dev libxi-dev libxxf86vm-dev libgl1-mesa-dev
 
     - name: Set up Go
       uses: actions/setup-go@v5
@@ -110,8 +91,8 @@ jobs:
         go-version: '1.24.x'
         cache: true
 
+    - name: Update go.mod
+      run: go mod tidy
+
     - name: Build
       run: go build -v ./...
-      env:
-        GOOS: linux
-        GOARCH: ${{ matrix.goarch }}

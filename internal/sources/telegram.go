@@ -38,13 +38,13 @@ type TelegramUpdate struct {
 
 // TelegramMessage represents a Telegram message.
 type TelegramMessage struct {
-	MessageID int64             `json:"message_id"`
-	From      *TelegramUser     `json:"from,omitempty"`
-	Chat      *TelegramChat     `json:"chat"`
-	Date      int64             `json:"date"`
-	Text      string            `json:"text,omitempty"`
-	ReplyTo   *TelegramMessage  `json:"reply_to_message,omitempty"`
-	Entities  []TelegramEntity  `json:"entities,omitempty"`
+	MessageID int64            `json:"message_id"`
+	From      *TelegramUser    `json:"from,omitempty"`
+	Chat      *TelegramChat    `json:"chat"`
+	Date      int64            `json:"date"`
+	Text      string           `json:"text,omitempty"`
+	ReplyTo   *TelegramMessage `json:"reply_to_message,omitempty"`
+	Entities  []TelegramEntity `json:"entities,omitempty"`
 }
 
 // TelegramUser represents a Telegram user.

@@ -1328,93 +1328,155 @@ songbirds:
 
 ## Part 8: Task Breakdown
 
-### Phase 1: pkg/nim/ Interfaces
+### Phase 1: Land Core (Foundation - Do First)
+
+Land is the compute substrate everything else runs on. Implement first.
 
 | Task | Description |
 |------|-------------|
-| 1.1 | Create `pkg/nim/nim.go` - Nim interface with AAA |
-| 1.2 | Create `pkg/nim/brain.go` - Move from pkg/brain |
-| 1.3 | Create `pkg/nim/leaf.go` - Leaf interface |
-| 1.4 | Create `pkg/nim/wind.go` - Whisperer interface |
-| 1.5 | Create `pkg/nim/asker.go` - AIAsker interface |
-| 1.6 | Create `pkg/nim/agent.go` - Agent interface |
-| 1.7 | Create `pkg/nim/ai_agent.go` - AIAgent interface |
-| 1.8 | Create `pkg/nim/human_agent.go` - HumanAgent interface |
-| 1.9 | Create `pkg/nim/robot_agent.go` - RobotAgent interface |
-| 1.10 | Create `pkg/nim/browser_agent.go` - BrowserAgent interface |
-| 1.11 | Create `pkg/nim/land.go` - Land types and capacity events |
+| 1.1 | Create `internal/core/land.go` - Land interface, LandType, Capacity, Requirements |
+| 1.2 | Create `internal/core/land_events.go` - Wind event types (announce, query, reserve) |
+| 1.3 | Create `internal/core/land_base.go` - BaseLand implementation |
+| 1.4 | Create `internal/land/detect.go` - Auto-detect RAM, CPU, Docker, GPU |
+| 1.5 | Create `internal/land/nimland.go` - Nimland (Docker-capable) |
+| 1.6 | Create `internal/land/manaland.go` - Manaland (GPU-capable) |
+| 1.7 | Create `pkg/land/land.go` - Public Land interface |
+| 1.8 | Update `pkg/runtime/forest.go` - Auto-create ThisLand on startup |
+| 1.9 | Update `internal/viewmodel/` - Subscribe to land.announce instead of polling |
+| 1.10 | Tests for Land detection and events |
 
-### Phase 2: Internal Implementations
-
-| Task | Description |
-|------|-------------|
-| 2.1 | Create `internal/ai/asker.go` - Wrap existing aiservice |
-| 2.2 | Create `internal/ai/agents/ai_agent.go` - Docker AI agent |
-| 2.3 | Create `internal/ai/agents/human_agent.go` - Songbird human agent |
-| 2.4 | Create `internal/ai/agents/robot_agent.go` - Physical robot agent |
-| 2.5 | Create `internal/ai/agents/browser_agent.go` - Playwright browser agent |
-| 2.6 | Create `internal/land/handler.go` - Land capacity handler |
-
-### Phase 3: Songbirds
+### Phase 2: pkg/nim/ Interfaces
 
 | Task | Description |
 |------|-------------|
-| 3.1 | Update `internal/songbirds/songbird.go` - Add Send + Message type |
-| 3.2 | Update `internal/songbirds/telegram.go` - Implement Send, emit response Leaves |
-| 3.3 | Create `internal/songbirds/slack.go` - Slack songbird |
-| 3.4 | Create `internal/songbirds/email.go` - Email songbird |
+| 2.1 | Create `pkg/nim/nim.go` - Nim interface with AAA |
+| 2.2 | Create `pkg/nim/brain.go` - Move from pkg/brain |
+| 2.3 | Create `pkg/nim/leaf.go` - Leaf interface |
+| 2.4 | Create `pkg/nim/wind.go` - Whisperer interface |
+| 2.5 | Create `pkg/nim/asker.go` - AIAsker interface |
+| 2.6 | Create `pkg/nim/agent.go` - Agent interface |
+| 2.7 | Create `pkg/nim/ai_agent.go` - AIAgent interface |
+| 2.8 | Create `pkg/nim/human_agent.go` - HumanAgent interface |
+| 2.9 | Create `pkg/nim/robot_agent.go` - RobotAgent interface |
+| 2.10 | Create `pkg/nim/browser_agent.go` - BrowserAgent interface |
 
-### Phase 4: Core Updates
-
-| Task | Description |
-|------|-------------|
-| 4.1 | Update `internal/core/nim.go` - BaseNim with AAA |
-| 4.2 | Update `internal/core/leaf.go` - Implement nim.Leaf |
-| 4.3 | Update `internal/core/wind.go` - Implement nim.Whisperer |
-
-### Phase 5: CoderNim
+### Phase 3: Agent Implementations
 
 | Task | Description |
 |------|-------------|
-| 5.1 | Create `internal/nims/coder/coder.go` - Full implementation |
-| 5.2 | Create `internal/nims/coder/coder_test.go` - Tests |
+| 3.1 | Create `internal/ai/asker.go` - Wrap existing aiservice |
+| 3.2 | Create `internal/ai/agents/ai_agent.go` - Docker AI agent |
+| 3.3 | Create `internal/ai/agents/human_agent.go` - Songbird human agent |
+| 3.4 | Create `internal/ai/agents/robot_agent.go` - Physical robot agent |
+| 3.5 | Create `internal/ai/agents/browser_agent.go` - Playwright browser agent |
 
-### Phase 6: Configuration
-
-| Task | Description |
-|------|-------------|
-| 6.1 | Update `pkg/runtime/config.go` - Add agent configs |
-| 6.2 | Update `pkg/runtime/forest.go` - Load agents |
-| 6.3 | Update `cmd/forest/main.go` - Wire up CoderNim |
-
-### Phase 7: Cleanup & Examples
+### Phase 4: Songbirds
 
 | Task | Description |
 |------|-------------|
-| 7.1 | Move `pkg/brain/` → `pkg/nim/`, update imports |
-| 7.2 | Create `examples/` and move example code from `internal/` |
-| 7.3 | Update `cmd/forest/main.go` to not auto-load examples |
+| 4.1 | Update `internal/songbirds/songbird.go` - Add Send + Message type |
+| 4.2 | Update `internal/songbirds/telegram.go` - Implement Send, emit response Leaves |
+| 4.3 | Create `internal/songbirds/slack.go` - Slack songbird |
+| 4.4 | Create `internal/songbirds/email.go` - Email songbird |
 
-### Phase 8: Testing
+### Phase 5: Core Updates
 
 | Task | Description |
 |------|-------------|
-| 8.1 | Test pkg/nim interfaces |
-| 8.2 | Test agent implementations |
-| 8.3 | Test CoderNim AAA methods |
-| 8.4 | Integration tests |
+| 5.1 | Update `internal/core/nim.go` - BaseNim with AAA |
+| 5.2 | Update `internal/core/leaf.go` - Implement nim.Leaf |
+| 5.3 | Update `internal/core/wind.go` - Implement nim.Whisperer |
+
+### Phase 6: CoderNim
+
+| Task | Description |
+|------|-------------|
+| 6.1 | Create `internal/nims/coder/coder.go` - Full implementation |
+| 6.2 | Create `internal/nims/coder/coder_test.go` - Tests |
+
+### Phase 7: Configuration
+
+| Task | Description |
+|------|-------------|
+| 7.1 | Update `pkg/runtime/config.go` - Add agent configs |
+| 7.2 | Update `pkg/runtime/forest.go` - Load agents, integrate Land |
+| 7.3 | Update `cmd/forest/main.go` - Wire up CoderNim |
+
+### Phase 8: Cleanup & Examples
+
+| Task | Description |
+|------|-------------|
+| 8.1 | Move `pkg/brain/` → `pkg/nim/`, update imports |
+| 8.2 | Create `examples/` and move example code from `internal/` |
+| 8.3 | Update `cmd/forest/main.go` to not auto-load examples |
+
+### Phase 9: Testing
+
+| Task | Description |
+|------|-------------|
+| 9.1 | Test pkg/nim interfaces |
+| 9.2 | Test agent implementations |
+| 9.3 | Test CoderNim AAA methods |
+| 9.4 | Test Land auto-discovery |
+| 9.5 | Integration tests |
 
 ---
 
 ## Summary
 
-### Changes Overview
+### Core Systems
 
-| Action | Items |
-|--------|-------|
-| **Create** | `pkg/nim/` (interfaces), `internal/ai/` (agents), `internal/land/` (handler), `internal/nims/coder/`, `examples/` |
-| **Update** | `internal/core/` (AAA support), `internal/songbirds/` (Send), `pkg/runtime/` (config) |
-| **Move** | `pkg/brain/` → `pkg/nim/`, example code → `examples/` |
+NimsForest has five core systems that work together:
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                            FOREST                                   │
+│                                                                     │
+│   ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐ │
+│   │  WIND   │  │  RIVER  │  │   NIM   │  │TREEHOUSE│  │  LAND   │ │
+│   │(pub/sub)│  │ (data)  │  │  (AAA)  │  │ (Lua)   │  │(compute)│ │
+│   └─────────┘  └─────────┘  └─────────┘  └─────────┘  └─────────┘ │
+│                                                                     │
+│   Wind: Message passing (NATS pub/sub)                             │
+│   River: External data ingestion (NATS JetStream)                  │
+│   Nim: Intelligent agents with AAA pattern                         │
+│   TreeHouse: Deterministic Lua processors                          │
+│   Land: Compute substrate (auto-discovered, event-driven)          │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Land: The Compute Substrate
+
+Land is **implicit** - it exists the moment NimsForest starts. Everything runs ON Land.
+
+| Source | What We Learn |
+|--------|---------------|
+| **NATS Server** | ID, Name, Cluster peers |
+| **gopsutil** | RAM, CPU cores |
+| **Docker probe** | Docker available? |
+| **nvidia-smi** | GPU vendor, model, VRAM |
+| **Wind events** | Other Lands' capabilities |
+
+```
+NimsForest starts
+      │
+      ├──► NATS Server starts ──► Get ID, Name, Peers
+      │
+      ├──► System detection ──► RAM, CPU, Docker?, GPU?
+      │
+      ├──► Create ThisLand ──► Type: Land/Nimland/Manaland
+      │
+      └──► Announce via Wind ──► Other Lands learn about us
+```
+
+### Land Types
+
+| Type | Docker | GPU | Auto-Detected By |
+|------|--------|-----|------------------|
+| **Land** | ❌ | ❌ | No docker, no GPU |
+| **Nimland** | ✅ | ❌ | `docker info` succeeds |
+| **Manaland** | ✅ | ✅ | Docker + `nvidia-smi` succeeds |
 
 ### Agent Types
 
@@ -1425,21 +1487,60 @@ songbirds:
 | HumanAgent | Songbird (async) | Approvals, reviews |
 | RobotAgent | Physical robot | Temi, SO-ARM100, humanoids |
 
-### Land Types
-
-| Type | Docker | GPU | Purpose |
-|------|--------|-----|---------|
-| Land | No | No | Event backbone |
-| Nimland | Yes | No | Docker agents |
-| Manaland | Yes | Yes | GPU workloads |
-
-### AAA Methods
+### AAA Methods (Nim Intelligence)
 
 | Method | Implementation |
 |--------|----------------|
 | **Advice** | AI query via existing `pkg/integrations/aiservice/` |
-| **Action** | Dispatch to Agent |
+| **Action** | Dispatch to Agent on appropriate Land |
 | **Automate** | Generate TreeHouse (Lua) or Nim (config) |
+
+### Changes Overview
+
+| Action | Items |
+|--------|-------|
+| **Create** | `internal/core/land*.go`, `internal/land/`, `pkg/land/`, `pkg/nim/`, `internal/ai/agents/`, `internal/nims/coder/`, `examples/` |
+| **Update** | `internal/viewmodel/` (event-driven), `internal/songbirds/` (Send), `pkg/runtime/` (Land bootstrap) |
+| **Move** | `pkg/brain/` → `pkg/nim/`, example code → `examples/` |
+
+### Directory Structure
+
+```
+internal/
+├── core/
+│   ├── land.go           # Land interface + types
+│   ├── land_base.go      # BaseLand implementation
+│   ├── land_events.go    # Wind events for Land
+│   ├── nim.go            # Nim with AAA
+│   ├── wind.go, river.go, leaf.go, ...
+│
+├── land/
+│   ├── detect.go         # Auto-detect capabilities
+│   ├── nimland.go        # Docker-capable Land
+│   └── manaland.go       # GPU-capable Land
+│
+├── ai/
+│   ├── asker.go          # Wraps aiservice
+│   └── agents/
+│       ├── ai_agent.go
+│       ├── human_agent.go
+│       ├── robot_agent.go
+│       └── browser_agent.go
+│
+├── viewmodel/            # Now event-driven via Wind
+│   └── ...
+│
+└── nims/
+    └── coder/            # CoderNim (core AAA infrastructure)
+
+pkg/
+├── land/
+│   └── land.go           # Public Land interface
+├── nim/
+│   └── ...               # Public Nim interfaces
+└── runtime/
+    └── forest.go         # Auto-creates ThisLand on startup
+```
 
 ---
 

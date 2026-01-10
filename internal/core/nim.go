@@ -27,6 +27,48 @@ type Nim interface {
 	Stop() error
 }
 
+// AAANim extends Nim with the Advice/Action/Automate pattern.
+// This is the interface for intelligent nims that can provide guidance,
+// execute tasks, and run autonomous processes.
+type AAANim interface {
+	Nim
+
+	// Advice provides expert guidance based on a query.
+	// This is for Q&A and analysis - no side effects.
+	// Example: "How should I structure this API?" -> explanation
+	Advice(ctx context.Context, query string) (string, error)
+
+	// Action executes a specific, discrete task.
+	// This is for state-changing operations with defined inputs/outputs.
+	// Example: ("edit_file", {"path": "main.go", "content": "..."}) -> result
+	Action(ctx context.Context, action string, params map[string]interface{}) (interface{}, error)
+
+	// Automate enables or disables a long-running autonomous process.
+	// This is for agent loops that run continuously until stopped.
+	// Example: ("implement_feature", true) -> starts agent loop
+	Automate(ctx context.Context, automation string, enabled bool) error
+
+	// ListActions returns the available actions this nim supports.
+	ListActions() []ActionSpec
+
+	// ListAutomations returns the available automations this nim supports.
+	ListAutomations() []AutomationSpec
+}
+
+// ActionSpec describes an action that a nim can perform.
+type ActionSpec struct {
+	Name        string            `json:"name"`
+	Description string            `json:"description"`
+	Parameters  map[string]string `json:"parameters"` // param name -> description
+}
+
+// AutomationSpec describes an automation that a nim can run.
+type AutomationSpec struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Running     bool   `json:"running"`
+}
+
 // BaseNim provides common functionality for all nims.
 // Concrete nims should embed this and implement the Nim interface.
 type BaseNim struct {

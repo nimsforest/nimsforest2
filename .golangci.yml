@@ -1,5 +1,3 @@
-version: 2
-
 run:
   timeout: 5m
   tests: true
@@ -45,7 +43,7 @@ issues:
 
 output:
   formats:
-    colored-line-number:
+    - format: colored-line-number
       path: stdout
   print-issued-lines: true
   print-linter-name: true

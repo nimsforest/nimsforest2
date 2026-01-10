@@ -11,7 +11,7 @@ Implement the AAA (Advice/Action/Automate) pattern for Nims in nimsforest2.
 | TreeHouse vs Nim | TreeHouse = deterministic, Nim = intelligent (AAA required) |
 | Agent execution | Docker containers on NimsForest nodes |
 | AI service for Advice | Keep existing `pkg/integrations/aiservice/` |
-| Human communication | Extend Songbird with Send/SendAndWait |
+| Human communication | Extend Songbird with Send (non-blocking) |
 | Example code | Move compile-time examples to `examples/` |
 
 ---
@@ -296,23 +296,40 @@ type Songbird interface {
     Stop() error
     IsRunning() bool // existing method
     
-    // Add for human agent support
+    // Add for human agent support (non-blocking)
     Send(ctx context.Context, msg Message) error
-    SendAndWait(ctx context.Context, msg Message, timeout time.Duration) (*Response, error)
 }
 
 type Message struct {
-    To      string
-    Text    string
+    ID      string   // Correlation ID - links request to response
+    To      string   // Recipient
+    Text    string   // Message content
     Options []string // For choices like "Approve / Reject"
-}
-
-type Response struct {
-    From    string
-    Text    string
-    Choice  string // Selected option
+    ReplyTo string   // Wind subject for response (e.g., "human.response.{ID}")
 }
 ```
+
+### Response Flow (Event-Driven)
+
+Responses arrive as Leaves on the Wind, not as return values:
+
+```
+Send(msg) ──► Telegram ──► Human
+                              │
+                              ▼ (human replies)
+                          Telegram webhook
+                              │
+                              ▼
+                    Songbird receives reply
+                              │
+                              ▼
+              Whisper(Leaf{Subject: "human.response.{ID}"})
+                              │
+                              ▼
+                    Nim.Handle(leaf) ◄── response arrives here
+```
+
+The correlation ID in the original message links request to response.
 
 ### Implementations Needed
 
@@ -667,7 +684,6 @@ package agents
 import (
     "context"
     "fmt"
-    "time"
     
     "github.com/yourusername/nimsforest/internal/songbirds"
     "github.com/yourusername/nimsforest/pkg/nim"
@@ -682,6 +698,8 @@ func NewSongbirdHumanAgent(config nim.HumanAgentConfig, sb songbirds.Songbird) *
     return &SongbirdHumanAgent{config: config, songbird: sb}
 }
 
+// Run sends the task to a human - does NOT block waiting for response.
+// Response arrives later as a Leaf on the Wind.
 func (a *SongbirdHumanAgent) Run(ctx context.Context, task nim.Task) (*nim.Result, error) {
     // Find available member
     var member *nim.Human
@@ -695,21 +713,22 @@ func (a *SongbirdHumanAgent) Run(ctx context.Context, task nim.Task) (*nim.Resul
         return nil, fmt.Errorf("no available members for role %s", a.config.Role)
     }
     
-    // Send message via songbird
+    // Send message via songbird (non-blocking)
     msg := songbirds.Message{
-        To:   member.Contact,
-        Text: fmt.Sprintf("[%s] %s", a.config.Role, task.Description),
+        ID:      task.ID,  // Correlation ID
+        To:      member.Contact,
+        Text:    fmt.Sprintf("[%s] %s", a.config.Role, task.Description),
+        ReplyTo: fmt.Sprintf("human.response.%s", task.ID),
     }
     
-    // Wait for response (timeout from context)
-    response, err := a.songbird.SendAndWait(ctx, msg, 30*time.Minute)
-    if err != nil {
+    if err := a.songbird.Send(ctx, msg); err != nil {
         return nil, err
     }
     
+    // Return immediately - response comes later as event
     return &nim.Result{
         Success: true,
-        Output:  response.Text,
+        Output:  fmt.Sprintf("Request sent to %s, awaiting response on human.response.%s", member.Name, task.ID),
     }, nil
 }
 
@@ -725,6 +744,25 @@ func (a *SongbirdHumanAgent) Available(ctx context.Context) bool {
 func (a *SongbirdHumanAgent) Role() string { return a.config.Role }
 func (a *SongbirdHumanAgent) Responsibility() string { return a.config.Responsibility }
 func (a *SongbirdHumanAgent) Members() []nim.Human { return a.config.Members }
+```
+
+**Handling the Response:**
+
+The Nim that dispatched the human task must subscribe to `human.response.>` and handle responses:
+
+```go
+func (c *CoderNim) Handle(ctx context.Context, leaf nim.Leaf) error {
+    subject := leaf.GetSubject()
+    
+    // Handle human responses
+    if strings.HasPrefix(subject, "human.response.") {
+        taskID := strings.TrimPrefix(subject, "human.response.")
+        return c.handleHumanResponse(ctx, taskID, leaf)
+    }
+    
+    // Handle other events...
+    return nil
+}
 ```
 
 ### 5.4 Robot Agent Implementation
@@ -1200,8 +1238,8 @@ songbirds:
 
 | Task | Description |
 |------|-------------|
-| 3.1 | Update `internal/songbirds/songbird.go` - Add Send/SendAndWait |
-| 3.2 | Update `internal/songbirds/telegram.go` - Implement new methods |
+| 3.1 | Update `internal/songbirds/songbird.go` - Add Send + Message type |
+| 3.2 | Update `internal/songbirds/telegram.go` - Implement Send, emit response Leaves |
 | 3.3 | Create `internal/songbirds/slack.go` - Slack songbird |
 | 3.4 | Create `internal/songbirds/email.go` - Email songbird |
 
@@ -1254,7 +1292,7 @@ songbirds:
 | Action | Items |
 |--------|-------|
 | **Create** | `pkg/nim/` (interfaces), `internal/ai/` (agents), `internal/land/`, `internal/nims/coder/`, `examples/` |
-| **Update** | `internal/core/` (AAA support), `internal/songbirds/` (Send/SendAndWait), `pkg/runtime/` (config) |
+| **Update** | `internal/core/` (AAA support), `internal/songbirds/` (Send), `pkg/runtime/` (config) |
 | **Move** | `pkg/brain/` → `pkg/nim/`, example code → `examples/` |
 
 ### Agent Types
@@ -1262,7 +1300,7 @@ songbirds:
 | Type | Runs On | Use Case |
 |------|---------|----------|
 | AIAgent | Docker | Code tasks (Claude, Aider) |
-| HumanAgent | Songbird | Approvals, reviews |
+| HumanAgent | Songbird (async) | Approvals, reviews |
 | RobotAgent | Webhook/API | CI/CD, deployments |
 | BrowserAgent | Docker + Playwright | Web automation |
 

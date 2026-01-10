@@ -413,8 +413,9 @@ func TestCoderNimFirstFlow(t *testing.T) {
 
 ## 🚦 Milestones & Validation
 
-- [ ] **M1**: Forest detects and logs Land type
+- [x] **M1**: Forest detects and logs Land type ✅
   - **Test**: Run `./forest` and see log like `"Running on nimland: node-1"`
+  - **Status**: Complete - Land detection wired into Forest startup
 
 - [ ] **M2**: LandHouse responds to queries
   - **Test**: Unit test publishes `land.query`, receives `land.info.*`
@@ -461,17 +462,24 @@ func TestCoderNimFirstFlow(t *testing.T) {
 
 ## 📊 Progress Tracking
 
-**Current Status**: [ ] Not Started
+**Current Status**: [x] Phase A Complete ✅
 
 **Time Estimates:**
-- Phase A: ~45 minutes
-- Phase B: ~1.5 hours
+- Phase A: ~45 minutes ✅ Complete
+- Phase B: ~1.5 hours (next)
 - Phase C: ~3 hours
 - **Total**: ~5 hours for first working flow
 
-**Blockers**: None identified yet
+**Blockers**: None identified
 
-**Next Immediate Action**: Start with Step 1 (Land Detection)
+**Next Immediate Action**: Phase B - Create LandHouse and AgentHouse
+
+**Completed (2026-01-10):**
+- ✅ Land data structures (internal/core/land.go)
+- ✅ Detection logic (internal/land/detect.go)
+- ✅ GoTreeHouse interface (internal/treehouses/interface.go)
+- ✅ Forest integration (pkg/runtime/forest.go, cmd/forest/main.go)
+- ✅ Milestone M1: Forest detects and logs Land type
 
 ---
 

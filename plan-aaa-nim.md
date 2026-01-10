@@ -48,30 +48,33 @@ Runtime examples (`scripts/`) stay in repo.
 ### System Overview
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              Morpheus                                       │
-│                    (provisions NimsForest nodes)                            │
-└─────────────────────────────────┬───────────────────────────────────────────┘
-                                  │
-        ┌─────────────────────────┼─────────────────────────┐
-        ▼                         ▼                         ▼
-┌─────────────────┐       ┌─────────────────┐       ┌─────────────────┐
-│      LAND       │       │      LAND       │       │    MANALAND     │
-│   (backbone)    │       │   (backbone)    │       │    (compute)    │
-│                 │       │                 │       │                 │
-│ - Wind (NATS)   │◄─────►│ - Wind (NATS)   │◄─────►│ - Wind (NATS)   │
-│ - River         │       │ - River         │       │ - Docker ✓      │
-│ - Trees         │       │ - Treehouses    │       │ - GPU/VRAM      │
-│ - Nims          │       │ - Nims          │       │                 │
-│                 │       │                 │       │ ┌─────────────┐ │
-│ NO Docker       │       │ NO Docker       │       │ │  AIAgent    │ │
-│ Low latency     │       │ Low latency     │       │ │  Browser    │ │
-│                 │       │                 │       │ └─────────────┘ │
-└─────────────────┘       └─────────────────┘       └─────────────────┘
+┌───────────────────────────────────────────────────────────────────────────────────┐
+│                                   Morpheus                                        │
+│                         (provisions NimsForest nodes)                             │
+└─────────────────────────────────────┬─────────────────────────────────────────────┘
+                                      │
+        ┌─────────────────────────────┼─────────────────────────────┐
+        ▼                             ▼                             ▼
+┌─────────────────┐           ┌─────────────────┐           ┌─────────────────┐
+│      LAND       │           │    NIMLAND      │           │    MANALAND     │
+│   (backbone)    │           │    (docker)     │           │   (docker+gpu)  │
+│                 │           │                 │           │                 │
+│ - Wind (NATS)   │◄─────────►│ - Wind (NATS)   │◄─────────►│ - Wind (NATS)   │
+│ - River         │           │ - Docker ✓      │           │ - Docker ✓      │
+│ - Trees         │           │                 │           │ - GPU/VRAM ✓    │
+│ - Treehouses    │           │ ┌─────────────┐ │           │                 │
+│ - Nims          │           │ │  AIAgent    │ │           │ ┌─────────────┐ │
+│                 │           │ │  Browser    │ │           │ │ GPU Agent   │ │
+│ NO Docker       │           │ └─────────────┘ │           │ │ LLM local   │ │
+│ Low latency     │           │                 │           │ └─────────────┘ │
+└─────────────────┘           └─────────────────┘           └─────────────────┘
 ```
 
-**Land** = Event processing backbone (low latency, no Docker)
-**Manaland** = Compute nodes for agents (Docker, GPU/VRAM)
+| Type | Docker | GPU | Purpose |
+|------|--------|-----|---------|
+| **Land** | No | No | Event processing backbone (low latency) |
+| **Nimland** | Yes | No | Docker agents (AIAgent, BrowserAgent) |
+| **Manaland** | Yes | Yes | GPU-accelerated workloads |
 
 ### AAA Pattern (Mandatory for Nims)
 
@@ -358,57 +361,72 @@ The correlation ID in the original message links request to response.
 
 ## Part 3: Land Registry
 
-Tracks available capacity across NimsForest nodes. Agents only run on **Manaland** (not regular Land).
+Tracks available capacity across NimsForest nodes. Agents run on **Nimland** or **Manaland** (not regular Land).
 
 ### Land Types
 
-| Type | Purpose | Docker | Agents |
-|------|---------|--------|--------|
-| **Land** | Event processing backbone | No | No |
-| **Manaland** | Compute for agents | Yes | Yes |
+| Type | Docker | GPU | Can Run Agents |
+|------|--------|-----|----------------|
+| **Land** | No | No | No |
+| **Nimland** | Yes | No | Yes (AI, Browser) |
+| **Manaland** | Yes | Yes | Yes (GPU workloads) |
 
 ### Land Model
 
 ```go
 // pkg/nim/land.go
 
+type LandType string
+
+const (
+    LandTypeLand     LandType = "land"     // Backbone, no Docker
+    LandTypeNimland  LandType = "nimland"  // Docker, no GPU
+    LandTypeManaland LandType = "manaland" // Docker + GPU
+)
+
 // Land represents a NimsForest node (from viewmodel.LandViewModel)
 type Land struct {
-    ID           string
-    NodeID       string    // NimsForest node ID
-    Status       string    // "available", "busy", "offline"
-    IsManaland   bool      // Has GPU/VRAM = can run agents
+    ID       string
+    NodeID   string    // NimsForest node ID
+    Type     LandType  // land, nimland, or manaland
+    Status   string    // "available", "busy", "offline"
     
     // Resources (from viewmodel)
     RAMTotal     uint64
     RAMAvailable uint64
     CPUCores     int
-    GPUVram      uint64    // 0 for regular Land
+    GPUVram      uint64    // >0 for Manaland
     
-    // Agent capacity (Manaland only)
-    MaxAgents    int       // Concurrent agent containers
+    // Agent capacity (Nimland/Manaland only)
+    MaxAgents     int
     RunningAgents int
 }
 
-// CanRunAgents returns true if this is Manaland
+func (l *Land) HasDocker() bool {
+    return l.Type == LandTypeNimland || l.Type == LandTypeManaland
+}
+
+func (l *Land) HasGPU() bool {
+    return l.Type == LandTypeManaland
+}
+
 func (l *Land) CanRunAgents() bool {
-    return l.IsManaland
+    return l.HasDocker()
 }
 
 type LandRegistry interface {
-    // FindManaland finds a Manaland with capacity for an agent
-    FindManaland(ctx context.Context, agentType AgentType) (*Land, error)
+    // FindForAgent finds a Nimland or Manaland with capacity
+    FindForAgent(ctx context.Context, agentType AgentType, needsGPU bool) (*Land, error)
     
-    // Reserve capacity on Manaland
+    // Reserve capacity
     Reserve(ctx context.Context, landID string) error
     
     // Release capacity
     Release(ctx context.Context, landID string) error
     
-    // List all lands
+    // List methods
     List(ctx context.Context) ([]Land, error)
-    
-    // ListManaland returns only Manaland nodes
+    ListNimland(ctx context.Context) ([]Land, error)
     ListManaland(ctx context.Context) ([]Land, error)
 }
 ```
@@ -418,21 +436,22 @@ type LandRegistry interface {
 ```go
 func (c *CoderNim) Action(ctx context.Context, action string, params map[string]interface{}) (interface{}, error) {
     task := buildTask(action, params)
+    needsGPU := params["gpu"] == true
     
-    // Find Manaland with capacity (agents only run on Manaland)
-    manaland, err := c.registry.FindManaland(ctx, task.RequiredAgent)
+    // Find Nimland or Manaland with capacity
+    land, err := c.registry.FindForAgent(ctx, task.RequiredAgent, needsGPU)
     if err != nil {
-        return nil, fmt.Errorf("no Manaland capacity available for agent")
+        return nil, fmt.Errorf("no capacity available for agent")
     }
     
     // Reserve
-    if err := c.registry.Reserve(ctx, manaland.ID); err != nil {
+    if err := c.registry.Reserve(ctx, land.ID); err != nil {
         return nil, err
     }
-    defer c.registry.Release(ctx, manaland.ID)
+    defer c.registry.Release(ctx, land.ID)
     
-    // Launch agent container on Manaland
-    agent, err := c.launchAgent(ctx, manaland, task)
+    // Launch agent container
+    agent, err := c.launchAgent(ctx, land, task)
     if err != nil {
         return nil, err
     }
@@ -999,21 +1018,22 @@ func (c *CoderNim) Action(ctx context.Context, action string, params map[string]
     
     // Determine required agent type
     agentType := determineAgentType(action)
+    needsGPU := params["gpu"] == true
     
-    // Find Manaland with capacity (agents only run on Manaland)
-    manaland, err := c.registry.FindManaland(ctx, agentType)
+    // Find Nimland or Manaland with capacity
+    land, err := c.registry.FindForAgent(ctx, agentType, needsGPU)
     if err != nil {
-        return nil, fmt.Errorf("no Manaland capacity: %w", err)
+        return nil, fmt.Errorf("no agent capacity: %w", err)
     }
     
-    // Reserve Manaland
-    if err := c.registry.Reserve(ctx, manaland.ID); err != nil {
+    // Reserve
+    if err := c.registry.Reserve(ctx, land.ID); err != nil {
         return nil, err
     }
-    defer c.registry.Release(ctx, manaland.ID)
+    defer c.registry.Release(ctx, land.ID)
     
-    // Create and run agent on Manaland
-    agent, err := c.createAgent(ctx, agentType, manaland, params)
+    // Create and run agent
+    agent, err := c.createAgent(ctx, agentType, land, params)
     if err != nil {
         return nil, err
     }
@@ -1167,8 +1187,9 @@ func determineAgentType(action string) nim.AgentType {
 
 ```yaml
 # Agent configuration
-# NOTE: AI and Browser agents run on Manaland (Docker required)
-# Human and Robot agents don't require Manaland
+# NOTE: AI and Browser agents run on Nimland or Manaland (Docker required)
+#       GPU workloads require Manaland
+#       Human and Robot agents don't require Docker
 agents:
   ai:
     claude-coder:
@@ -1355,10 +1376,18 @@ songbirds:
 
 | Type | Runs On | Use Case |
 |------|---------|----------|
-| AIAgent | Docker | Code tasks (Claude, Aider) |
+| AIAgent | Nimland/Manaland | Code tasks (Claude, Aider) |
+| BrowserAgent | Nimland/Manaland | Web automation (Playwright) |
 | HumanAgent | Songbird (async) | Approvals, reviews |
-| RobotAgent | Physical robot API | Temi, SO-ARM100, humanoids |
-| BrowserAgent | Docker + Playwright | Web automation |
+| RobotAgent | Physical robot | Temi, SO-ARM100, humanoids |
+
+### Land Types
+
+| Type | Docker | GPU | Purpose |
+|------|--------|-----|---------|
+| Land | No | No | Event backbone |
+| Nimland | Yes | No | Docker agents |
+| Manaland | Yes | Yes | GPU workloads |
 
 ### AAA Methods
 

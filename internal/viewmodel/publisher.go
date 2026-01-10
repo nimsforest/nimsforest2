@@ -43,12 +43,12 @@ type Publisher struct {
 
 // PublishedState is the JSON structure published to NATS.
 type PublishedState struct {
-	Timestamp time.Time           `json:"timestamp"`
-	Summary   Summary             `json:"summary"`
-	Lands     []*LandViewModel    `json:"lands"`
-	Trees     []TreeViewModel     `json:"trees"`
+	Timestamp  time.Time            `json:"timestamp"`
+	Summary    Summary              `json:"summary"`
+	Lands      []*LandViewModel     `json:"lands"`
+	Trees      []TreeViewModel      `json:"trees"`
 	Treehouses []TreehouseViewModel `json:"treehouses"`
-	Nims      []NimViewModel      `json:"nims"`
+	Nims       []NimViewModel       `json:"nims"`
 }
 
 // NewPublisher creates a new Publisher for the viewmodel.

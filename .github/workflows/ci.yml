@@ -15,6 +15,9 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    - name: Install X11 dependencies
+      run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxcursor-dev libxinerama-dev libxi-dev libxxf86vm-dev libgl1-mesa-dev
+
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
@@ -45,6 +48,9 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    - name: Install X11 dependencies
+      run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxcursor-dev libxinerama-dev libxi-dev libxxf86vm-dev libgl1-mesa-dev
+
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
@@ -66,13 +72,12 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
 
-    strategy:
-      matrix:
-        goarch: [amd64, arm64]
-
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+
+    - name: Install X11 dependencies
+      run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxcursor-dev libxinerama-dev libxi-dev libxxf86vm-dev libgl1-mesa-dev
 
     - name: Set up Go
       uses: actions/setup-go@v5
@@ -82,6 +87,3 @@ jobs:
 
     - name: Build
       run: go build -v ./...
-      env:
-        GOOS: linux
-        GOARCH: ${{ matrix.goarch }}

@@ -12,13 +12,13 @@ import (
 // ViewerDancer implements windwaker.Dancer to push viewmodel updates
 // to nimsforestviewer targets (Smart TV, web, etc).
 type ViewerDancer struct {
-	viewer        *viewer.Viewer
-	vm            *viewmodel.ViewModel
-	updateEvery   uint64 // Update every N beats (0 = every beat)
-	beatCount     uint64
-	mu            sync.Mutex
-	lastState     *viewer.ViewState
-	onlyOnChange  bool // Only update if state actually changed
+	viewer       *viewer.Viewer
+	vm           *viewmodel.ViewModel
+	updateEvery  uint64 // Update every N beats (0 = every beat)
+	beatCount    uint64
+	mu           sync.Mutex
+	lastState    *viewer.ViewState
+	onlyOnChange bool // Only update if state actually changed
 }
 
 // Option configures a ViewerDancer.

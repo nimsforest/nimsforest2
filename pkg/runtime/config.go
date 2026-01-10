@@ -113,9 +113,9 @@ type NimConfig struct {
 // Songbirds listen for patterns on the wind and carry messages out
 // to external platforms (Telegram, Slack, etc.)
 type SongbirdConfig struct {
-	Name     string `yaml:"-"`        // Set from map key
-	Type     string `yaml:"type"`     // Songbird type: "telegram", "slack", etc.
-	Listens  string `yaml:"listens"`  // Wind subject pattern to listen for (e.g., "song.telegram.>")
+	Name     string `yaml:"-"`         // Set from map key
+	Type     string `yaml:"type"`      // Songbird type: "telegram", "slack", etc.
+	Listens  string `yaml:"listens"`   // Wind subject pattern to listen for (e.g., "song.telegram.>")
 	BotToken string `yaml:"bot_token"` // API token for the messaging platform
 }
 

@@ -12,8 +12,8 @@ import (
 
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
-	viewer "github.com/nimsforest/nimsforestviewer"
 	smarttv "github.com/nimsforest/nimsforestsmarttv"
+	viewer "github.com/nimsforest/nimsforestviewer"
 	"github.com/yourusername/nimsforest/internal/core"
 	"github.com/yourusername/nimsforest/internal/natsclusterconfig"
 	"github.com/yourusername/nimsforest/internal/natsembed"

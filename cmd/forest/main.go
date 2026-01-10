@@ -411,7 +411,7 @@ func runForest() {
 	// Start viewer if configured
 	if runtimeConfig != nil && runtimeConfig.Viewer != nil && runtimeConfig.Viewer.Enabled {
 		fmt.Println("\n📺 Starting visualization viewer...")
-		_ = startViewer(ctx, ns.InternalServer(), runtimeConfig.Viewer, wind)
+		startViewer(ctx, ns.InternalServer(), runtimeConfig.Viewer, wind)
 	}
 
 	// Give components time to initialize

@@ -4,6 +4,8 @@
 **Goal**: Implement the AAA (Advice/Action/Automate) pattern for Nims in nimsforest2
 **Reference**: See [plan-aaa-nim.md](./plan-aaa-nim.md) for complete architecture
 
+> **📌 For Agentic Coding**: See **[docs/plans/](./docs/plans/)** for focused, phase-specific plans optimized for agent execution. This roadmap provides the overview; individual phase plans provide actionable tasks.
+
 ---
 
 ## 🎯 First Flow Objective

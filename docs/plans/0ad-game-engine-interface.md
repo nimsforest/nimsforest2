@@ -1,12 +1,24 @@
 # Plan: 0 A.D. Game Engine Interface for NimsForest
 
-**Status**: Planning
-**Goal**: Integrate 0 A.D. RTS game engine as a controllable agent in nimsforest2
-**Reference**: Similar to AIAgent, BrowserAgent, RobotAgent pattern
+**Status**: ❌ SUPERSEDED - See `0ad-viewer-interface.md`
+**Goal**: ~~Integrate 0 A.D. RTS game engine as a controllable agent in nimsforest2~~
+**Note**: This plan was based on a misunderstanding. The correct approach is to use 0 A.D. as a **viewer** for nimsforest, not as a controllable game agent. See `0ad-viewer-interface.md` for the correct plan.
 
 ---
 
-## Executive Summary
+## ⚠️ This Plan Is Incorrect
+
+The original request was misunderstood. The user wanted:
+- **0 A.D. as a visualization/control interface FOR nimsforest**
+- NOT nimsforest controlling 0 A.D. gameplay
+
+The correct plan is in **`docs/plans/0ad-viewer-interface.md`**.
+
+This file is kept for reference only.
+
+---
+
+## Executive Summary (Original - Incorrect)
 
 Integrate 0 A.D. (https://github.com/0ad/0ad) as a **GameEngineAgent** in nimsforest2, enabling:
 - Automated gameplay and testing

@@ -9,9 +9,8 @@ Create a **Flowerbed** component that serves static web content (HTML/CSS/JS) fr
 
 **Architectural Role:**
 ```
-Filesystem (content) → Flowerbed (serves) → External Visitors
-                ↑ watches for changes
-              Wind (reload events)
+Bedrock (source of truth) → Soil (index) → Flowerbed (serves) → External Visitors
+         ↑ persistent storage         ↑ events via Wind
 ```
 
 **Success Criteria:**
@@ -32,7 +31,7 @@ Filesystem (content) → Flowerbed (serves) → External Visitors
 
 Like a flowerbed in a garden:
 - 🌸 **Public-facing** - Visible plot where flowers bloom for visitors
-- 🌸 **Fed by the soil** - Gets content from filesystem (organizational soil)
+- 🌸 **Fed by Bedrock** - Gets content from Bedrock (persistent foundation)
 - 🌸 **Attracts visitors** - Beautiful display that draws people in
 - 🌸 **Multiple flowers** - Can host many different blooms (sites)
 
@@ -40,27 +39,31 @@ Like a flowerbed in a garden:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  Organizational Filesystem (Source of Truth)                 │
-│  /sites/marketing/     - Marketing website                   │
-│  /sites/docs/          - Documentation site                  │
-│  /sites/blog/          - Blog content                        │
+│                     Bedrock Layer                            │
+│  (Source of Truth - persistent storage)                      │
+│                                                             │
+│  bedrocks:                                                  │
+│    marketing_site:  type: unix, path: /sites/marketing      │
+│    docs_site:       type: git,  path: /repos/docs           │
+│    blog:            type: unix, path: /sites/blog           │
 └────────┬─────────────────────────────────────────────────────┘
          │
-         │ (1) Filesystem Source watches
+         │ (1) Bedrock emits file change events
          ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                    Wind (NATS)                               │
-│  Events: filesystem.sites.marketing.changed                  │
+│  Events: bedrock.marketing_site.file.modified               │
+│          bedrock.docs_site.file.created                     │
 └────────┬─────────────────────────────────────────────────────┘
          │
-         │ (2) Flowerbed subscribes to reload events
+         │ (2) Flowerbed subscribes to bedrock events
          ▼
 ┌─────────────────────────────────────────────────────────────┐
 │              Static Web Flowerbed                            │
 │  - HTTP server (port 80/443)                                │
-│  - Serves files from filesystem                             │
-│  - Hot-reloads on changes                                   │
-│  - Optional: caches in memory                               │
+│  - Reads content from Bedrock (via Soil cache)              │
+│  - Hot-reloads on bedrock change events                     │
+│  - Optional: in-memory cache for serving                    │
 └────────┬─────────────────────────────────────────────────────┘
          │
          │ (3) Serves content
@@ -70,6 +73,9 @@ Like a flowerbed in a garden:
 │  Browsers requesting https://example.com                     │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+**Key Insight:** Flowerbed reads from Bedrock (the foundation), not directly from filesystem.
+This maintains the layered architecture where Bedrock is the single source of truth.
 
 ### Why NOT a Source/Tree/TreeHouse/Nim?
 
@@ -97,27 +103,32 @@ Like a flowerbed in a garden:
 ```yaml
 # forest.yaml
 
-# Input: Watch filesystem for changes
-sources:
-  marketing_watcher:
-    type: filesystem_watch
-    path: /sites/marketing/**/*
-    publishes: filesystem.sites.marketing.changed
-    load_on_startup: false
-
-  docs_watcher:
-    type: filesystem_watch
-    path: /sites/docs/**/*
-    publishes: filesystem.sites.docs.changed
-    load_on_startup: false
-
-# Output: Serve websites to public
-flowerbeds:
+# Bedrock: The foundation layer (source of truth)
+# See: filesystem-soil-integration.md for full Bedrock details
+bedrocks:
   marketing_site:
+    type: unix
+    path: /sites/marketing
+
+  docs_site:
+    type: git
+    path: /repos/docs
+    remote: git@github.com:org/docs.git
+    branch: main
+    write_mode: pull_request
+
+  blog:
+    type: unix
+    path: /sites/blog
+
+# Output: Serve websites to public (reads from Bedrock)
+flowerbeds:
+  marketing:
     type: static_web
 
-    # Filesystem source
-    root: /sites/marketing/public
+    # Bedrock source (NOT raw filesystem)
+    bedrock: marketing_site
+    root: public  # Relative to bedrock path
 
     # HTTP serving
     domain: example.com
@@ -127,8 +138,8 @@ flowerbeds:
       cert: /certs/example.com.crt
       key: /certs/example.com.key
 
-    # Reload on changes
-    subscribes: filesystem.sites.marketing.changed
+    # Reload on bedrock changes
+    subscribes: bedrock.marketing_site.file.>
 
     # Caching
     cache:
@@ -142,31 +153,34 @@ flowerbeds:
       404: 404.html
       500: 500.html
 
-  docs_site:
+  docs:
     type: static_web
-    root: /sites/docs/
+    bedrock: docs_site
+    root: /  # Serve entire bedrock
     domain: docs.example.com
     port: 443
-    subscribes: filesystem.sites.docs.changed
+    subscribes: bedrock.docs_site.file.>
 
   # Multiple sites on same port (virtual hosting)
-  blog_site:
+  blog:
     type: static_web
-    root: /sites/blog/
+    bedrock: blog
+    root: public
     domain: blog.example.com
     port: 443  # Same port, different domain
-    subscribes: filesystem.sites.blog.changed
+    subscribes: bedrock.blog.file.>
 ```
 
 **Config Struct:**
 ```go
 type Config struct {
+    Bedrocks    map[string]BedrockConfig     `yaml:"bedrocks"`    // Foundation layer
     Sources     map[string]SourceConfig      `yaml:"sources"`
     Trees       map[string]TreeConfig        `yaml:"trees"`
     TreeHouses  map[string]TreeHouseConfig   `yaml:"treehouses"`
     Nims        map[string]NimConfig         `yaml:"nims"`
     Songbirds   map[string]SongbirdConfig    `yaml:"songbirds"`
-    Flowerbeds  map[string]FlowerbedConfig   `yaml:"flowerbeds"`  // NEW
+    Flowerbeds  map[string]FlowerbedConfig   `yaml:"flowerbeds"`
     Viewer      *ViewerConfig                `yaml:"viewer,omitempty"`
 }
 
@@ -174,12 +188,15 @@ type FlowerbedConfig struct {
     Name string `yaml:"-"` // Set from map key
     Type string `yaml:"type"` // "static_web", "api", etc.
 
-    // Static web fields
-    Root       string            `yaml:"root"`        // Filesystem path to serve
+    // Bedrock reference (primary source)
+    Bedrock    string            `yaml:"bedrock"`     // Name of bedrock to read from
+    Root       string            `yaml:"root"`        // Path relative to bedrock root
+
+    // HTTP serving
     Domain     string            `yaml:"domain"`      // Virtual host domain
     Port       int               `yaml:"port"`        // HTTP port
     TLS        *TLSConfig        `yaml:"tls,omitempty"`
-    Subscribes string            `yaml:"subscribes"`  // Reload events
+    Subscribes string            `yaml:"subscribes"`  // Bedrock change events
     Cache      *CacheConfig      `yaml:"cache,omitempty"`
     Index      string            `yaml:"index,omitempty"`      // Default: index.html
     ErrorPages map[int]string    `yaml:"error_pages,omitempty"`
@@ -709,44 +726,57 @@ flowerbeds:
 
 **Simple single site:**
 ```yaml
-sources:
-  site_watcher:
-    type: filesystem_watch
-    path: /sites/mysite/**/*
-    publishes: filesystem.site.changed
+bedrocks:
+  mysite:
+    type: unix
+    path: /sites/mysite
 
 flowerbeds:
   mysite:
     type: static_web
-    root: /sites/mysite/public
+    bedrock: mysite
+    root: public
     port: 8080
-    subscribes: filesystem.site.changed
+    subscribes: bedrock.mysite.file.>
 ```
 
-**Multiple sites with TLS:**
+**Multiple sites with TLS (using Bedrock):**
 ```yaml
+bedrocks:
+  marketing:
+    type: unix
+    path: /sites/marketing
+
+  docs:
+    type: git
+    path: /repos/docs
+    remote: git@github.com:org/docs.git
+    write_mode: pull_request
+
 flowerbeds:
   marketing:
     type: static_web
-    root: /sites/marketing/
+    bedrock: marketing
+    root: /
     domain: example.com
     port: 443
     tls:
       enabled: true
       cert: /certs/example.com.crt
       key: /certs/example.com.key
-    subscribes: filesystem.sites.marketing.changed
+    subscribes: bedrock.marketing.file.>
 
   docs:
     type: static_web
-    root: /sites/docs/
+    bedrock: docs
+    root: /
     domain: docs.example.com
     port: 443
     tls:
       enabled: true
       cert: /certs/docs.example.com.crt
       key: /certs/docs.example.com.key
-    subscribes: filesystem.sites.docs.changed
+    subscribes: bedrock.docs.file.>
 ```
 
 ---
@@ -860,11 +890,17 @@ Just as a flowerbed is the visible, cultivated plot where flowers bloom for visi
 
 **Flowerbed components:**
 - 🌸 Show the forest's work to external visitors
-- 🌸 Are fed by the organizational filesystem (soil)
+- 🌸 Are fed by Bedrock (the persistent foundation layer)
 - 🌸 Attract traffic (visitors come to see the blooms)
 - 🌸 Come in different types (static web, APIs, etc.)
 - 🌸 Multiple flowerbeds can exist in the same garden (forest)
 - 🌸 Can contain many different flowers (websites, endpoints)
+
+**Architectural Dependency:**
+```
+Bedrock (source of truth) → Soil (index/cache) → Flowerbed (serves)
+```
+Flowerbed never bypasses Bedrock. See [filesystem-soil-integration.md](./filesystem-soil-integration.md) for Bedrock details.
 
 **StaticWebFlowerbed** is the first type of Flowerbed - it serves static HTML/CSS/JS to the world.
 

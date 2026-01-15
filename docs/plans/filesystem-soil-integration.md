@@ -1,6 +1,6 @@
 # Bedrock: Persistent Storage Foundation
 
-**Status**: 📋 Planned
+**Status**: 🚧 In Progress (Core Implementation Complete)
 **Goal**: Establish Bedrocks as the persistent storage layer beneath Soil
 
 ## Core Metaphor
@@ -543,14 +543,30 @@ bedrocks:
 
 ## Success Criteria
 
-- [ ] Unix bedrock implemented with fsnotify
-- [ ] Git bedrock implemented with PR workflow
+- [x] Unix bedrock implemented with fsnotify
+- [x] Git bedrock implemented with PR workflow
 - [ ] BedrockReadTreehouse builds tree/index in Soil
 - [ ] BedrockWriteTreehouse handles persist.* with locking
 - [ ] Cluster recovery rebuilds Soil from bedrocks
-- [ ] Tree regeneration batched for performance
+- [x] Tree regeneration batched for performance
 - [ ] Locks prevent concurrent writes
 - [ ] PR locks held until human approval
+
+## Implementation Progress
+
+### Completed (Phase 1)
+- Core `Bedrock` interface with read/write operations
+- `UnixBedrock` - filesystem access with fsnotify watching
+- `GitBedrockImpl` - git repository with commit and PR workflows
+- Forest integration - bedrocks start/stop with forest lifecycle
+- Configuration support - YAML config for bedrocks
+- Comprehensive test suite
+
+### Remaining (Phase 2)
+- `BedrockReadTreehouse` - Soil indexing from bedrock events
+- `BedrockWriteTreehouse` - Persist operations with distributed locking
+- Cluster recovery from bedrock state
+- External bedrocks (Google Drive, S3) - future
 
 ---
 

@@ -13,6 +13,7 @@ import (
 
 // Config represents the forest configuration loaded from YAML.
 type Config struct {
+	Bedrocks   map[string]BedrockConfig   `yaml:"bedrocks"`
 	Sources    map[string]SourceConfig    `yaml:"sources"`
 	Trees      map[string]TreeConfig      `yaml:"trees"`
 	TreeHouses map[string]TreeHouseConfig `yaml:"treehouses"`
@@ -23,6 +24,59 @@ type Config struct {
 	// BaseDir is the directory from which the config was loaded.
 	// Used to resolve relative script/prompt paths.
 	BaseDir string `yaml:"-"`
+}
+
+// BedrockConfig defines a Bedrock - persistent storage beneath Soil.
+type BedrockConfig struct {
+	Name string `yaml:"-"` // Set from map key
+
+	// Type of bedrock: unix, git, google_drive, s3
+	Type string `yaml:"type"`
+
+	// Path to the local directory (for unix and git types)
+	Path string `yaml:"path,omitempty"`
+
+	// ReadOnly makes the bedrock read-only
+	ReadOnly bool `yaml:"readonly,omitempty"`
+
+	// Git-specific fields
+	Remote    string                 `yaml:"remote,omitempty"`
+	Branch    string                 `yaml:"branch,omitempty"`
+	WriteMode string                 `yaml:"write_mode,omitempty"` // "commit" or "pull_request"
+	PRConfig  *BedrockPRConfig       `yaml:"pr_config,omitempty"`
+
+	// Cache policy
+	CachePolicy *BedrockCacheConfig `yaml:"cache_policy,omitempty"`
+
+	// Tree configuration
+	TreeConfig *BedrockTreeConfig `yaml:"tree_config,omitempty"`
+
+	// External bedrock fields (future)
+	Credentials  string `yaml:"credentials,omitempty"`
+	Root         string `yaml:"root,omitempty"`
+	Bucket       string `yaml:"bucket,omitempty"`
+	Region       string `yaml:"region,omitempty"`
+	PollInterval string `yaml:"poll_interval,omitempty"`
+}
+
+// BedrockPRConfig configures pull request creation for git bedrocks.
+type BedrockPRConfig struct {
+	BaseBranch   string   `yaml:"base_branch,omitempty"`
+	BranchPrefix string   `yaml:"branch_prefix,omitempty"`
+	Reviewers    []string `yaml:"reviewers,omitempty"`
+	Labels       []string `yaml:"labels,omitempty"`
+}
+
+// BedrockCacheConfig configures caching for bedrock files.
+type BedrockCacheConfig struct {
+	HotPatterns []string `yaml:"hot_patterns,omitempty"` // Patterns to cache in Soil
+	MaxFileSize string   `yaml:"max_file_size,omitempty"` // Max file size to cache
+}
+
+// BedrockTreeConfig configures tree regeneration.
+type BedrockTreeConfig struct {
+	BatchCount int    `yaml:"batch_count,omitempty"` // Changes before regenerating tree
+	MaxDelay   string `yaml:"max_delay,omitempty"`   // Max time between tree updates
 }
 
 // ViewerConfig configures the viewmodel state publisher.
@@ -146,6 +200,11 @@ func LoadConfig(path string) (*Config, error) {
 	cfg.BaseDir = filepath.Dir(absPath)
 
 	// Set names from map keys
+	for name := range cfg.Bedrocks {
+		b := cfg.Bedrocks[name]
+		b.Name = name
+		cfg.Bedrocks[name] = b
+	}
 	for name := range cfg.Sources {
 		s := cfg.Sources[name]
 		s.Name = name
@@ -182,6 +241,39 @@ func LoadConfig(path string) (*Config, error) {
 
 // Validate checks that the configuration is valid.
 func (c *Config) Validate() error {
+	// Validate bedrocks
+	for name, b := range c.Bedrocks {
+		if b.Type == "" {
+			return fmt.Errorf("bedrock %q: missing type", name)
+		}
+		switch b.Type {
+		case "unix":
+			if b.Path == "" {
+				return fmt.Errorf("bedrock %q: unix requires path", name)
+			}
+		case "git":
+			if b.Path == "" {
+				return fmt.Errorf("bedrock %q: git requires path", name)
+			}
+			if b.WriteMode != "" && b.WriteMode != "commit" && b.WriteMode != "pull_request" {
+				return fmt.Errorf("bedrock %q: invalid write_mode %q (use commit or pull_request)", name, b.WriteMode)
+			}
+		case "google_drive":
+			if b.Credentials == "" {
+				return fmt.Errorf("bedrock %q: google_drive requires credentials", name)
+			}
+			if b.Root == "" {
+				return fmt.Errorf("bedrock %q: google_drive requires root", name)
+			}
+		case "s3":
+			if b.Bucket == "" {
+				return fmt.Errorf("bedrock %q: s3 requires bucket", name)
+			}
+		default:
+			return fmt.Errorf("bedrock %q: unknown type %q (use unix, git, google_drive, or s3)", name, b.Type)
+		}
+	}
+
 	// Validate sources
 	for name, s := range c.Sources {
 		if s.Type == "" {

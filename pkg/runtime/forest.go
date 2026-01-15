@@ -27,6 +27,7 @@ type Forest struct {
 	thisLand *core.LandInfo
 
 	// Components
+	bedrocks   map[string]Bedrock
 	sources    map[string]core.Source
 	trees      map[string]*Tree
 	treehouses map[string]*TreeHouse
@@ -64,6 +65,7 @@ func NewForestFromConfig(cfg *Config, wind *core.Wind, b brain.Brain) (*Forest, 
 		config:     cfg,
 		wind:       wind,
 		brain:      b,
+		bedrocks:   make(map[string]Bedrock),
 		sources:    make(map[string]core.Source),
 		trees:      make(map[string]*Tree),
 		treehouses: make(map[string]*TreeHouse),
@@ -72,6 +74,15 @@ func NewForestFromConfig(cfg *Config, wind *core.Wind, b brain.Brain) (*Forest, 
 	}
 
 	// Note: Trees and Sources require River, which must be set via SetRiver() before Start()
+
+	// Create Bedrocks
+	for name, brCfg := range cfg.Bedrocks {
+		br, err := createBedrock(name, brCfg, cfg)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create bedrock %s: %w", name, err)
+		}
+		f.bedrocks[name] = br
+	}
 
 	// Create TreeHouses
 	for name, thCfg := range cfg.TreeHouses {
@@ -119,6 +130,7 @@ func NewForestWithHumus(cfg *Config, wind *core.Wind, humus *core.Humus, b brain
 		wind:       wind,
 		humus:      humus,
 		brain:      b,
+		bedrocks:   make(map[string]Bedrock),
 		sources:    make(map[string]core.Source),
 		trees:      make(map[string]*Tree),
 		treehouses: make(map[string]*TreeHouse),
@@ -127,6 +139,15 @@ func NewForestWithHumus(cfg *Config, wind *core.Wind, humus *core.Humus, b brain
 	}
 
 	// Note: Trees and Sources require River, which must be set via SetRiver() before Start()
+
+	// Create Bedrocks
+	for name, brCfg := range cfg.Bedrocks {
+		br, err := createBedrock(name, brCfg, cfg)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create bedrock %s: %w", name, err)
+		}
+		f.bedrocks[name] = br
+	}
 
 	// Create TreeHouses
 	for name, thCfg := range cfg.TreeHouses {
@@ -183,6 +204,17 @@ func (f *Forest) Start(ctx context.Context) error {
 			f.thisLand.Type, f.thisLand.Name,
 			formatBytes(f.thisLand.RAMTotal), f.thisLand.CPUCores,
 			f.thisLand.HasDocker, f.thisLand.GPUVram > 0)
+	}
+
+	// Start Bedrocks first (they provide the foundation)
+	for name, br := range f.bedrocks {
+		if err := br.Start(ctx); err != nil {
+			f.stopAll()
+			return fmt.Errorf("failed to start bedrock %s: %w", name, err)
+		}
+	}
+	if len(f.bedrocks) > 0 {
+		log.Printf("[Forest] Started %d bedrocks", len(f.bedrocks))
 	}
 
 	// Create source factory if river is available
@@ -360,6 +392,10 @@ func (f *Forest) stopAll() {
 	}
 	for _, sb := range f.songbirds {
 		sb.Stop()
+	}
+	// Stop bedrocks last (they're the foundation)
+	for _, br := range f.bedrocks {
+		br.Stop()
 	}
 }
 
@@ -1055,4 +1091,175 @@ func formatBytes(b uint64) string {
 		exp++
 	}
 	return fmt.Sprintf("%.1f %cB", float64(b)/float64(div), "KMGTPE"[exp])
+}
+
+// =============================================================================
+// Bedrock Management
+// =============================================================================
+
+// Bedrock returns a Bedrock by name.
+func (f *Forest) Bedrock(name string) Bedrock {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.bedrocks[name]
+}
+
+// Bedrocks returns all bedrocks.
+func (f *Forest) Bedrocks() map[string]Bedrock {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	// Return a copy
+	result := make(map[string]Bedrock, len(f.bedrocks))
+	for k, v := range f.bedrocks {
+		result[k] = v
+	}
+	return result
+}
+
+// BedrockInfo provides information about a bedrock.
+type BedrockInfo struct {
+	Name      string `json:"name"`
+	Type      string `json:"type"`
+	Root      string `json:"root,omitempty"`
+	ReadOnly  bool   `json:"readonly"`
+	Running   bool   `json:"running"`
+	FileCount int    `json:"file_count,omitempty"`
+	TotalSize int64  `json:"total_size,omitempty"`
+}
+
+// ListBedrocks returns information about all bedrocks.
+func (f *Forest) ListBedrocks() []BedrockInfo {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	var infos []BedrockInfo
+	for name, br := range f.bedrocks {
+		info := BedrockInfo{
+			Name:     name,
+			Type:     br.Type(),
+			ReadOnly: br.IsReadOnly(),
+			Running:  f.running,
+		}
+
+		// Get additional info if available
+		switch b := br.(type) {
+		case *UnixBedrock:
+			info.Root = b.Root()
+			if manifest, err := b.Manifest(); err == nil {
+				info.FileCount = manifest.FileCount
+				info.TotalSize = manifest.TotalSize
+			}
+		case *GitBedrockImpl:
+			info.Root = b.Root()
+			if manifest, err := b.Manifest(); err == nil {
+				info.FileCount = manifest.FileCount
+				info.TotalSize = manifest.TotalSize
+			}
+		}
+
+		infos = append(infos, info)
+	}
+	return infos
+}
+
+// AddBedrock adds a new Bedrock at runtime.
+func (f *Forest) AddBedrock(name string, cfg BedrockConfig) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if _, exists := f.bedrocks[name]; exists {
+		return fmt.Errorf("bedrock '%s' already exists", name)
+	}
+
+	// Ensure name is set
+	cfg.Name = name
+
+	br, err := createBedrock(name, cfg, f.config)
+	if err != nil {
+		return fmt.Errorf("failed to create bedrock: %w", err)
+	}
+
+	// Start it if the forest is running
+	if f.running {
+		if err := br.Start(context.Background()); err != nil {
+			return fmt.Errorf("failed to start bedrock: %w", err)
+		}
+	}
+
+	// Add to maps
+	f.bedrocks[name] = br
+	if f.config.Bedrocks == nil {
+		f.config.Bedrocks = make(map[string]BedrockConfig)
+	}
+	f.config.Bedrocks[name] = cfg
+
+	log.Printf("[Forest] Added bedrock '%s' (type: %s)", name, cfg.Type)
+	return nil
+}
+
+// RemoveBedrock removes a Bedrock at runtime.
+func (f *Forest) RemoveBedrock(name string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	br, exists := f.bedrocks[name]
+	if !exists {
+		return fmt.Errorf("bedrock '%s' not found", name)
+	}
+
+	// Stop it
+	if err := br.Stop(); err != nil {
+		log.Printf("[Forest] Warning: error stopping bedrock '%s': %v", name, err)
+	}
+
+	// Remove from maps
+	delete(f.bedrocks, name)
+	delete(f.config.Bedrocks, name)
+
+	log.Printf("[Forest] Removed bedrock '%s'", name)
+	return nil
+}
+
+// createBedrock creates a bedrock from configuration.
+func createBedrock(name string, cfg BedrockConfig, forestCfg *Config) (Bedrock, error) {
+	// Resolve path if relative
+	path := cfg.Path
+	if path != "" && forestCfg != nil {
+		path = forestCfg.ResolvePath(path)
+	}
+
+	switch cfg.Type {
+	case "unix":
+		return NewUnixBedrock(UnixBedrockConfig{
+			Name:     name,
+			Path:     path,
+			ReadOnly: cfg.ReadOnly,
+		})
+
+	case "git":
+		var prConfig *PRConfig
+		if cfg.PRConfig != nil {
+			prConfig = &PRConfig{
+				BaseBranch:   cfg.PRConfig.BaseBranch,
+				BranchPrefix: cfg.PRConfig.BranchPrefix,
+				Reviewers:    cfg.PRConfig.Reviewers,
+				Labels:       cfg.PRConfig.Labels,
+			}
+		}
+		return NewGitBedrock(GitBedrockConfig{
+			Name:      name,
+			Path:      path,
+			Remote:    cfg.Remote,
+			Branch:    cfg.Branch,
+			WriteMode: cfg.WriteMode,
+			PRConfig:  prConfig,
+			ReadOnly:  cfg.ReadOnly,
+		})
+
+	case "google_drive", "s3":
+		return nil, fmt.Errorf("bedrock type '%s' not yet implemented", cfg.Type)
+
+	default:
+		return nil, fmt.Errorf("unknown bedrock type: %s", cfg.Type)
+	}
 }

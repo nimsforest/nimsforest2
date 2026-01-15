@@ -22,6 +22,14 @@ Each phase is a **self-contained, actionable plan** that an agent can execute in
 | **C** | ⏳ Blocked | [phase-c-first-flow.md](./phase-c-first-flow.md) | CoderNim AAA implementation | ~3 hrs |
 | **D** | 📋 Future | [future-phases.md](./future-phases.md) | Additional agents, cleanup | TBD |
 
+### Infrastructure Plans
+| Plan | Status | File | Description |
+|------|--------|------|-------------|
+| **Bedrock** | 📋 Planned | [filesystem-soil-integration.md](./filesystem-soil-integration.md) | Persistent storage foundation (source of truth) |
+| **Static Web Flowerbed** | 📋 Planned | [static-web-flowerbed.md](./static-web-flowerbed.md) | Public content server (depends on Bedrock) |
+| **0AD Viewer** | 📋 Planned | [0ad-viewer-interface.md](./0ad-viewer-interface.md) | Game interface integration |
+| **0AD Engine** | 📋 Planned | [0ad-game-engine-interface.md](./0ad-game-engine-interface.md) | Game engine interface |
+
 ---
 
 ## 🎯 Design Principles
